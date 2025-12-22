@@ -1,6 +1,7 @@
 import dotenv from "dotenv";
 import { sequelize } from "./connection.js";
-import { Usuario } from "../models/index.js";
+import "../models/index.js"; // Importa todos os models para criar as tabelas
+import Usuario from "../models/Usuario.js";
 
 dotenv.config();
 
