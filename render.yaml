@@ -6,7 +6,6 @@ services:
     region: oregon
     plan: free
     buildCommand: npm install
-    preDeployCommand: node src/database/seed-admin.js
     startCommand: npm start
     envVars:
       - key: NODE_ENV

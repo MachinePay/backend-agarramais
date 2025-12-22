@@ -71,6 +71,26 @@ const startServer = async () => {
     await sequelize.sync({ alter: process.env.NODE_ENV === "development" });
     console.log("✅ Database sincronizado!");
 
+    // Criar admin padrão se não existir
+    const { Usuario } = await import("./models/index.js");
+    const adminEmail = process.env.ADMIN_EMAIL || "admin@agarramais.com";
+    const adminExistente = await Usuario.findOne({
+      where: { email: adminEmail },
+    });
+
+    if (!adminExistente) {
+      const adminPassword = process.env.ADMIN_PASSWORD || "Admin@123";
+      await Usuario.create({
+        nome: "Administrador",
+        email: adminEmail,
+        senha: adminPassword,
+        role: "ADMIN",
+        telefone: "(11) 99999-9999",
+        ativo: true,
+      });
+      console.log("✅ Usuário admin criado:", adminEmail);
+    }
+
     app.listen(PORT, "0.0.0.0", () => {
       console.log(`🚀 Servidor rodando na porta ${PORT}`);
       console.log(`📍 http://localhost:${PORT}`);
