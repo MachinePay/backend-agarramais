@@ -45,20 +45,46 @@ export const obterProduto = async (req, res) => {
 // US06 - Criar produto
 export const criarProduto = async (req, res) => {
   try {
-    const { nome, descricao, categoria, tamanho, custoUnitario, imagemUrl } =
-      req.body;
+    const {
+      codigo,
+      nome,
+      descricao,
+      categoria,
+      tamanho,
+      emoji,
+      preco,
+      custoUnitario,
+      estoqueAtual,
+      estoqueMinimo,
+      imagemUrl,
+      ativo,
+    } = req.body;
 
     if (!nome) {
       return res.status(400).json({ error: "Nome do produto é obrigatório" });
     }
 
+    // Verificar se código já existe (se fornecido)
+    if (codigo) {
+      const produtoExistente = await Produto.findOne({ where: { codigo } });
+      if (produtoExistente) {
+        return res.status(400).json({ error: "Código de produto já existe" });
+      }
+    }
+
     const produto = await Produto.create({
+      codigo,
       nome,
       descricao,
       categoria,
       tamanho,
+      emoji,
+      preco,
       custoUnitario,
+      estoqueAtual,
+      estoqueMinimo,
       imagemUrl,
+      ativo,
     });
 
     res.locals.entityId = produto.id;
@@ -79,21 +105,39 @@ export const atualizarProduto = async (req, res) => {
     }
 
     const {
+      codigo,
       nome,
       descricao,
       categoria,
       tamanho,
+      emoji,
+      preco,
       custoUnitario,
+      estoqueAtual,
+      estoqueMinimo,
       imagemUrl,
       ativo,
     } = req.body;
 
+    // Verificar código duplicado se estiver mudando
+    if (codigo && codigo !== produto.codigo) {
+      const produtoExistente = await Produto.findOne({ where: { codigo } });
+      if (produtoExistente) {
+        return res.status(400).json({ error: "Código de produto já existe" });
+      }
+    }
+
     await produto.update({
+      codigo: codigo ?? produto.codigo,
       nome: nome ?? produto.nome,
       descricao: descricao ?? produto.descricao,
       categoria: categoria ?? produto.categoria,
       tamanho: tamanho ?? produto.tamanho,
+      emoji: emoji ?? produto.emoji,
+      preco: preco ?? produto.preco,
       custoUnitario: custoUnitario ?? produto.custoUnitario,
+      estoqueAtual: estoqueAtual ?? produto.estoqueAtual,
+      estoqueMinimo: estoqueMinimo ?? produto.estoqueMinimo,
       imagemUrl: imagemUrl ?? produto.imagemUrl,
       ativo: ativo ?? produto.ativo,
     });

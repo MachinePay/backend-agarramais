@@ -9,6 +9,12 @@ const Produto = sequelize.define(
       defaultValue: DataTypes.UUIDV4,
       primaryKey: true,
     },
+    codigo: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+      unique: true,
+      comment: "Código do produto para identificação",
+    },
     nome: {
       type: DataTypes.STRING(100),
       allowNull: false,
@@ -27,10 +33,34 @@ const Produto = sequelize.define(
       allowNull: true,
       comment: "Ex: Pequeno, Médio, Grande",
     },
+    emoji: {
+      type: DataTypes.STRING(10),
+      allowNull: true,
+      comment: "Emoji visual do produto",
+    },
+    preco: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+      defaultValue: 0,
+      comment: "Preço de venda",
+    },
     custoUnitario: {
       type: DataTypes.DECIMAL(10, 2),
       allowNull: true,
       defaultValue: 0,
+      comment: "Custo do produto",
+    },
+    estoqueAtual: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      defaultValue: 0,
+      comment: "Estoque atual disponível",
+    },
+    estoqueMinimo: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      defaultValue: 0,
+      comment: "Estoque mínimo para alertas",
     },
     imagemUrl: {
       type: DataTypes.STRING(255),
