@@ -47,6 +47,20 @@ app.get("/health", (req, res) => {
   res.json({ status: "OK", timestamp: new Date().toISOString() });
 });
 
+// Debug endpoint - remover em produção
+app.get("/debug/admin", async (req, res) => {
+  const { Usuario } = await import("./models/index.js");
+  const admin = await Usuario.findOne({
+    where: { email: process.env.ADMIN_EMAIL || "admin@agarramais.com" },
+  });
+  res.json({
+    adminExists: !!admin,
+    email: admin?.email,
+    role: admin?.role,
+    ativo: admin?.ativo,
+  });
+});
+
 // Routes
 app.use("/api", routes);
 
