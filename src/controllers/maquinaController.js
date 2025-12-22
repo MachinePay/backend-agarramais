@@ -12,6 +12,7 @@ export const listarMaquinas = async (req, res) => {
 
     const maquinas = await Maquina.findAll({
       where,
+      attributes: { exclude: [] }, // Inclui todos os atributos da máquina, inclusive lojaId
       include: [
         {
           model: Loja,
@@ -33,6 +34,7 @@ export const listarMaquinas = async (req, res) => {
 export const obterMaquina = async (req, res) => {
   try {
     const maquina = await Maquina.findByPk(req.params.id, {
+      attributes: { exclude: [] }, // Inclui todos os atributos, inclusive lojaId
       include: [
         {
           model: Loja,
