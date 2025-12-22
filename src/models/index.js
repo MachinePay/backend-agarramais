@@ -1,0 +1,87 @@
+import Usuario from "./Usuario.js";
+import Loja from "./Loja.js";
+import Maquina from "./Maquina.js";
+import Produto from "./Produto.js";
+import Movimentacao from "./Movimentacao.js";
+import MovimentacaoProduto from "./MovimentacaoProduto.js";
+import LogAtividade from "./LogAtividade.js";
+import UsuarioLoja from "./UsuarioLoja.js";
+
+// Relacionamentos
+
+// Loja -> Máquinas
+Loja.hasMany(Maquina, { foreignKey: "lojaId", as: "maquinas" });
+Maquina.belongsTo(Loja, { foreignKey: "lojaId", as: "loja" });
+
+// Máquina -> Movimentações
+Maquina.hasMany(Movimentacao, { foreignKey: "maquinaId", as: "movimentacoes" });
+Movimentacao.belongsTo(Maquina, { foreignKey: "maquinaId", as: "maquina" });
+
+// Usuário -> Movimentações
+Usuario.hasMany(Movimentacao, { foreignKey: "usuarioId", as: "movimentacoes" });
+Movimentacao.belongsTo(Usuario, { foreignKey: "usuarioId", as: "usuario" });
+
+// Movimentação <-> Produtos (many-to-many)
+Movimentacao.belongsToMany(Produto, {
+  through: MovimentacaoProduto,
+  foreignKey: "movimentacaoId",
+  otherKey: "produtoId",
+  as: "produtos",
+});
+
+Produto.belongsToMany(Movimentacao, {
+  through: MovimentacaoProduto,
+  foreignKey: "produtoId",
+  otherKey: "movimentacaoId",
+  as: "movimentacoes",
+});
+
+// Acesso direto à tabela intermediária
+Movimentacao.hasMany(MovimentacaoProduto, {
+  foreignKey: "movimentacaoId",
+  as: "detalhesProdutos",
+});
+MovimentacaoProduto.belongsTo(Movimentacao, { foreignKey: "movimentacaoId" });
+MovimentacaoProduto.belongsTo(Produto, {
+  foreignKey: "produtoId",
+  as: "produto",
+});
+
+// Usuário -> Logs
+Usuario.hasMany(LogAtividade, { foreignKey: "usuarioId", as: "logs" });
+LogAtividade.belongsTo(Usuario, { foreignKey: "usuarioId", as: "usuario" });
+
+// Usuário <-> Lojas (RBAC - many-to-many)
+Usuario.belongsToMany(Loja, {
+  through: UsuarioLoja,
+  foreignKey: "usuarioId",
+  otherKey: "lojaId",
+  as: "lojasPermitidas",
+});
+
+Loja.belongsToMany(Usuario, {
+  through: UsuarioLoja,
+  foreignKey: "lojaId",
+  otherKey: "usuarioId",
+  as: "usuariosPermitidos",
+});
+
+// Acesso direto à tabela UsuarioLoja
+Usuario.hasMany(UsuarioLoja, {
+  foreignKey: "usuarioId",
+  as: "permissoesLojas",
+});
+Loja.hasMany(UsuarioLoja, { foreignKey: "lojaId", as: "permissoesUsuarios" });
+UsuarioLoja.belongsTo(Usuario, { foreignKey: "usuarioId" });
+UsuarioLoja.belongsTo(Loja, { foreignKey: "lojaId" });
+
+export {
+  Usuario,
+  Loja,
+  Maquina,
+  Produto,
+  Movimentacao,
+  MovimentacaoProduto,
+  LogAtividade,
+  UsuarioLoja,
+};

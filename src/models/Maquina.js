@@ -1,0 +1,69 @@
+import { DataTypes } from "sequelize";
+import { sequelize } from "../database/connection.js";
+
+const Maquina = sequelize.define(
+  "Maquina",
+  {
+    id: {
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
+      primaryKey: true,
+    },
+    codigo: {
+      type: DataTypes.STRING(50),
+      allowNull: false,
+      unique: true,
+      comment: "Ex: M01, M02, TK BALL",
+    },
+    nome: {
+      type: DataTypes.STRING(100),
+      allowNull: true,
+    },
+    tipo: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+      comment: "Ex: Agarra Mais, TakeBall",
+    },
+    lojaId: {
+      type: DataTypes.UUID,
+      allowNull: false,
+      references: {
+        model: "lojas",
+        key: "id",
+      },
+    },
+    capacidadePadrao: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 100,
+      comment: "Quantidade máxima que a máquina comporta",
+    },
+    valorFicha: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: false,
+      defaultValue: 5.0,
+      comment: "Valor em R$ de cada ficha",
+    },
+    percentualAlertaEstoque: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 30,
+      comment: "Porcentagem mínima para alertar estoque baixo",
+    },
+    localizacao: {
+      type: DataTypes.STRING(100),
+      allowNull: true,
+      comment: "Posição dentro da loja",
+    },
+    ativo: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: true,
+    },
+  },
+  {
+    tableName: "maquinas",
+    timestamps: true,
+  }
+);
+
+export default Maquina;

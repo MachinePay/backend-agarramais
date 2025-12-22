@@ -1,0 +1,145 @@
+import { Produto } from "../models/index.js";
+
+// US06 - Listar produtos
+export const listarProdutos = async (req, res) => {
+  try {
+    const { categoria, ativo } = req.query;
+    const where = {};
+
+    if (categoria) {
+      where.categoria = categoria;
+    }
+
+    if (ativo !== undefined) {
+      where.ativo = ativo === "true";
+    }
+
+    const produtos = await Produto.findAll({
+      where,
+      order: [["nome", "ASC"]],
+    });
+
+    res.json(produtos);
+  } catch (error) {
+    console.error("Erro ao listar produtos:", error);
+    res.status(500).json({ error: "Erro ao listar produtos" });
+  }
+};
+
+// US06 - Obter produto por ID
+export const obterProduto = async (req, res) => {
+  try {
+    const produto = await Produto.findByPk(req.params.id);
+
+    if (!produto) {
+      return res.status(404).json({ error: "Produto não encontrado" });
+    }
+
+    res.json(produto);
+  } catch (error) {
+    console.error("Erro ao obter produto:", error);
+    res.status(500).json({ error: "Erro ao obter produto" });
+  }
+};
+
+// US06 - Criar produto
+export const criarProduto = async (req, res) => {
+  try {
+    const { nome, descricao, categoria, tamanho, custoUnitario, imagemUrl } =
+      req.body;
+
+    if (!nome) {
+      return res.status(400).json({ error: "Nome do produto é obrigatório" });
+    }
+
+    const produto = await Produto.create({
+      nome,
+      descricao,
+      categoria,
+      tamanho,
+      custoUnitario,
+      imagemUrl,
+    });
+
+    res.locals.entityId = produto.id;
+    res.status(201).json(produto);
+  } catch (error) {
+    console.error("Erro ao criar produto:", error);
+    res.status(500).json({ error: "Erro ao criar produto" });
+  }
+};
+
+// US06 - Atualizar produto
+export const atualizarProduto = async (req, res) => {
+  try {
+    const produto = await Produto.findByPk(req.params.id);
+
+    if (!produto) {
+      return res.status(404).json({ error: "Produto não encontrado" });
+    }
+
+    const {
+      nome,
+      descricao,
+      categoria,
+      tamanho,
+      custoUnitario,
+      imagemUrl,
+      ativo,
+    } = req.body;
+
+    await produto.update({
+      nome: nome ?? produto.nome,
+      descricao: descricao ?? produto.descricao,
+      categoria: categoria ?? produto.categoria,
+      tamanho: tamanho ?? produto.tamanho,
+      custoUnitario: custoUnitario ?? produto.custoUnitario,
+      imagemUrl: imagemUrl ?? produto.imagemUrl,
+      ativo: ativo ?? produto.ativo,
+    });
+
+    res.json(produto);
+  } catch (error) {
+    console.error("Erro ao atualizar produto:", error);
+    res.status(500).json({ error: "Erro ao atualizar produto" });
+  }
+};
+
+// US06 - Deletar produto
+export const deletarProduto = async (req, res) => {
+  try {
+    const produto = await Produto.findByPk(req.params.id);
+
+    if (!produto) {
+      return res.status(404).json({ error: "Produto não encontrado" });
+    }
+
+    // Soft delete
+    await produto.update({ ativo: false });
+
+    res.json({ message: "Produto desativado com sucesso" });
+  } catch (error) {
+    console.error("Erro ao deletar produto:", error);
+    res.status(500).json({ error: "Erro ao deletar produto" });
+  }
+};
+
+// Listar categorias únicas
+export const listarCategorias = async (req, res) => {
+  try {
+    const categorias = await Produto.findAll({
+      attributes: [
+        [sequelize.fn("DISTINCT", sequelize.col("categoria")), "categoria"],
+      ],
+      where: {
+        categoria: { [sequelize.Op.ne]: null },
+      },
+      raw: true,
+    });
+
+    res.json(categorias.map((c) => c.categoria));
+  } catch (error) {
+    console.error("Erro ao listar categorias:", error);
+    res.status(500).json({ error: "Erro ao listar categorias" });
+  }
+};

@@ -1,0 +1,20 @@
+import express from "express";
+import authRoutes from "./auth.routes.js";
+import usuarioRoutes from './usuario.routes.js';
+import lojaRoutes from './loja.routes.js';
+import maquinaRoutes from './maquina.routes.js';
+import produtoRoutes from './produto.routes.js';
+import movimentacaoRoutes from './movimentacao.routes.js';
+import relatorioRoutes from './relatorio.routes.js';
+
+const router = express.Router();
+
+router.use('/auth', authRoutes);
+router.use('/usuarios', usuarioRoutes);
+router.use("/lojas", lojaRoutes);
+router.use("/maquinas", maquinaRoutes);
+router.use("/produtos", produtoRoutes);
+router.use("/movimentacoes", movimentacaoRoutes);
+router.use("/relatorios", relatorioRoutes);
+
+export default router;

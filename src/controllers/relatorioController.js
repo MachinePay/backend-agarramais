@@ -1,0 +1,312 @@
+import {
+  Movimentacao,
+  MovimentacaoProduto,
+  Maquina,
+  Loja,
+  Produto,
+} from "../models/index.js";
+import { Op, fn, col, literal } from "sequelize";
+import { sequelize } from "../database/connection.js";
+
+// US13 - Dashboard de Balanço Semanal
+export const balançoSemanal = async (req, res) => {
+  try {
+    const { lojaId, dataInicio, dataFim } = req.query;
+
+    // Definir período padrão (últimos 7 dias)
+    const fim = dataFim ? new Date(dataFim) : new Date();
+    const inicio = dataInicio
+      ? new Date(dataInicio)
+      : new Date(fim.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    const whereMovimentacao = {
+      dataColeta: {
+        [Op.between]: [inicio, fim],
+      },
+    };
+
+    const includeMaquina = {
+      model: Maquina,
+      as: "maquina",
+      attributes: ["id", "codigo", "lojaId"],
+      include: [
+        {
+          model: Loja,
+          as: "loja",
+          attributes: ["id", "nome"],
+        },
+      ],
+    };
+
+    if (lojaId) {
+      includeMaquina.where = { lojaId };
+    }
+
+    // Buscar todas movimentações do período
+    const movimentacoes = await Movimentacao.findAll({
+      where: whereMovimentacao,
+      include: [
+        includeMaquina,
+        {
+          model: MovimentacaoProduto,
+          as: "detalhesProdutos",
+          include: [
+            {
+              model: Produto,
+              as: "produto",
+              attributes: ["id", "nome", "categoria"],
+            },
+          ],
+        },
+      ],
+    });
+
+    // Calcular totais gerais
+    const totais = movimentacoes.reduce(
+      (acc, mov) => {
+        acc.totalFichas += mov.fichas || 0;
+        acc.totalFaturamento += parseFloat(mov.valorFaturado || 0);
+        acc.totalSairam += mov.sairam || 0;
+        acc.totalAbastecidas += mov.abastecidas || 0;
+        return acc;
+      },
+      {
+        totalFichas: 0,
+        totalFaturamento: 0,
+        totalSairam: 0,
+        totalAbastecidas: 0,
+      }
+    );
+
+    // Calcular média fichas/prêmio
+    totais.mediaFichasPremio =
+      totais.totalSairam > 0
+        ? (totais.totalFichas / totais.totalSairam).toFixed(2)
+        : 0;
+
+    // Agrupar por produto
+    const produtosMap = {};
+    movimentacoes.forEach((mov) => {
+      mov.detalhesProdutos?.forEach((dp) => {
+        const produtoNome = dp.produto?.nome || "Não especificado";
+        if (!produtosMap[produtoNome]) {
+          produtosMap[produtoNome] = {
+            nome: produtoNome,
+            quantidadeSaiu: 0,
+            quantidadeAbastecida: 0,
+          };
+        }
+        produtosMap[produtoNome].quantidadeSaiu += dp.quantidadeSaiu || 0;
+        produtosMap[produtoNome].quantidadeAbastecida +=
+          dp.quantidadeAbastecida || 0;
+      });
+    });
+
+    // Calcular porcentagens
+    const distribuicaoProdutos = Object.values(produtosMap)
+      .map((p) => ({
+        ...p,
+        porcentagem:
+          totais.totalSairam > 0
+            ? ((p.quantidadeSaiu / totais.totalSairam) * 100).toFixed(2)
+            : 0,
+      }))
+      .sort((a, b) => b.quantidadeSaiu - a.quantidadeSaiu);
+
+    // Agrupar por loja
+    const lojasMap = {};
+    movimentacoes.forEach((mov) => {
+      const lojaNome = mov.maquina?.loja?.nome || "Não especificado";
+      if (!lojasMap[lojaNome]) {
+        lojasMap[lojaNome] = {
+          nome: lojaNome,
+          fichas: 0,
+          faturamento: 0,
+          sairam: 0,
+          abastecidas: 0,
+        };
+      }
+      lojasMap[lojaNome].fichas += mov.fichas || 0;
+      lojasMap[lojaNome].faturamento += parseFloat(mov.valorFaturado || 0);
+      lojasMap[lojaNome].sairam += mov.sairam || 0;
+      lojasMap[lojaNome].abastecidas += mov.abastecidas || 0;
+    });
+
+    const distribuicaoLojas = Object.values(lojasMap)
+      .map((l) => ({
+        ...l,
+        mediaFichasPremio: l.sairam > 0 ? (l.fichas / l.sairam).toFixed(2) : 0,
+      }))
+      .sort((a, b) => b.faturamento - a.faturamento);
+
+    res.json({
+      periodo: {
+        inicio: inicio.toISOString(),
+        fim: fim.toISOString(),
+      },
+      totais,
+      distribuicaoProdutos,
+      distribuicaoLojas,
+      totalMovimentacoes: movimentacoes.length,
+    });
+  } catch (error) {
+    console.error("Erro ao gerar balanço semanal:", error);
+    res.status(500).json({ error: "Erro ao gerar balanço semanal" });
+  }
+};
+
+// US14 - Alertas de Estoque Baixo
+export const alertasEstoque = async (req, res) => {
+  try {
+    const { lojaId } = req.query;
+    const whereMaquina = { ativo: true };
+
+    if (lojaId) {
+      whereMaquina.lojaId = lojaId;
+    }
+
+    const maquinas = await Maquina.findAll({
+      where: whereMaquina,
+      include: [
+        {
+          model: Loja,
+          as: "loja",
+          attributes: ["id", "nome"],
+        },
+      ],
+    });
+
+    const alertas = [];
+
+    for (const maquina of maquinas) {
+      // Buscar última movimentação
+      const ultimaMovimentacao = await Movimentacao.findOne({
+        where: { maquinaId: maquina.id },
+        order: [["dataColeta", "DESC"]],
+      });
+
+      const estoqueAtual = ultimaMovimentacao ? ultimaMovimentacao.totalPos : 0;
+      const estoqueMinimo =
+        (maquina.capacidadePadrao * maquina.percentualAlertaEstoque) / 100;
+      const percentualAtual = (estoqueAtual / maquina.capacidadePadrao) * 100;
+
+      if (estoqueAtual < estoqueMinimo) {
+        alertas.push({
+          maquina: {
+            id: maquina.id,
+            codigo: maquina.codigo,
+            nome: maquina.nome,
+            loja: maquina.loja?.nome,
+          },
+          estoqueAtual,
+          capacidadePadrao: maquina.capacidadePadrao,
+          estoqueMinimo,
+          percentualAtual: percentualAtual.toFixed(2),
+          percentualAlerta: maquina.percentualAlertaEstoque,
+          nivelAlerta:
+            percentualAtual < 10
+              ? "CRÍTICO"
+              : percentualAtual < 20
+              ? "ALTO"
+              : "MÉDIO",
+          ultimaAtualizacao: ultimaMovimentacao?.dataColeta,
+        });
+      }
+    }
+
+    // Ordenar por percentual (mais críticos primeiro)
+    alertas.sort(
+      (a, b) => parseFloat(a.percentualAtual) - parseFloat(b.percentualAtual)
+    );
+
+    res.json({
+      totalAlertas: alertas.length,
+      alertas,
+    });
+  } catch (error) {
+    console.error("Erro ao buscar alertas de estoque:", error);
+    res.status(500).json({ error: "Erro ao buscar alertas de estoque" });
+  }
+};
+
+// Relatório de performance por máquina
+export const performanceMaquinas = async (req, res) => {
+  try {
+    const { lojaId, dataInicio, dataFim } = req.query;
+
+    const fim = dataFim ? new Date(dataFim) : new Date();
+    const inicio = dataInicio
+      ? new Date(dataInicio)
+      : new Date(fim.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    const whereMovimentacao = {
+      dataColeta: {
+        [Op.between]: [inicio, fim],
+      },
+    };
+
+    const whereMaquina = {};
+    if (lojaId) {
+      whereMaquina.lojaId = lojaId;
+    }
+
+    const performance = await Movimentacao.findAll({
+      attributes: [
+        "maquinaId",
+        [fn("COUNT", col("id")), "totalMovimentacoes"],
+        [fn("SUM", col("fichas")), "totalFichas"],
+        [fn("SUM", col("valorFaturado")), "totalFaturamento"],
+        [fn("SUM", col("sairam")), "totalSairam"],
+        [fn("AVG", col("mediaFichasPremio")), "mediaFichasPremioGeral"],
+      ],
+      where: whereMovimentacao,
+      include: [
+        {
+          model: Maquina,
+          as: "maquina",
+          where: whereMaquina,
+          attributes: ["id", "codigo", "nome", "tipo"],
+          include: [
+            {
+              model: Loja,
+              as: "loja",
+              attributes: ["id", "nome"],
+            },
+          ],
+        },
+      ],
+      group: ["maquinaId", "maquina.id", "maquina->loja.id"],
+      order: [[fn("SUM", col("valorFaturado")), "DESC"]],
+    });
+
+    const resultado = performance.map((p) => ({
+      maquina: {
+        id: p.maquina.id,
+        codigo: p.maquina.codigo,
+        nome: p.maquina.nome,
+        tipo: p.maquina.tipo,
+        loja: p.maquina.loja?.nome,
+      },
+      metricas: {
+        totalMovimentacoes: parseInt(p.getDataValue("totalMovimentacoes")),
+        totalFichas: parseInt(p.getDataValue("totalFichas") || 0),
+        totalFaturamento: parseFloat(p.getDataValue("totalFaturamento") || 0),
+        totalSairam: parseInt(p.getDataValue("totalSairam") || 0),
+        mediaFichasPremio: parseFloat(
+          p.getDataValue("mediaFichasPremioGeral") || 0
+        ).toFixed(2),
+      },
+    }));
+
+    res.json({
+      periodo: {
+        inicio: inicio.toISOString(),
+        fim: fim.toISOString(),
+      },
+      performance: resultado,
+    });
+  } catch (error) {
+    console.error("Erro ao gerar relatório de performance:", error);
+    res.status(500).json({ error: "Erro ao gerar relatório de performance" });
+  }
+};
