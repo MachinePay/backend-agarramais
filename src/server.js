@@ -13,7 +13,12 @@ const PORT = process.env.PORT || 3001;
 
 // Middlewares
 app.use(helmet());
-app.use(cors());
+app.use(
+  cors({
+    origin: process.env.FRONTEND_URL || "*",
+    credentials: true,
+  })
+);
 app.use(morgan("dev"));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -62,11 +67,9 @@ const startServer = async () => {
     await sequelize.authenticate();
     console.log("✅ Conexão com PostgreSQL estabelecida com sucesso!");
 
-    // Sync database (development only)
-    if (process.env.NODE_ENV === "development") {
-      await sequelize.sync({ alter: true });
-      console.log("✅ Database sincronizado!");
-    }
+    // Sync database - force: false para não apagar dados existentes
+    await sequelize.sync({ alter: process.env.NODE_ENV === "development" });
+    console.log("✅ Database sincronizado!");
 
     app.listen(PORT, "0.0.0.0", () => {
       console.log(`🚀 Servidor rodando na porta ${PORT}`);
