@@ -18,6 +18,25 @@ app.use(morgan("dev"));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Root route
+app.get("/", (req, res) => {
+  res.json({
+    message: "Agarra Mais API",
+    version: "1.0.0",
+    status: "online",
+    endpoints: {
+      health: "/health",
+      auth: "/api/auth",
+      usuarios: "/api/usuarios",
+      lojas: "/api/lojas",
+      maquinas: "/api/maquinas",
+      produtos: "/api/produtos",
+      movimentacoes: "/api/movimentacoes",
+      relatorios: "/api/relatorios",
+    },
+  });
+});
+
 // Health check
 app.get("/health", (req, res) => {
   res.json({ status: "OK", timestamp: new Date().toISOString() });
