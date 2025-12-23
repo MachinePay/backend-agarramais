@@ -352,7 +352,7 @@ export const relatorioImpressao = async (req, res) => {
         },
         {
           model: MovimentacaoProduto,
-          as: "produtos",
+          as: "detalhesProdutos",
           include: [
             {
               model: Produto,
@@ -382,7 +382,7 @@ export const relatorioImpressao = async (req, res) => {
     // Consolidar produtos que saíram
     const produtosSairamMap = {};
     movimentacoes.forEach((mov) => {
-      mov.produtos?.forEach((mp) => {
+      mov.detalhesProdutos?.forEach((mp) => {
         if (mp.quantidadeSaiu > 0) {
           const key = mp.produtoId;
           if (!produtosSairamMap[key]) {
@@ -399,7 +399,7 @@ export const relatorioImpressao = async (req, res) => {
     // Consolidar produtos que entraram (abastecidos)
     const produtosEntraramMap = {};
     movimentacoes.forEach((mov) => {
-      mov.produtos?.forEach((mp) => {
+      mov.detalhesProdutos?.forEach((mp) => {
         if (mp.quantidadeAbastecida > 0) {
           const key = mp.produtoId;
           if (!produtosEntraramMap[key]) {
