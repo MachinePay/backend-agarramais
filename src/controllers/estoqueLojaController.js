@@ -96,10 +96,12 @@ export const atualizarEstoqueLoja = async (req, res) => {
 export const atualizarVariosEstoques = async (req, res) => {
   try {
     const { lojaId } = req.params;
-    const { estoques } = req.body; // Array de { produtoId, quantidade, estoqueMinimo }
 
     console.log("=== ATUALIZAR VÁRIOS ESTOQUES ===");
     console.log("LojaId:", lojaId);
+    console.log("req.body completo:", JSON.stringify(req.body, null, 2));
+
+    const { estoques } = req.body; // Array de { produtoId, quantidade, estoqueMinimo }
     console.log("Estoques recebidos:", JSON.stringify(estoques, null, 2));
 
     if (!Array.isArray(estoques) || estoques.length === 0) {
