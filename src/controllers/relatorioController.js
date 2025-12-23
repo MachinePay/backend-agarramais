@@ -454,6 +454,11 @@ export const relatorioImpressao = async (req, res) => {
     });
   } catch (error) {
     console.error("Erro ao gerar relatório de impressão:", error);
-    res.status(500).json({ error: "Erro ao gerar relatório de impressão" });
+    console.error("Stack trace:", error.stack);
+    res.status(500).json({
+      error: "Erro ao gerar relatório de impressão",
+      message:
+        process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
   }
 };
