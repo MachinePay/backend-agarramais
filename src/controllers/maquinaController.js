@@ -148,7 +148,7 @@ export const atualizarMaquina = async (req, res) => {
   }
 };
 
-// US05 - Deletar máquina
+// US05 - Deletar máquina (soft delete na 1ª vez, hard delete na 2ª)
 export const deletarMaquina = async (req, res) => {
   try {
     const maquina = await Maquina.findByPk(req.params.id);
@@ -157,10 +157,24 @@ export const deletarMaquina = async (req, res) => {
       return res.status(404).json({ error: "Máquina não encontrada" });
     }
 
-    // Soft delete
-    await maquina.update({ ativo: false });
+    // Se já está inativa, deletar permanentemente
+    if (!maquina.ativo) {
+      await maquina.destroy();
+      res.locals.entityId = req.params.id;
+      return res.json({
+        message: "Máquina excluída permanentemente com sucesso",
+        permanentDelete: true,
+      });
+    }
 
-    res.json({ message: "Máquina desativada com sucesso" });
+    // Se está ativa, apenas desativar (soft delete)
+    await maquina.update({ ativo: false });
+    res.locals.entityId = maquina.id;
+    res.json({
+      message:
+        "Máquina desativada com sucesso. Clique novamente para excluir permanentemente.",
+      permanentDelete: false,
+    });
   } catch (error) {
     console.error("Erro ao deletar máquina:", error);
     res.status(500).json({ error: "Erro ao deletar máquina" });

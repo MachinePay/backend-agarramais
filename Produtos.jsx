@@ -87,7 +87,7 @@ export function Produtos() {
       value:
         produtos.length > 0
           ? `R$ ${(
-              produtos.reduce((sum, p) => sum + (p.preco || 0), 0) /
+              produtos.reduce((sum, p) => sum + Number(p.preco || 0), 0) /
               produtos.length
             ).toFixed(2)}`
           : "R$ 0,00",
@@ -114,7 +114,7 @@ export function Produtos() {
       label: "Preço",
       render: (produto) => (
         <span className="font-semibold text-green-600">
-          R$ {(produto.preco || 0).toFixed(2)}
+          R$ {Number(produto.preco || 0).toFixed(2)}
         </span>
       ),
     },
