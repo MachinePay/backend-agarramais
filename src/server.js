@@ -22,10 +22,31 @@ app.use(
     contentSecurityPolicy: false, // Permitir recursos inline para a página de relatório
   })
 );
+
+// Configurar CORS para aceitar localhost e produção
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "http://localhost:5174",
+  process.env.FRONTEND_URL,
+].filter(Boolean); // Remove undefined se FRONTEND_URL não estiver definida
+
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || "*",
+    origin: function (origin, callback) {
+      // Permitir requisições sem origin (como mobile apps, Postman, curl)
+      if (!origin) return callback(null, true);
+
+      // Se estiver na lista de origens permitidas ou for "*"
+      if (allowedOrigins.includes(origin) || allowedOrigins.includes("*")) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 app.use(morgan("dev"));
