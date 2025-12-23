@@ -81,8 +81,9 @@ const startServer = async () => {
     await sequelize.authenticate();
     console.log("✅ Conexão com PostgreSQL estabelecida com sucesso!");
 
-    // Sync database - force: false para não apagar dados existentes
-    await sequelize.sync({ alter: process.env.NODE_ENV === "development" });
+    // Sync database - alter: true para adicionar novas colunas
+    // ATENÇÃO: Em produção real, usar migrations ao invés de alter
+    await sequelize.sync({ alter: true });
     console.log("✅ Database sincronizado!");
 
     // Criar admin padrão se não existir
