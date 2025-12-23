@@ -6,6 +6,7 @@ import Movimentacao from "./Movimentacao.js";
 import MovimentacaoProduto from "./MovimentacaoProduto.js";
 import LogAtividade from "./LogAtividade.js";
 import UsuarioLoja from "./UsuarioLoja.js";
+import EstoqueLoja from "./EstoqueLoja.js";
 
 // Relacionamentos
 
@@ -75,6 +76,33 @@ Loja.hasMany(UsuarioLoja, { foreignKey: "lojaId", as: "permissoesUsuarios" });
 UsuarioLoja.belongsTo(Usuario, { foreignKey: "usuarioId" });
 UsuarioLoja.belongsTo(Loja, { foreignKey: "lojaId" });
 
+// Loja <-> Produtos (Estoque - many-to-many)
+Loja.belongsToMany(Produto, {
+  through: EstoqueLoja,
+  foreignKey: "lojaId",
+  otherKey: "produtoId",
+  as: "estoqueProdutos",
+});
+
+Produto.belongsToMany(Loja, {
+  through: EstoqueLoja,
+  foreignKey: "produtoId",
+  otherKey: "lojaId",
+  as: "estoqueLoja",
+});
+
+// Acesso direto à tabela EstoqueLoja
+Loja.hasMany(EstoqueLoja, {
+  foreignKey: "lojaId",
+  as: "estoques",
+});
+Produto.hasMany(EstoqueLoja, {
+  foreignKey: "produtoId",
+  as: "estoquesEmLojas",
+});
+EstoqueLoja.belongsTo(Loja, { foreignKey: "lojaId", as: "loja" });
+EstoqueLoja.belongsTo(Produto, { foreignKey: "produtoId", as: "produto" });
+
 export {
   Usuario,
   Loja,
@@ -84,4 +112,5 @@ export {
   MovimentacaoProduto,
   LogAtividade,
   UsuarioLoja,
+  EstoqueLoja,
 };
