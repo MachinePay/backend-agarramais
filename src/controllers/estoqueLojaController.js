@@ -98,6 +98,10 @@ export const atualizarVariosEstoques = async (req, res) => {
     const { lojaId } = req.params;
     const { estoques } = req.body; // Array de { produtoId, quantidade, estoqueMinimo }
 
+    console.log("=== ATUALIZAR VÁRIOS ESTOQUES ===");
+    console.log("LojaId:", lojaId);
+    console.log("Estoques recebidos:", JSON.stringify(estoques, null, 2));
+
     if (!Array.isArray(estoques) || estoques.length === 0) {
       return res.status(400).json({ error: "Array de estoques é obrigatório" });
     }
@@ -109,38 +113,72 @@ export const atualizarVariosEstoques = async (req, res) => {
     }
 
     const resultados = [];
+    const erros = [];
 
     for (const item of estoques) {
       const { produtoId, quantidade, estoqueMinimo } = item;
 
       if (!produtoId || quantidade === undefined) {
+        console.log("Item inválido ignorado:", item);
         continue; // Pular itens inválidos
       }
 
-      const [estoque] = await EstoqueLoja.findOrCreate({
-        where: { lojaId, produtoId },
-        defaults: {
-          quantidade,
-          estoqueMinimo: estoqueMinimo !== undefined ? estoqueMinimo : 0,
-        },
-      });
+      try {
+        // Verificar se produto existe
+        const produto = await Produto.findByPk(produtoId);
+        if (!produto) {
+          console.log(`Produto ${produtoId} não encontrado`);
+          erros.push({ produtoId, erro: "Produto não encontrado" });
+          continue;
+        }
 
-      estoque.quantidade = quantidade;
-      if (estoqueMinimo !== undefined) {
-        estoque.estoqueMinimo = estoqueMinimo;
+        const [estoque, created] = await EstoqueLoja.findOrCreate({
+          where: { lojaId, produtoId },
+          defaults: {
+            quantidade,
+            estoqueMinimo: estoqueMinimo !== undefined ? estoqueMinimo : 0,
+          },
+        });
+
+        if (!created) {
+          estoque.quantidade = quantidade;
+          if (estoqueMinimo !== undefined) {
+            estoque.estoqueMinimo = estoqueMinimo;
+          }
+          await estoque.save();
+        }
+
+        console.log(`Estoque ${created ? "criado" : "atualizado"}:`, {
+          produtoId,
+          quantidade: estoque.quantidade,
+          estoqueMinimo: estoque.estoqueMinimo,
+        });
+
+        resultados.push(estoque);
+      } catch (itemError) {
+        console.error(`Erro ao processar produto ${produtoId}:`, itemError);
+        erros.push({
+          produtoId,
+          erro: itemError.message || "Erro desconhecido",
+        });
       }
-      await estoque.save();
-
-      resultados.push(estoque);
     }
+
+    console.log(
+      `Processados: ${resultados.length} sucessos, ${erros.length} erros`
+    );
 
     res.json({
       message: `${resultados.length} estoques atualizados com sucesso`,
       estoques: resultados,
+      erros: erros.length > 0 ? erros : undefined,
     });
   } catch (error) {
     console.error("Erro ao atualizar vários estoques:", error);
-    res.status(500).json({ error: "Erro ao atualizar estoques" });
+    res.status(500).json({
+      error: "Erro ao atualizar estoques",
+      details: error.message,
+    });
   }
 };
 
