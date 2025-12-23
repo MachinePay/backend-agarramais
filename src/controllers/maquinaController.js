@@ -3,11 +3,17 @@ import { Maquina, Loja, Movimentacao } from "../models/index.js";
 // US05 - Listar máquinas
 export const listarMaquinas = async (req, res) => {
   try {
-    const { lojaId } = req.query;
+    const { lojaId, incluirInativas } = req.query;
     const where = {};
 
     if (lojaId) {
       where.lojaId = lojaId;
+    }
+
+    // Por padrão, só mostra máquinas ativas
+    // Para ver inativas, passar ?incluirInativas=true
+    if (incluirInativas !== "true") {
+      where.ativo = true;
     }
 
     const maquinas = await Maquina.findAll({
