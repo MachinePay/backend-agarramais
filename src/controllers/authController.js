@@ -75,9 +75,8 @@ export const registrar = async (req, res) => {
       return res.status(400).json({ error: "Email já cadastrado" });
     }
 
-    // Apenas ADMIN pode criar outros usuários com role ADMIN
-    const roleUsuario =
-      role === "ADMIN" ? "FUNCIONARIO" : role || "FUNCIONARIO";
+    // Registro público sempre cria FUNCIONARIO (apenas ADMIN pode criar outros ADMINs)
+    const roleUsuario = "FUNCIONARIO";
 
     const usuario = await Usuario.create({
       nome,
