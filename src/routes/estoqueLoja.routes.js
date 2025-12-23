@@ -5,6 +5,7 @@ import {
   atualizarVariosEstoques,
   deletarEstoqueLoja,
   alertasEstoqueLoja,
+  criarOuAtualizarProdutoEstoque,
 } from "../controllers/estoqueLojaController.js";
 import { autenticar, registrarLog } from "../middlewares/auth.js";
 
@@ -28,9 +29,17 @@ router.put(
   atualizarVariosEstoques
 );
 
-// Adicionar também como POST para compatibilidade com frontend antigo
+// POST para criar/atualizar produto único (usado pelo Dashboard)
 router.post(
   "/:lojaId",
+  autenticar,
+  registrarLog("CRIAR_ATUALIZAR_ESTOQUE", "EstoqueLoja"),
+  criarOuAtualizarProdutoEstoque
+);
+
+// POST /varios para atualizar múltiplos produtos (se precisar)
+router.post(
+  "/:lojaId/varios",
   autenticar,
   registrarLog("ATUALIZAR_VARIOS_ESTOQUES", "EstoqueLoja"),
   atualizarVariosEstoques
