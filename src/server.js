@@ -110,11 +110,40 @@ const startServer = async () => {
       console.log(`🚀 Servidor rodando na porta ${PORT}`);
       console.log(`📍 http://localhost:${PORT}`);
       console.log(`🏥 Health check: http://localhost:${PORT}/health`);
+
+      // Agendar limpeza automática de dados antigos (diariamente às 3h da manhã)
+      if (process.env.NODE_ENV === "production") {
+        iniciarLimpezaAutomatica();
+      }
     });
   } catch (error) {
     console.error("❌ Erro ao conectar com o banco de dados:", error);
     process.exit(1);
   }
+};
+
+// Função para executar limpeza automática diariamente
+const iniciarLimpezaAutomatica = async () => {
+  const { limparDadosAntigos } = await import("./utils/dataRetention.js");
+
+  const executarLimpeza = async () => {
+    const agora = new Date();
+    const horas = agora.getHours();
+
+    // Executar apenas às 3h da manhã
+    if (horas === 3) {
+      console.log("🗑️  Executando limpeza automática de dados antigos...");
+      try {
+        await limparDadosAntigos();
+      } catch (error) {
+        console.error("❌ Erro na limpeza automática:", error);
+      }
+    }
+  };
+
+  // Executar a cada 1 hora para verificar se é 3h da manhã
+  setInterval(executarLimpeza, 60 * 60 * 1000); // 1 hora em ms
+  console.log("⏰ Limpeza automática agendada para 3h da manhã (diariamente)");
 };
 
 startServer();
