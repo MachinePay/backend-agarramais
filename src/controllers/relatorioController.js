@@ -310,3 +310,150 @@ export const performanceMaquinas = async (req, res) => {
     res.status(500).json({ error: "Erro ao gerar relatório de performance" });
   }
 };
+
+// Relatório de Impressão por Loja
+export const relatorioImpressao = async (req, res) => {
+  try {
+    const { lojaId, dataInicio, dataFim } = req.query;
+
+    if (!lojaId) {
+      return res.status(400).json({ error: "lojaId é obrigatório" });
+    }
+
+    if (!dataInicio || !dataFim) {
+      return res
+        .status(400)
+        .json({ error: "dataInicio e dataFim são obrigatórios" });
+    }
+
+    const inicio = new Date(dataInicio);
+    const fim = new Date(dataFim);
+    fim.setHours(23, 59, 59, 999); // Incluir todo o dia final
+
+    // Buscar informações da loja
+    const loja = await Loja.findByPk(lojaId);
+    if (!loja) {
+      return res.status(404).json({ error: "Loja não encontrada" });
+    }
+
+    // Buscar todas as movimentações da loja no período
+    const movimentacoes = await Movimentacao.findAll({
+      where: {
+        dataColeta: {
+          [Op.between]: [inicio, fim],
+        },
+      },
+      include: [
+        {
+          model: Maquina,
+          as: "maquina",
+          where: { lojaId },
+          attributes: ["id", "codigo", "nome"],
+        },
+        {
+          model: MovimentacaoProduto,
+          as: "produtos",
+          include: [
+            {
+              model: Produto,
+              as: "produto",
+              attributes: ["id", "nome", "codigo", "emoji"],
+            },
+          ],
+        },
+      ],
+      order: [["dataColeta", "DESC"]],
+    });
+
+    // Calcular totais
+    const totalFichas = movimentacoes.reduce(
+      (sum, m) => sum + (m.fichas || 0),
+      0
+    );
+    const totalSairam = movimentacoes.reduce(
+      (sum, m) => sum + (m.sairam || 0),
+      0
+    );
+    const totalAbastecidas = movimentacoes.reduce(
+      (sum, m) => sum + (m.abastecidas || 0),
+      0
+    );
+
+    // Consolidar produtos que saíram
+    const produtosSairamMap = {};
+    movimentacoes.forEach((mov) => {
+      mov.produtos?.forEach((mp) => {
+        if (mp.quantidadeSaiu > 0) {
+          const key = mp.produtoId;
+          if (!produtosSairamMap[key]) {
+            produtosSairamMap[key] = {
+              produto: mp.produto,
+              quantidade: 0,
+            };
+          }
+          produtosSairamMap[key].quantidade += mp.quantidadeSaiu;
+        }
+      });
+    });
+
+    // Consolidar produtos que entraram (abastecidos)
+    const produtosEntraramMap = {};
+    movimentacoes.forEach((mov) => {
+      mov.produtos?.forEach((mp) => {
+        if (mp.quantidadeAbastecida > 0) {
+          const key = mp.produtoId;
+          if (!produtosEntraramMap[key]) {
+            produtosEntraramMap[key] = {
+              produto: mp.produto,
+              quantidade: 0,
+            };
+          }
+          produtosEntraramMap[key].quantidade += mp.quantidadeAbastecida;
+        }
+      });
+    });
+
+    const produtosSairam = Object.values(produtosSairamMap).sort(
+      (a, b) => b.quantidade - a.quantidade
+    );
+
+    const produtosEntraram = Object.values(produtosEntraramMap).sort(
+      (a, b) => b.quantidade - a.quantidade
+    );
+
+    res.json({
+      loja: {
+        id: loja.id,
+        nome: loja.nome,
+        endereco: loja.endereco,
+      },
+      periodo: {
+        inicio: inicio.toISOString(),
+        fim: fim.toISOString(),
+      },
+      totais: {
+        fichas: totalFichas,
+        produtosSairam: totalSairam,
+        produtosEntraram: totalAbastecidas,
+        movimentacoes: movimentacoes.length,
+      },
+      produtosSairam: produtosSairam.map((p) => ({
+        id: p.produto.id,
+        nome: p.produto.nome,
+        codigo: p.produto.codigo,
+        emoji: p.produto.emoji,
+        quantidade: p.quantidade,
+      })),
+      produtosEntraram: produtosEntraram.map((p) => ({
+        id: p.produto.id,
+        nome: p.produto.nome,
+        codigo: p.produto.codigo,
+        emoji: p.produto.emoji,
+        quantidade: p.quantidade,
+      })),
+    });
+  } catch (error) {
+    console.error("Erro ao gerar relatório de impressão:", error);
+    res.status(500).json({ error: "Erro ao gerar relatório de impressão" });
+  }
+};

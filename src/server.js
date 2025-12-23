@@ -3,16 +3,25 @@ import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
 import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
 import { sequelize } from "./database/connection.js";
 import routes from "./routes/index.js";
 
 dotenv.config();
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Middlewares
-app.use(helmet());
+app.use(
+  helmet({
+    contentSecurityPolicy: false, // Permitir recursos inline para a página de relatório
+  })
+);
 app.use(
   cors({
     origin: process.env.FRONTEND_URL || "*",
@@ -22,6 +31,9 @@ app.use(
 app.use(morgan("dev"));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Servir arquivos estáticos da pasta public
+app.use("/public", express.static(path.join(__dirname, "..", "public")));
 
 // Root route
 app.get("/", (req, res) => {
