@@ -28,6 +28,14 @@ router.put(
   atualizarVariosEstoques
 );
 
+// Adicionar também como POST para compatibilidade com frontend antigo
+router.post(
+  "/:lojaId",
+  autenticar,
+  registrarLog("ATUALIZAR_VARIOS_ESTOQUES", "EstoqueLoja"),
+  atualizarVariosEstoques
+);
+
 router.delete(
   "/:lojaId/:produtoId",
   autenticar,
