@@ -3,15 +3,17 @@ import { Produto } from "../models/index.js";
 // US06 - Listar produtos
 export const listarProdutos = async (req, res) => {
   try {
-    const { categoria, ativo } = req.query;
+    const { categoria, incluirInativos } = req.query;
     const where = {};
 
     if (categoria) {
       where.categoria = categoria;
     }
 
-    if (ativo !== undefined) {
-      where.ativo = ativo === "true";
+    // Por padrão, só mostra produtos ativos
+    // Para ver inativos, passar ?incluirInativos=true
+    if (incluirInativos !== "true") {
+      where.ativo = true;
     }
 
     const produtos = await Produto.findAll({
@@ -149,7 +151,7 @@ export const atualizarProduto = async (req, res) => {
   }
 };
 
-// US06 - Deletar produto
+// US06 - Deletar produto (soft delete na 1ª vez, hard delete na 2ª)
 export const deletarProduto = async (req, res) => {
   try {
     const produto = await Produto.findByPk(req.params.id);
@@ -158,10 +160,24 @@ export const deletarProduto = async (req, res) => {
       return res.status(404).json({ error: "Produto não encontrado" });
     }
 
-    // Soft delete
-    await produto.update({ ativo: false });
+    // Se já está inativo, deletar permanentemente
+    if (!produto.ativo) {
+      await produto.destroy();
+      res.locals.entityId = req.params.id;
+      return res.json({
+        message: "Produto excluído permanentemente com sucesso",
+        permanentDelete: true,
+      });
+    }
 
-    res.json({ message: "Produto desativado com sucesso" });
+    // Se está ativo, apenas desativar (soft delete)
+    await produto.update({ ativo: false });
+    res.locals.entityId = produto.id;
+    res.json({
+      message:
+        "Produto desativado com sucesso. Clique novamente para excluir permanentemente.",
+      permanentDelete: false,
+    });
   } catch (error) {
     console.error("Erro ao deletar produto:", error);
     res.status(500).json({ error: "Erro ao deletar produto" });
