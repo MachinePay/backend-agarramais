@@ -81,9 +81,9 @@ const startServer = async () => {
     await sequelize.authenticate();
     console.log("✅ Conexão com PostgreSQL estabelecida com sucesso!");
 
-    // Sync database - alter: true para adicionar novas colunas
-    // ATENÇÃO: Em produção real, usar migrations ao invés de alter
-    await sequelize.sync({ alter: true });
+    // Sync database - cria novas tabelas/colunas mas não altera existentes
+    // Para evitar erros de sintaxe SQL ao adicionar constraints
+    await sequelize.sync();
     console.log("✅ Database sincronizado!");
 
     // Criar admin padrão se não existir
