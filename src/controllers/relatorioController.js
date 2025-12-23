@@ -421,6 +421,88 @@ export const relatorioImpressao = async (req, res) => {
       (a, b) => b.quantidade - a.quantidade
     );
 
+    // Consolidar dados por máquina
+    const dadosPorMaquina = {};
+    movimentacoes.forEach((mov) => {
+      const maquinaId = mov.maquina.id;
+      if (!dadosPorMaquina[maquinaId]) {
+        dadosPorMaquina[maquinaId] = {
+          maquina: {
+            id: mov.maquina.id,
+            codigo: mov.maquina.codigo,
+            nome: mov.maquina.nome,
+          },
+          fichas: 0,
+          totalSairam: 0,
+          totalAbastecidas: 0,
+          numMovimentacoes: 0,
+          produtosSairam: {},
+          produtosEntraram: {},
+        };
+      }
+
+      dadosPorMaquina[maquinaId].fichas += mov.fichas || 0;
+      dadosPorMaquina[maquinaId].totalSairam += mov.sairam || 0;
+      dadosPorMaquina[maquinaId].totalAbastecidas += mov.abastecidas || 0;
+      dadosPorMaquina[maquinaId].numMovimentacoes++;
+
+      // Produtos por máquina
+      mov.detalhesProdutos?.forEach((mp) => {
+        if (mp.quantidadeSaiu > 0) {
+          const key = mp.produtoId;
+          if (!dadosPorMaquina[maquinaId].produtosSairam[key]) {
+            dadosPorMaquina[maquinaId].produtosSairam[key] = {
+              produto: mp.produto,
+              quantidade: 0,
+            };
+          }
+          dadosPorMaquina[maquinaId].produtosSairam[key].quantidade +=
+            mp.quantidadeSaiu;
+        }
+
+        if (mp.quantidadeAbastecida > 0) {
+          const key = mp.produtoId;
+          if (!dadosPorMaquina[maquinaId].produtosEntraram[key]) {
+            dadosPorMaquina[maquinaId].produtosEntraram[key] = {
+              produto: mp.produto,
+              quantidade: 0,
+            };
+          }
+          dadosPorMaquina[maquinaId].produtosEntraram[key].quantidade +=
+            mp.quantidadeAbastecida;
+        }
+      });
+    });
+
+    // Formatar dados por máquina
+    const maquinasDetalhadas = Object.values(dadosPorMaquina).map((m) => ({
+      maquina: m.maquina,
+      totais: {
+        fichas: m.fichas,
+        produtosSairam: m.totalSairam,
+        produtosEntraram: m.totalAbastecidas,
+        movimentacoes: m.numMovimentacoes,
+      },
+      produtosSairam: Object.values(m.produtosSairam)
+        .map((p) => ({
+          id: p.produto.id,
+          nome: p.produto.nome,
+          codigo: p.produto.codigo,
+          emoji: p.produto.emoji,
+          quantidade: p.quantidade,
+        }))
+        .sort((a, b) => b.quantidade - a.quantidade),
+      produtosEntraram: Object.values(m.produtosEntraram)
+        .map((p) => ({
+          id: p.produto.id,
+          nome: p.produto.nome,
+          codigo: p.produto.codigo,
+          emoji: p.produto.emoji,
+          quantidade: p.quantidade,
+        }))
+        .sort((a, b) => b.quantidade - a.quantidade),
+    }));
+
     res.json({
       loja: {
         id: loja.id,
@@ -451,6 +533,7 @@ export const relatorioImpressao = async (req, res) => {
         emoji: p.produto.emoji,
         quantidade: p.quantidade,
       })),
+      maquinas: maquinasDetalhadas,
     });
   } catch (error) {
     console.error("Erro ao gerar relatório de impressão:", error);

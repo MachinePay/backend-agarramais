@@ -269,7 +269,7 @@ export function Relatorios() {
             <div className="card">
               <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
                 <span className="text-2xl">📤</span>
-                Produtos que Saíram
+                Produtos que Saíram (Consolidado Geral)
               </h3>
               {relatorio.produtosSairam &&
               relatorio.produtosSairam.length > 0 ? (
@@ -312,7 +312,7 @@ export function Relatorios() {
             <div className="card">
               <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
                 <span className="text-2xl">📥</span>
-                Produtos que Entraram
+                Produtos que Entraram (Consolidado Geral)
               </h3>
               {relatorio.produtosEntraram &&
               relatorio.produtosEntraram.length > 0 ? (
@@ -350,6 +350,154 @@ export function Relatorios() {
                 </div>
               )}
             </div>
+
+            {/* Detalhamento por Máquina */}
+            {relatorio.maquinas && relatorio.maquinas.length > 0 && (
+              <div className="space-y-6">
+                <h2 className="text-2xl font-bold text-gray-900 border-b-2 border-primary pb-2 flex items-center gap-2">
+                  <span className="text-3xl">🎰</span>
+                  Detalhamento por Máquina
+                </h2>
+
+                {relatorio.maquinas.map((maquina) => (
+                  <div
+                    key={maquina.maquina.id}
+                    className="card bg-gray-50 page-break-before"
+                  >
+                    {/* Header da Máquina */}
+                    <div className="bg-gradient-to-r from-indigo-500 to-purple-500 text-white p-4 rounded-lg mb-4">
+                      <h3 className="text-xl font-bold">
+                        🎰{" "}
+                        {maquina.maquina.nome ||
+                          `Máquina ${maquina.maquina.codigo}`}
+                      </h3>
+                      <p className="text-sm opacity-90">
+                        Código: {maquina.maquina.codigo}
+                      </p>
+                    </div>
+
+                    {/* Totais da Máquina */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                      <div className="bg-blue-50 border-2 border-blue-200 p-3 rounded-lg">
+                        <div className="text-2xl mb-1">🎫</div>
+                        <div className="text-lg font-bold text-gray-900">
+                          {maquina.totais.fichas.toLocaleString("pt-BR")}
+                        </div>
+                        <div className="text-xs text-gray-600">Fichas</div>
+                      </div>
+                      <div className="bg-red-50 border-2 border-red-200 p-3 rounded-lg">
+                        <div className="text-2xl mb-1">📤</div>
+                        <div className="text-lg font-bold text-gray-900">
+                          {maquina.totais.produtosSairam.toLocaleString(
+                            "pt-BR"
+                          )}
+                        </div>
+                        <div className="text-xs text-gray-600">Saíram</div>
+                      </div>
+                      <div className="bg-green-50 border-2 border-green-200 p-3 rounded-lg">
+                        <div className="text-2xl mb-1">📥</div>
+                        <div className="text-lg font-bold text-gray-900">
+                          {maquina.totais.produtosEntraram.toLocaleString(
+                            "pt-BR"
+                          )}
+                        </div>
+                        <div className="text-xs text-gray-600">Entraram</div>
+                      </div>
+                      <div className="bg-purple-50 border-2 border-purple-200 p-3 rounded-lg">
+                        <div className="text-2xl mb-1">🔄</div>
+                        <div className="text-lg font-bold text-gray-900">
+                          {maquina.totais.movimentacoes}
+                        </div>
+                        <div className="text-xs text-gray-600">
+                          Movimentações
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Produtos da Máquina */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Produtos que Saíram */}
+                      <div>
+                        <h4 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+                          <span>📤</span> Produtos que Saíram
+                        </h4>
+                        {maquina.produtosSairam &&
+                        maquina.produtosSairam.length > 0 ? (
+                          <div className="space-y-2">
+                            {maquina.produtosSairam.map((produto) => (
+                              <div
+                                key={produto.id}
+                                className="flex items-center justify-between bg-white p-3 rounded-lg border border-gray-200"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <span className="text-2xl">
+                                    {produto.emoji || "📦"}
+                                  </span>
+                                  <div>
+                                    <div className="font-semibold text-sm">
+                                      {produto.nome}
+                                    </div>
+                                    <div className="text-xs text-gray-500">
+                                      {produto.codigo || "S/C"}
+                                    </div>
+                                  </div>
+                                </div>
+                                <span className="bg-red-500 text-white px-3 py-1 rounded-full font-bold text-sm">
+                                  {produto.quantidade.toLocaleString("pt-BR")}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-gray-500 text-sm italic">
+                            Nenhum produto saiu
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Produtos que Entraram */}
+                      <div>
+                        <h4 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+                          <span>📥</span> Produtos que Entraram
+                        </h4>
+                        {maquina.produtosEntraram &&
+                        maquina.produtosEntraram.length > 0 ? (
+                          <div className="space-y-2">
+                            {maquina.produtosEntraram.map((produto) => (
+                              <div
+                                key={produto.id}
+                                className="flex items-center justify-between bg-white p-3 rounded-lg border border-gray-200"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <span className="text-2xl">
+                                    {produto.emoji || "📦"}
+                                  </span>
+                                  <div>
+                                    <div className="font-semibold text-sm">
+                                      {produto.nome}
+                                    </div>
+                                    <div className="text-xs text-gray-500">
+                                      {produto.codigo || "S/C"}
+                                    </div>
+                                  </div>
+                                </div>
+                                <span className="bg-green-500 text-white px-3 py-1 rounded-full font-bold text-sm">
+                                  {produto.quantidade.toLocaleString("pt-BR")}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-gray-500 text-sm italic">
+                            Nenhum produto entrou
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -383,6 +531,10 @@ export function Relatorios() {
             border: 1px solid #e5e7eb;
           }
           
+          .page-break-before {
+            page-break-before: always;
+          }
+          
           .print-header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
             -webkit-print-color-adjust: exact;
@@ -390,7 +542,7 @@ export function Relatorios() {
             color: white !important;
           }
           
-          .bg-gradient-to-br {
+          .bg-gradient-to-br, .bg-gradient-to-r {
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
           }
@@ -398,7 +550,18 @@ export function Relatorios() {
           .from-blue-500, .to-blue-600,
           .from-red-500, .to-red-600,
           .from-green-500, .to-green-600,
-          .from-purple-500, .to-purple-600 {
+          .from-purple-500, .to-purple-600,
+          .from-indigo-500, .to-indigo-500 {
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          
+          .bg-blue-50, .bg-red-50, .bg-green-50, .bg-purple-50, .bg-gray-50 {
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          
+          .border-blue-200, .border-red-200, .border-green-200, .border-purple-200 {
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
           }
@@ -408,7 +571,7 @@ export function Relatorios() {
             size: A4;
           }
           
-          h1, h2, h3 {
+          h1, h2, h3, h4 {
             page-break-after: avoid;
           }
           
