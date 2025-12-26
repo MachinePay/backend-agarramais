@@ -132,9 +132,16 @@ export const deletarLoja = async (req, res) => {
       return res.status(404).json({ error: "Loja não encontrada" });
     }
 
-    // Soft delete (marcar como inativo)
-    await loja.update({ ativo: false });
+    // Verificar se já está inativa (segunda tentativa = hard delete)
+    if (!loja.ativo) {
+      // Hard delete - deletar permanentemente
+      await Maquina.destroy({ where: { lojaId: loja.id } });
+      await loja.destroy();
+      return res.json({ message: "Loja deletada permanentemente" });
+    }
 
+    // Primeira tentativa: Soft delete (marcar como inativo)
+    await loja.update({ ativo: false });
     res.json({ message: "Loja desativada com sucesso" });
   } catch (error) {
     console.error("Erro ao deletar loja:", error);
