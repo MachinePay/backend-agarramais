@@ -74,6 +74,7 @@ export const criarMaquina = async (req, res) => {
       forcaForte,
       forcaFraca,
       forcaPremium,
+      jogadasPremium,
       percentualAlertaEstoque,
       localizacao,
     } = req.body;
@@ -101,6 +102,7 @@ export const criarMaquina = async (req, res) => {
       forcaForte: forcaForte || null,
       forcaFraca: forcaFraca || null,
       forcaPremium: forcaPremium || null,
+      jogadasPremium: jogadasPremium || null,
       percentualAlertaEstoque: percentualAlertaEstoque || 30,
       localizacao,
     });
@@ -133,6 +135,7 @@ export const atualizarMaquina = async (req, res) => {
       forcaForte,
       forcaFraca,
       forcaPremium,
+      jogadasPremium,
       percentualAlertaEstoque,
       localizacao,
       ativo,
@@ -157,6 +160,7 @@ export const atualizarMaquina = async (req, res) => {
       forcaForte: forcaForte ?? maquina.forcaForte,
       forcaFraca: forcaFraca ?? maquina.forcaFraca,
       forcaPremium: forcaPremium ?? maquina.forcaPremium,
+      jogadasPremium: jogadasPremium ?? maquina.jogadasPremium,
       percentualAlertaEstoque:
         percentualAlertaEstoque ?? maquina.percentualAlertaEstoque,
       localizacao: localizacao ?? maquina.localizacao,

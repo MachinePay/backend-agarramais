@@ -83,6 +83,15 @@ const Maquina = sequelize.define(
         max: 100,
       },
     },
+    jogadasPremium: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      field: "jogadas_premium",
+      comment: "Quantidade de jogadas para usar a força premium",
+      validate: {
+        min: 1,
+      },
+    },
     percentualAlertaEstoque: {
       type: DataTypes.INTEGER,
       allowNull: false,
