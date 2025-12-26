@@ -249,7 +249,8 @@ export const atualizarMovimentacao = async (req, res) => {
 
     const { observacoes, tipoOcorrencia, fichas, abastecidas } = req.body;
 
-    await movimentacao.update({
+    // Preparar dados para atualização
+    const updateData = {
       observacoes: observacoes ?? movimentacao.observacoes,
       tipoOcorrencia: tipoOcorrencia ?? movimentacao.tipoOcorrencia,
       fichas:
@@ -258,7 +259,18 @@ export const atualizarMovimentacao = async (req, res) => {
         abastecidas !== undefined
           ? parseInt(abastecidas) || 0
           : movimentacao.abastecidas,
-    });
+    };
+
+    // Se as fichas foram atualizadas, recalcular o valorFaturado
+    if (fichas !== undefined) {
+      const maquina = await Maquina.findByPk(movimentacao.maquinaId);
+      if (maquina) {
+        updateData.valorFaturado =
+          updateData.fichas * parseFloat(maquina.valorFicha);
+      }
+    }
+
+    await movimentacao.update(updateData);
 
     res.json(movimentacao);
   } catch (error) {
