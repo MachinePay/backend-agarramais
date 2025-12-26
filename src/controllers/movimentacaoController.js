@@ -247,11 +247,17 @@ export const atualizarMovimentacao = async (req, res) => {
         .json({ error: "Você não pode editar esta movimentação" });
     }
 
-    const { observacoes, tipoOcorrencia } = req.body;
+    const { observacoes, tipoOcorrencia, fichas, abastecidas } = req.body;
 
     await movimentacao.update({
       observacoes: observacoes ?? movimentacao.observacoes,
       tipoOcorrencia: tipoOcorrencia ?? movimentacao.tipoOcorrencia,
+      fichas:
+        fichas !== undefined ? parseInt(fichas) || 0 : movimentacao.fichas,
+      abastecidas:
+        abastecidas !== undefined
+          ? parseInt(abastecidas) || 0
+          : movimentacao.abastecidas,
     });
 
     res.json(movimentacao);
