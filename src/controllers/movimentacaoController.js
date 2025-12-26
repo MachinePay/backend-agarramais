@@ -18,6 +18,8 @@ export const registrarMovimentacao = async (req, res) => {
       abastecidas,
       fichas,
       contadorMaquina,
+      contadorIn,
+      contadorOut,
       observacoes,
       tipoOcorrencia,
       retiradaEstoque,
@@ -55,6 +57,8 @@ export const registrarMovimentacao = async (req, res) => {
       abastecidas,
       fichas: fichas || 0,
       contadorMaquina,
+      contadorIn,
+      contadorOut,
       valorFaturado,
       observacoes,
       tipoOcorrencia: tipoOcorrencia || "Normal",
@@ -247,7 +251,14 @@ export const atualizarMovimentacao = async (req, res) => {
         .json({ error: "Você não pode editar esta movimentação" });
     }
 
-    const { observacoes, tipoOcorrencia, fichas, abastecidas } = req.body;
+    const {
+      observacoes,
+      tipoOcorrencia,
+      fichas,
+      abastecidas,
+      contadorIn,
+      contadorOut,
+    } = req.body;
 
     // Preparar dados para atualização
     const updateData = {
@@ -259,6 +270,14 @@ export const atualizarMovimentacao = async (req, res) => {
         abastecidas !== undefined
           ? parseInt(abastecidas) || 0
           : movimentacao.abastecidas,
+      contadorIn:
+        contadorIn !== undefined
+          ? parseInt(contadorIn) || null
+          : movimentacao.contadorIn,
+      contadorOut:
+        contadorOut !== undefined
+          ? parseInt(contadorOut) || null
+          : movimentacao.contadorOut,
     };
 
     // Se as fichas foram atualizadas, recalcular o valorFaturado

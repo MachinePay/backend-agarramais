@@ -69,6 +69,18 @@ const Movimentacao = sequelize.define(
       allowNull: true,
       comment: "Valor do contador da máquina",
     },
+    contadorIn: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      field: "contador_in",
+      comment: "Valor do contador IN da máquina",
+    },
+    contadorOut: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      field: "contador_out",
+      comment: "Valor do contador OUT da máquina",
+    },
     valorFaturado: {
       type: DataTypes.DECIMAL(10, 2),
       allowNull: true,
