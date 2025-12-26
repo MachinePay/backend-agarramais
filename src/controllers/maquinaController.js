@@ -70,6 +70,8 @@ export const criarMaquina = async (req, res) => {
       lojaId,
       capacidadePadrao,
       valorFicha,
+      fichasNecessarias,
+      forcaGarra,
       percentualAlertaEstoque,
       localizacao,
     } = req.body;
@@ -93,6 +95,8 @@ export const criarMaquina = async (req, res) => {
       lojaId,
       capacidadePadrao: capacidadePadrao || 100,
       valorFicha: valorFicha || 5.0,
+      fichasNecessarias: fichasNecessarias || null,
+      forcaGarra: forcaGarra || null,
       percentualAlertaEstoque: percentualAlertaEstoque || 30,
       localizacao,
     });
@@ -121,6 +125,8 @@ export const atualizarMaquina = async (req, res) => {
       lojaId,
       capacidadePadrao,
       valorFicha,
+      fichasNecessarias,
+      forcaGarra,
       percentualAlertaEstoque,
       localizacao,
       ativo,
@@ -141,6 +147,8 @@ export const atualizarMaquina = async (req, res) => {
       lojaId: lojaId ?? maquina.lojaId,
       capacidadePadrao: capacidadePadrao ?? maquina.capacidadePadrao,
       valorFicha: valorFicha ?? maquina.valorFicha,
+      fichasNecessarias: fichasNecessarias ?? maquina.fichasNecessarias,
+      forcaGarra: forcaGarra ?? maquina.forcaGarra,
       percentualAlertaEstoque:
         percentualAlertaEstoque ?? maquina.percentualAlertaEstoque,
       localizacao: localizacao ?? maquina.localizacao,

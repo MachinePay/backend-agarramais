@@ -150,6 +150,15 @@ export function Movimentacoes() {
         quantidadeAtual + quantidadeAdicionada
       );
 
+      // Preparar observação - se for retirada de estoque, adicionar nota automática
+      let observacaoFinal = formData.observacao?.trim() || "";
+      if (formData.retiradaEstoque) {
+        const notaRetirada = "⚠️ RETIRADA DE ESTOQUE - NÃO É VENDA";
+        observacaoFinal = observacaoFinal
+          ? `${notaRetirada}. ${observacaoFinal}`
+          : notaRetirada;
+      }
+
       // Transformar para o formato do backend
       const data = {
         maquinaId: formData.maquina_id,
@@ -159,7 +168,7 @@ export function Movimentacoes() {
         fichas: fichas,
         retiradaEstoque: formData.retiradaEstoque,
         contadorMaquina: null,
-        observacoes: formData.observacao?.trim() || null,
+        observacoes: observacaoFinal || null,
         produtos: [
           {
             produtoId: formData.produto_id,

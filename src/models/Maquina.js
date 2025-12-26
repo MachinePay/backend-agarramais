@@ -44,6 +44,25 @@ const Maquina = sequelize.define(
       defaultValue: 5.0,
       comment: "Valor em R$ de cada ficha",
     },
+    fichasNecessarias: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      field: "fichas_necessarias",
+      comment: "Quantidade de fichas necessárias para liberar uma jogada",
+      validate: {
+        min: 1,
+      },
+    },
+    forcaGarra: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      field: "forca_garra",
+      comment: "Força da garra em percentual (0-100%)",
+      validate: {
+        min: 0,
+        max: 100,
+      },
+    },
     percentualAlertaEstoque: {
       type: DataTypes.INTEGER,
       allowNull: false,
