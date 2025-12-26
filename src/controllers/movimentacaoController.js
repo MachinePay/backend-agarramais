@@ -20,6 +20,7 @@ export const registrarMovimentacao = async (req, res) => {
       contadorMaquina,
       observacoes,
       tipoOcorrencia,
+      retiradaEstoque,
       produtos, // Array de { produtoId, quantidadeSaiu, quantidadeAbastecida }
     } = req.body;
 
@@ -57,6 +58,7 @@ export const registrarMovimentacao = async (req, res) => {
       valorFaturado,
       observacoes,
       tipoOcorrencia: tipoOcorrencia || "Normal",
+      retiradaEstoque: retiradaEstoque || false,
     });
 
     // Se produtos foram informados, registrar detalhes

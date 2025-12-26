@@ -75,6 +75,16 @@ const Movimentacao = sequelize.define(
       comment: "Calculado automaticamente: fichas * valorFicha",
     },
 
+    // Retirada de Estoque
+    retiradaEstoque: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+      field: "retirada_estoque",
+      comment:
+        "Indica se é uma retirada de estoque (não conta como venda/receita)",
+    },
+
     // US10 - Observações
     observacoes: {
       type: DataTypes.TEXT,
