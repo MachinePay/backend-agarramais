@@ -4,6 +4,8 @@ import {
   Maquina,
   Usuario,
   Produto,
+  EstoqueLoja,
+  Loja,
 } from "../models/index.js";
 import { Op } from "sequelize";
 
@@ -75,6 +77,28 @@ export const registrarMovimentacao = async (req, res) => {
       }));
 
       await MovimentacaoProduto.bulkCreate(detalhesProdutos);
+
+      // Descontar do estoque da loja os produtos abastecidos
+      for (const produto of produtos) {
+        if (produto.quantidadeAbastecida && produto.quantidadeAbastecida > 0) {
+          // Buscar estoque do produto na loja da máquina
+          const estoqueLoja = await EstoqueLoja.findOne({
+            where: {
+              lojaId: maquina.lojaId,
+              produtoId: produto.produtoId,
+            },
+          });
+
+          if (estoqueLoja) {
+            // Descontar a quantidade abastecida (não permite ficar negativo)
+            const novaQuantidade = Math.max(
+              0,
+              estoqueLoja.quantidade - produto.quantidadeAbastecida
+            );
+            await estoqueLoja.update({ quantidade: novaQuantidade });
+          }
+        }
+      }
     }
 
     // Buscar movimentação completa para retornar
