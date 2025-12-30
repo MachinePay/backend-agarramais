@@ -26,6 +26,8 @@ export const registrarMovimentacao = async (req, res) => {
       tipoOcorrencia,
       retiradaEstoque,
       produtos, // Array de { produtoId, quantidadeSaiu, quantidadeAbastecida }
+      quantidade_notas_entrada,
+      valor_entrada_maquininha_pix,
     } = req.body;
 
     // Validações
@@ -65,6 +67,8 @@ export const registrarMovimentacao = async (req, res) => {
       observacoes,
       tipoOcorrencia: tipoOcorrencia || "Normal",
       retiradaEstoque: retiradaEstoque || false,
+      quantidade_notas_entrada: quantidade_notas_entrada ?? null,
+      valor_entrada_maquininha_pix: valor_entrada_maquininha_pix ?? null,
     });
 
     // Se produtos foram informados, registrar detalhes
@@ -282,6 +286,8 @@ export const atualizarMovimentacao = async (req, res) => {
       abastecidas,
       contadorIn,
       contadorOut,
+      quantidade_notas_entrada,
+      valor_entrada_maquininha_pix,
     } = req.body;
 
     // Preparar dados para atualização
@@ -302,6 +308,14 @@ export const atualizarMovimentacao = async (req, res) => {
         contadorOut !== undefined
           ? parseInt(contadorOut) || null
           : movimentacao.contadorOut,
+      quantidade_notas_entrada:
+        quantidade_notas_entrada !== undefined
+          ? parseInt(quantidade_notas_entrada) || null
+          : movimentacao.quantidade_notas_entrada,
+      valor_entrada_maquininha_pix:
+        valor_entrada_maquininha_pix !== undefined
+          ? parseFloat(valor_entrada_maquininha_pix) || null
+          : movimentacao.valor_entrada_maquininha_pix,
     };
 
     // Se as fichas foram atualizadas, recalcular o valorFaturado

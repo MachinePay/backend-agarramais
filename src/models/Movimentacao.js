@@ -97,6 +97,17 @@ const Movimentacao = sequelize.define(
         "Indica se é uma retirada de estoque (não conta como venda/receita)",
     },
 
+    // Notas e Pagamento Digital
+    quantidade_notas_entrada: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      comment: "Quantidade de notas inseridas na máquina",
+    },
+    valor_entrada_maquininha_pix: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+      comment: "Valor de pagamento digital (maquininha/pix)",
+    },
     // US10 - Observações
     observacoes: {
       type: DataTypes.TEXT,
