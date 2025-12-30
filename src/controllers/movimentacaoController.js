@@ -48,8 +48,13 @@ export const registrarMovimentacao = async (req, res) => {
       return res.status(404).json({ error: "Máquina não encontrada" });
     }
 
-    // Calcular valor faturado
-    const valorFaturado = fichas ? fichas * parseFloat(maquina.valorFicha) : 0;
+    // Calcular valor faturado: fichas + notas + digital
+    const valorFaturado =
+      (fichas ? fichas * parseFloat(maquina.valorFicha) : 0) +
+      (quantidade_notas_entrada ? parseFloat(quantidade_notas_entrada) : 0) +
+      (valor_entrada_maquininha_pix
+        ? parseFloat(valor_entrada_maquininha_pix)
+        : 0);
 
     // Criar movimentação
     const movimentacao = await Movimentacao.create({
@@ -318,12 +323,22 @@ export const atualizarMovimentacao = async (req, res) => {
           : movimentacao.valor_entrada_maquininha_pix,
     };
 
-    // Se as fichas foram atualizadas, recalcular o valorFaturado
-    if (fichas !== undefined) {
+    // Se fichas, notas ou digital foram atualizados, recalcular o valorFaturado
+    if (
+      fichas !== undefined ||
+      quantidade_notas_entrada !== undefined ||
+      valor_entrada_maquininha_pix !== undefined
+    ) {
       const maquina = await Maquina.findByPk(movimentacao.maquinaId);
       if (maquina) {
         updateData.valorFaturado =
-          updateData.fichas * parseFloat(maquina.valorFicha);
+          updateData.fichas * parseFloat(maquina.valorFicha) +
+          (updateData.quantidade_notas_entrada
+            ? parseFloat(updateData.quantidade_notas_entrada)
+            : 0) +
+          (updateData.valor_entrada_maquininha_pix
+            ? parseFloat(updateData.valor_entrada_maquininha_pix)
+            : 0);
       }
     }
 
