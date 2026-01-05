@@ -11,9 +11,46 @@ import { autenticar, registrarLog } from "../middlewares/auth.js";
 
 const router = express.Router();
 
-// Todas as rotas requerem autenticação (ADMIN e FUNCIONARIO podem acessar)
-router.get("/:lojaId", autenticar, listarEstoqueLoja);
+// Debug middleware - registra todas as requisições para esta rota
+router.use((req, res, next) => {
+  console.log("🔍 [estoqueLoja.routes] Requisição recebida:", {
+    method: req.method,
+    url: req.url,
+    params: req.params,
+    body: req.body,
+  });
+  next();
+});
+
+// IMPORTANTE: Rotas específicas DEVEM vir ANTES de rotas com parâmetros dinâmicos
+// Caso contrário, Express pode confundir 'alertas' ou 'varios' com um produtoId
+
+// Rotas GET específicas primeiro
 router.get("/:lojaId/alertas", autenticar, alertasEstoqueLoja);
+router.get("/:lojaId", autenticar, listarEstoqueLoja);
+
+// Rotas POST específicas
+router.post(
+  "/:lojaId/varios",
+  autenticar,
+  registrarLog("ATUALIZAR_VARIOS_ESTOQUES", "EstoqueLoja"),
+  atualizarVariosEstoques
+);
+
+router.post(
+  "/:lojaId",
+  autenticar,
+  registrarLog("CRIAR_ATUALIZAR_ESTOQUE", "EstoqueLoja"),
+  criarOuAtualizarProdutoEstoque
+);
+
+// Rotas PUT específicas
+router.put(
+  "/:lojaId/varios",
+  autenticar,
+  registrarLog("ATUALIZAR_VARIOS_ESTOQUES", "EstoqueLoja"),
+  atualizarVariosEstoques
+);
 
 router.put(
   "/:lojaId/:produtoId",
@@ -22,29 +59,7 @@ router.put(
   atualizarEstoqueLoja
 );
 
-router.put(
-  "/:lojaId/varios",
-  autenticar,
-  registrarLog("ATUALIZAR_VARIOS_ESTOQUES", "EstoqueLoja"),
-  atualizarVariosEstoques
-);
-
-// POST para criar/atualizar produto único (usado pelo Dashboard)
-router.post(
-  "/:lojaId",
-  autenticar,
-  registrarLog("CRIAR_ATUALIZAR_ESTOQUE", "EstoqueLoja"),
-  criarOuAtualizarProdutoEstoque
-);
-
-// POST /varios para atualizar múltiplos produtos (se precisar)
-router.post(
-  "/:lojaId/varios",
-  autenticar,
-  registrarLog("ATUALIZAR_VARIOS_ESTOQUES", "EstoqueLoja"),
-  atualizarVariosEstoques
-);
-
+// Rota DELETE por último
 router.delete(
   "/:lojaId/:produtoId",
   autenticar,
