@@ -56,6 +56,16 @@ export const registrarMovimentacao = async (req, res) => {
         ? parseFloat(valor_entrada_maquininha_pix)
         : 0);
 
+    console.log("📝 [registrarMovimentacao] Criando movimentação:", {
+      maquinaId,
+      totalPre,
+      sairam,
+      abastecidas,
+      totalPosCalculado: totalPre - sairam + abastecidas,
+      fichas: fichas || 0,
+      valorFaturado,
+    });
+
     // Criar movimentação
     const movimentacao = await Movimentacao.create({
       maquinaId,
@@ -76,6 +86,14 @@ export const registrarMovimentacao = async (req, res) => {
       valor_entrada_maquininha_pix: valor_entrada_maquininha_pix ?? null,
     });
 
+    console.log("✅ [registrarMovimentacao] Movimentação criada:", {
+      id: movimentacao.id,
+      totalPre: movimentacao.totalPre,
+      sairam: movimentacao.sairam,
+      abastecidas: movimentacao.abastecidas,
+      totalPos: movimentacao.totalPos,
+    });
+
     // Se produtos foram informados, registrar detalhes
     if (produtos && produtos.length > 0) {
       const detalhesProdutos = produtos.map((p) => ({
@@ -90,6 +108,15 @@ export const registrarMovimentacao = async (req, res) => {
       // Descontar do estoque da loja os produtos abastecidos
       for (const produto of produtos) {
         if (produto.quantidadeAbastecida && produto.quantidadeAbastecida > 0) {
+          console.log(
+            "🏪 [registrarMovimentacao] Atualizando estoque da loja:",
+            {
+              lojaId: maquina.lojaId,
+              produtoId: produto.produtoId,
+              quantidadeAbastecida: produto.quantidadeAbastecida,
+            }
+          );
+
           // Buscar estoque do produto na loja da máquina
           const estoqueLoja = await EstoqueLoja.findOne({
             where: {
@@ -99,12 +126,32 @@ export const registrarMovimentacao = async (req, res) => {
           });
 
           if (estoqueLoja) {
+            const quantidadeAnterior = estoqueLoja.quantidade;
             // Descontar a quantidade abastecida (não permite ficar negativo)
             const novaQuantidade = Math.max(
               0,
               estoqueLoja.quantidade - produto.quantidadeAbastecida
             );
+
+            console.log(
+              "📦 [registrarMovimentacao] Estoque da loja atualizado:",
+              {
+                produtoId: produto.produtoId,
+                quantidadeAnterior,
+                quantidadeAbastecida: produto.quantidadeAbastecida,
+                novaQuantidade,
+              }
+            );
+
             await estoqueLoja.update({ quantidade: novaQuantidade });
+          } else {
+            console.log(
+              "⚠️ [registrarMovimentacao] Estoque da loja não encontrado:",
+              {
+                lojaId: maquina.lojaId,
+                produtoId: produto.produtoId,
+              }
+            );
           }
         }
       }

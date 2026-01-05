@@ -30,11 +30,22 @@ export const atualizarEstoqueLoja = async (req, res) => {
     const { lojaId, produtoId } = req.params;
     const { quantidade, estoqueMinimo } = req.body;
 
+    console.log("🔄 [atualizarEstoqueLoja] Recebendo atualização:", {
+      lojaId,
+      produtoId,
+      quantidade,
+      estoqueMinimo,
+    });
+
     if (quantidade === undefined) {
       return res.status(400).json({ error: "Quantidade é obrigatória" });
     }
 
     if (quantidade < 0) {
+      console.log(
+        "❌ [atualizarEstoqueLoja] Quantidade negativa rejeitada:",
+        quantidade
+      );
       return res
         .status(400)
         .json({ error: "Quantidade não pode ser negativa" });
@@ -43,11 +54,16 @@ export const atualizarEstoqueLoja = async (req, res) => {
     // Verificar se loja e produto existem
     const loja = await Loja.findByPk(lojaId);
     if (!loja) {
+      console.log("❌ [atualizarEstoqueLoja] Loja não encontrada:", lojaId);
       return res.status(404).json({ error: "Loja não encontrada" });
     }
 
     const produto = await Produto.findByPk(produtoId);
     if (!produto) {
+      console.log(
+        "❌ [atualizarEstoqueLoja] Produto não encontrado:",
+        produtoId
+      );
       return res.status(404).json({ error: "Produto não encontrado" });
     }
 
@@ -60,13 +76,31 @@ export const atualizarEstoqueLoja = async (req, res) => {
       },
     });
 
+    console.log("📦 [atualizarEstoqueLoja] Estoque atual:", {
+      id: estoque.id,
+      quantidadeAtual: estoque.quantidade,
+      created,
+    });
+
     if (!created) {
+      const quantidadeAnterior = estoque.quantidade;
       // Atualizar se já existe
       estoque.quantidade = quantidade;
       if (estoqueMinimo !== undefined) {
         estoque.estoqueMinimo = estoqueMinimo;
       }
       await estoque.save();
+
+      console.log("✅ [atualizarEstoqueLoja] Estoque atualizado:", {
+        quantidadeAnterior,
+        quantidadeNova: quantidade,
+        diferenca: quantidade - quantidadeAnterior,
+      });
+    } else {
+      console.log("✨ [atualizarEstoqueLoja] Novo estoque criado:", {
+        quantidade,
+        estoqueMinimo,
+      });
     }
 
     // Retornar com dados do produto
@@ -98,11 +132,12 @@ export const criarOuAtualizarProdutoEstoque = async (req, res) => {
     const { lojaId } = req.params;
     const { produtoId, quantidade, estoqueMinimo } = req.body;
 
-    console.log("=== CRIAR/ATUALIZAR PRODUTO ÚNICO ===");
-    console.log("LojaId:", lojaId);
-    console.log("ProdutoId:", produtoId);
-    console.log("Quantidade:", quantidade);
-    console.log("Estoque Mínimo:", estoqueMinimo);
+    console.log("🔄 [criarOuAtualizarProdutoEstoque] Recebendo requisição:", {
+      lojaId,
+      produtoId,
+      quantidade,
+      estoqueMinimo,
+    });
 
     if (!produtoId) {
       return res.status(400).json({ error: "produtoId é obrigatório" });
@@ -113,6 +148,10 @@ export const criarOuAtualizarProdutoEstoque = async (req, res) => {
     }
 
     if (quantidade < 0) {
+      console.log(
+        "❌ [criarOuAtualizarProdutoEstoque] Quantidade negativa rejeitada:",
+        quantidade
+      );
       return res
         .status(400)
         .json({ error: "Quantidade não pode ser negativa" });
@@ -121,12 +160,20 @@ export const criarOuAtualizarProdutoEstoque = async (req, res) => {
     // Verificar se loja existe
     const loja = await Loja.findByPk(lojaId);
     if (!loja) {
+      console.log(
+        "❌ [criarOuAtualizarProdutoEstoque] Loja não encontrada:",
+        lojaId
+      );
       return res.status(404).json({ error: "Loja não encontrada" });
     }
 
     // Verificar se produto existe
     const produto = await Produto.findByPk(produtoId);
     if (!produto) {
+      console.log(
+        "❌ [criarOuAtualizarProdutoEstoque] Produto não encontrado:",
+        produtoId
+      );
       return res.status(404).json({ error: "Produto não encontrado" });
     }
 
@@ -139,13 +186,31 @@ export const criarOuAtualizarProdutoEstoque = async (req, res) => {
       },
     });
 
+    console.log("📦 [criarOuAtualizarProdutoEstoque] Estoque encontrado:", {
+      id: estoque.id,
+      quantidadeAtual: estoque.quantidade,
+      created,
+    });
+
     if (!created) {
+      const quantidadeAnterior = estoque.quantidade;
       // Atualizar se já existe
       estoque.quantidade = quantidade;
       if (estoqueMinimo !== undefined) {
         estoque.estoqueMinimo = estoqueMinimo;
       }
       await estoque.save();
+
+      console.log("✅ [criarOuAtualizarProdutoEstoque] Estoque atualizado:", {
+        quantidadeAnterior,
+        quantidadeNova: quantidade,
+        diferenca: quantidade - quantidadeAnterior,
+      });
+    } else {
+      console.log("✨ [criarOuAtualizarProdutoEstoque] Novo estoque criado:", {
+        quantidade,
+        estoqueMinimo,
+      });
     }
 
     // Retornar com dados do produto

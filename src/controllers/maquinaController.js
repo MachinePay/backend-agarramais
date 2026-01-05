@@ -210,9 +210,14 @@ export const deletarMaquina = async (req, res) => {
 // US07 - Obter estoque atual da máquina
 export const obterEstoqueAtual = async (req, res) => {
   try {
-    const maquina = await Maquina.findByPk(req.params.id);
+    const { id } = req.params;
+
+    console.log("🔍 [obterEstoqueAtual] Buscando estoque para máquina:", id);
+
+    const maquina = await Maquina.findByPk(id);
 
     if (!maquina) {
+      console.log("❌ [obterEstoqueAtual] Máquina não encontrada:", id);
       return res.status(404).json({ error: "Máquina não encontrada" });
     }
 
@@ -222,10 +227,26 @@ export const obterEstoqueAtual = async (req, res) => {
       order: [["dataColeta", "DESC"]],
     });
 
+    console.log("📦 [obterEstoqueAtual] Última movimentação:", {
+      id: ultimaMovimentacao?.id,
+      dataColeta: ultimaMovimentacao?.dataColeta,
+      totalPre: ultimaMovimentacao?.totalPre,
+      sairam: ultimaMovimentacao?.sairam,
+      abastecidas: ultimaMovimentacao?.abastecidas,
+      totalPos: ultimaMovimentacao?.totalPos,
+    });
+
     const estoqueAtual = ultimaMovimentacao ? ultimaMovimentacao.totalPos : 0;
     const percentualEstoque = (estoqueAtual / maquina.capacidadePadrao) * 100;
     const estoqueMinimo =
       (maquina.capacidadePadrao * maquina.percentualAlertaEstoque) / 100;
+
+    console.log("✅ [obterEstoqueAtual] Estoque calculado:", {
+      estoqueAtual,
+      percentualEstoque: percentualEstoque.toFixed(2),
+      estoqueMinimo,
+      alertaEstoqueBaixo: estoqueAtual < estoqueMinimo,
+    });
 
     res.json({
       maquina: {
@@ -241,7 +262,7 @@ export const obterEstoqueAtual = async (req, res) => {
       ultimaAtualizacao: ultimaMovimentacao?.dataColeta,
     });
   } catch (error) {
-    console.error("Erro ao obter estoque:", error);
+    console.error("❌ [obterEstoqueAtual] Erro ao obter estoque:", error);
     res.status(500).json({ error: "Erro ao obter estoque" });
   }
 };
