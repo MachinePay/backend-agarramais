@@ -25,10 +25,6 @@ export const listarMovimentacoesEstoqueLoja = async (req, res) => {
   }
 };
 
-// Criar nova movimentação
-import MovimentacaoEstoqueLoja from "../models/MovimentacaoEstoqueLoja.js";
-import MovimentacaoEstoqueLojaProduto from "../models/MovimentacaoEstoqueLojaProduto.js";
-import { Loja, Usuario, Produto } from "../models/index.js";
 
 // Criar nova movimentação
 export const criarMovimentacaoEstoqueLoja = async (req, res) => {
