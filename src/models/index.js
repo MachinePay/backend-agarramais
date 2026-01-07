@@ -1,3 +1,19 @@
+// Associação MovimentacaoEstoqueLoja <-> Loja
+MovimentacaoEstoqueLoja.belongsTo(Loja, { foreignKey: "lojaId", as: "loja" });
+Loja.hasMany(MovimentacaoEstoqueLoja, {
+  foreignKey: "lojaId",
+  as: "movimentacoesEstoque",
+});
+
+// Associação MovimentacaoEstoqueLoja <-> Usuario
+MovimentacaoEstoqueLoja.belongsTo(Usuario, {
+  foreignKey: "usuarioId",
+  as: "usuario",
+});
+Usuario.hasMany(MovimentacaoEstoqueLoja, {
+  foreignKey: "usuarioId",
+  as: "movimentacoesEstoque",
+});
 import Usuario from "./Usuario.js";
 import Loja from "./Loja.js";
 import Maquina from "./Maquina.js";
