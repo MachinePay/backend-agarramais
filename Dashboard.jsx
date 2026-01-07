@@ -28,27 +28,41 @@ export function Dashboard() {
   const [movimentacaoTipo, setMovimentacaoTipo] = useState("");
   const [movimentacaoProdutoId, setMovimentacaoProdutoId] = useState("");
   const [movimentacaoQuantidade, setMovimentacaoQuantidade] = useState("");
-  const [produtosMovimentacao, setProdutosMovimentacao] = useState([
-    { produtoId: "", quantidade: "", tipoMovimentacao: "saida" },
-  ]);
+  const [produtosMovimentacao, setProdutosMovimentacao] = useState([]);
 
+
+  // Sempre deve haver pelo menos um produto na lista
   const handleAddProduto = () => {
-    setProdutosMovimentacao([
-      ...produtosMovimentacao,
+    setProdutosMovimentacao((prev) => [
+      ...prev,
       { produtoId: "", quantidade: "", tipoMovimentacao: "saida" },
     ]);
   };
 
   const handleRemoveProduto = (index) => {
-    const novos = [...produtosMovimentacao];
-    novos.splice(index, 1);
-    setProdutosMovimentacao(novos);
+    setProdutosMovimentacao((prev) => {
+      if (prev.length === 1) {
+        // Não permite remover o último produto
+        return prev;
+      }
+      const novos = [...prev];
+      novos.splice(index, 1);
+      return novos;
+    });
   };
 
   const handleProdutoChange = (index, field, value) => {
-    const novos = [...produtosMovimentacao];
-    novos[index][field] = value;
-    setProdutosMovimentacao(novos);
+    setProdutosMovimentacao((prev) => {
+      const novos = [...prev];
+      if (field === "quantidade") {
+        // Garante que só aceita números inteiros positivos
+        const val = value.replace(/\D/g, "");
+        novos[index][field] = val;
+      } else {
+        novos[index][field] = value;
+      }
+      return novos;
+    });
   };
   const enviarMovimentacaoEstoqueLoja = async (e) => {
     if (e) e.preventDefault();
@@ -56,15 +70,23 @@ export function Dashboard() {
     setMovimentacaoErro("");
     setMovimentacaoSucesso("");
     try {
+      const produtosValidos = produtosMovimentacao.filter(
+        (p) => p.produtoId && Number(p.quantidade) > 0
+      );
+      if (!movimentacaoLojaId || produtosValidos.length === 0) {
+        setMovimentacaoErro(
+          "Preencha todos os campos obrigatórios e adicione pelo menos um produto válido."
+        );
+        setMovimentacaoEnviando(false);
+        return;
+      }
       const payload = {
         lojaId: movimentacaoLojaId,
-        produtos: produtosMovimentacao
-          .filter((p) => p.produtoId && p.quantidade)
-          .map((p) => ({
-            produtoId: p.produtoId,
-            quantidade: parseInt(p.quantidade),
-            tipoMovimentacao: p.tipoMovimentacao || "saida",
-          })),
+        produtos: produtosValidos.map((p) => ({
+          produtoId: p.produtoId,
+          quantidade: parseInt(p.quantidade),
+          tipoMovimentacao: p.tipoMovimentacao || "saida",
+        })),
         observacao: "",
         dataMovimentacao: new Date().toISOString(),
       };
@@ -72,9 +94,7 @@ export function Dashboard() {
       setMovimentacaoSucesso("Movimentação registrada com sucesso!");
       setMostrarModalMovimentacao(false);
       setMovimentacaoLojaId("");
-      setProdutosMovimentacao([
-        { produtoId: "", quantidade: "", tipoMovimentacao: "saida" },
-      ]);
+      setProdutosMovimentacao([]);
       // ...atualize dados se necessário
     } catch (erro) {
       setMovimentacaoErro("Erro ao registrar movimentação");
@@ -99,69 +119,90 @@ export function Dashboard() {
               Loja de destino
             </label>
             <select
-              value={movimentacaoLojaId}
-              onChange={(e) => setMovimentacaoLojaId(e.target.value)}
-              className="input-field"
-            >
-              <option value="">Selecione a loja</option>
-              {(lojas || []).map((loja) => (
-                <option key={loja.id} value={loja.id}>
-                  {loja.nome}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="mb-4">
-            <label className="block text-sm font-semibold mb-2">
-              Produtos enviados
-            </label>
-            {produtosMovimentacao.map((p, idx) => (
-              <div key={idx} className="flex gap-2 mb-2">
-                <select
-                  value={p.produtoId}
-                  onChange={(e) =>
-                    handleProdutoChange(idx, "produtoId", e.target.value)
-                  }
-                  className="input-field"
-                >
-                  <option value="">Produto</option>
-                  {(produtos || []).map((prod) => (
-                    <option key={prod.id} value={prod.id}>
-                      {prod.nome}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  type="number"
-                  min="1"
-                  value={p.quantidade}
-                  onChange={(e) =>
-                    handleProdutoChange(idx, "quantidade", e.target.value)
-                  }
-                  placeholder="Quantidade"
-                  className="input-field w-24"
-                />
-                <select
-                  value={p.tipoMovimentacao || "saida"}
-                  onChange={(e) =>
-                    handleProdutoChange(idx, "tipoMovimentacao", e.target.value)
-                  }
-                  className="input-field w-28"
-                >
-                  <option value="saida">Saída</option>
-                  <option value="entrada">Entrada</option>
-                </select>
-                {produtosMovimentacao.length > 1 && (
-                  <button
-                    type="button"
-                    className="btn-danger"
-                    onClick={() => handleRemoveProduto(idx)}
-                  >
-                    Remover
-                  </button>
-                )}
-              </div>
+            value={movimentacaoLojaId}
+            onChange={(e) => setMovimentacaoLojaId(e.target.value)}
+            className="input-field"
+            required
+          >
+            <option value="">Selecione a loja</option>
+            {(lojas || []).map((loja) => (
+              <option key={loja.id} value={loja.id}>{loja.nome}</option>
             ))}
+          </select>
+        </div>
+        <div className="mb-4">
+          <label className="block text-sm font-semibold mb-2">Produtos enviados</label>
+          {produtosMovimentacao.map((p, idx) => (
+            <div key={idx} className="flex gap-2 mb-2">
+              <select
+                value={p.produtoId}
+                onChange={(e) => handleProdutoChange(idx, "produtoId", e.target.value)}
+                className="input-field"
+                required
+              >
+                <option value="">Selecione o produto</option>
+                {(produtos || []).map((prod) => (
+                  <option key={prod.id} value={prod.id}>{prod.nome}</option>
+                ))}
+              </select>
+              <input
+                type="number"
+                min="1"
+                value={p.quantidade}
+                onChange={(e) => handleProdutoChange(idx, "quantidade", e.target.value)}
+                placeholder="Quantidade"
+                className="input-field w-24"
+                required
+                inputMode="numeric"
+                pattern="[0-9]*"
+              />
+              <select
+                value={p.tipoMovimentacao || "saida"}
+                onChange={(e) => handleProdutoChange(idx, "tipoMovimentacao", e.target.value)}
+                className="input-field w-28"
+                required
+              >
+                <option value="saida">Saída</option>
+                <option value="entrada">Entrada</option>
+              </select>
+              {produtosMovimentacao.length > 1 && (
+                <button
+                  type="button"
+                  className="btn-danger"
+                  onClick={() => handleRemoveProduto(idx)}
+                >Remover</button>
+              )}
+            </div>
+          ))}
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={handleAddProduto}
+          >Adicionar mais um produto</button>
+        </div>
+        <div className="flex gap-4 justify-end mt-6">
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => setMostrarModalMovimentacao(false)}
+            disabled={movimentacaoEnviando}
+          >Cancelar</button>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={enviarMovimentacaoEstoqueLoja}
+            disabled={movimentacaoEnviando}
+          >{movimentacaoEnviando ? "Enviando..." : "Registrar Movimentação"}</button>
+        </div>
+        {movimentacaoErro && (
+          <div className="text-red-600 mt-2">{movimentacaoErro}</div>
+        )}
+        {movimentacaoSucesso && (
+          <div className="text-green-600 mt-2">{movimentacaoSucesso}</div>
+        )}
+      </div>
+    </div>
+  )}
             <button
               type="button"
               className="btn-secondary"
@@ -194,9 +235,8 @@ export function Dashboard() {
           {movimentacaoSucesso && (
             <div className="text-green-600 mt-2">{movimentacaoSucesso}</div>
           )}
-        </div>
-      </div>
-    );
+       
+
   }
   const { usuario } = useAuth();
   const [stats, setStats] = useState({
@@ -1499,60 +1539,74 @@ export function Dashboard() {
                         required
                       >
                         <option value="">Selecione...</option>
-                        {produtos.map((produto) => (
-                          <option key={produto.id} value={produto.id}>
-                            {produto.emoji || "📦"} {produto.nome}
-                          </option>
+                        {produtosMovimentacao.length === 0 && (
+                          <div className="mb-2">
+                            <button
+                              type="button"
+                              className="btn-secondary"
+                              onClick={handleAddProduto}
+                            >
+                              Adicionar produto
+                            </button>
+                          </div>
+                        )}
+                        {produtosMovimentacao.map((p, idx) => (
+                          <div key={idx} className="flex gap-2 mb-2">
+                            <select
+                              value={p.produtoId}
+                              onChange={(e) => handleProdutoChange(idx, "produtoId", e.target.value)}
+                              className="input-field"
+                              required
+                            >
+                              <option value="">Selecione o produto</option>
+                              {(produtos || []).map((prod) => (
+                                <option key={prod.id} value={prod.id}>
+                                  {prod.nome}
+                                </option>
+                              ))}
+                            </select>
+                            <input
+                              type="number"
+                              min="1"
+                              value={p.quantidade}
+                              onChange={(e) => handleProdutoChange(idx, "quantidade", e.target.value)}
+                              placeholder="Quantidade"
+                              className="input-field w-24"
+                              required
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                            />
+                            <select
+                              value={p.tipoMovimentacao || "saida"}
+                              onChange={(e) => handleProdutoChange(idx, "tipoMovimentacao", e.target.value)}
+                              className="input-field w-28"
+                              required
+                            >
+                              <option value="saida">Saída</option>
+                              <option value="entrada">Entrada</option>
+                            </select>
+                            {produtosMovimentacao.length > 1 && (
+                              <button
+                                type="button"
+                                className="btn-danger"
+                                onClick={() => handleRemoveProduto(idx)}
+                              >
+                                Remover
+                              </button>
+                            )}
+                          </div>
                         ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">
-                        Quantidade
-                      </label>
-                      <input
-                        type="number"
-                        min="1"
-                        className="input-primary w-full"
-                        value={movimentacaoQuantidade}
-                        onChange={(e) =>
-                          setMovimentacaoQuantidade(e.target.value)
-                        }
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">
-                        Loja
-                      </label>
-                      <select
-                        className="input-primary w-full"
-                        value={movimentacaoLojaId}
-                        onChange={(e) => setMovimentacaoLojaId(e.target.value)}
-                        required
-                      >
-                        <option value="">Selecione...</option>
-                        {lojas.map((loja) => (
-                          <option key={loja.id} value={loja.id}>
-                            {loja.nome}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    {movimentacaoErro && (
-                      <div className="text-red-600 font-semibold text-sm mt-2">
-                        {movimentacaoErro}
-                      </div>
-                    )}
-                    {movimentacaoSucesso && (
-                      <div className="text-green-600 font-semibold text-sm mt-2">
-                        {movimentacaoSucesso}
-                      </div>
-                    )}
-                    <div className="flex justify-end gap-3 mt-6">
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          onClick={handleAddProduto}
+                        >
+                          Adicionar mais um produto
+                        </button>
+                    </select>
                       <button
                         type="button"
-                        className="px-6 py-3 border-2 border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+                        className="mt-4 btn-secondary"
                         onClick={() => setMostrarModalMovimentacao(false)}
                         disabled={movimentacaoEnviando}
                       >
