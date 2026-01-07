@@ -30,6 +30,12 @@ const MovimentacaoEstoqueLojaProduto = sequelize.define(
       allowNull: false,
       defaultValue: 0,
     },
+    tipoMovimentacao: {
+      type: DataTypes.ENUM("entrada", "saida"),
+      allowNull: false,
+      defaultValue: "saida",
+      comment: "Tipo da movimentação: entrada ou saída",
+    },
   },
   {
     tableName: "movimentacao_estoque_loja_produtos",
