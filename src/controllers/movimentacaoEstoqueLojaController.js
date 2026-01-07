@@ -69,6 +69,9 @@ export const criarMovimentacaoEstoqueLoja = async (req, res) => {
         });
         let novaQuantidade = 0;
         if (estoque) {
+          console.log(
+            `[ESTOQUE] Antes: lojaId=${lojaId}, produtoId=${item.produtoId}, quantidadeAtual=${estoque.quantidade}`
+          );
           if ((item.tipoMovimentacao || "saida") === "entrada") {
             novaQuantidade = estoque.quantidade + Number(item.quantidade);
           } else {
@@ -76,6 +79,9 @@ export const criarMovimentacaoEstoqueLoja = async (req, res) => {
             if (novaQuantidade < 0) novaQuantidade = 0;
           }
           await estoque.update({ quantidade: novaQuantidade });
+          console.log(
+            `[ESTOQUE] Depois: lojaId=${lojaId}, produtoId=${item.produtoId}, novaQuantidade=${novaQuantidade}`
+          );
         } else {
           // Se não existe, cria novo registro de estoque
           novaQuantidade =
@@ -87,6 +93,9 @@ export const criarMovimentacaoEstoqueLoja = async (req, res) => {
             produtoId: item.produtoId,
             quantidade: novaQuantidade,
           });
+          console.log(
+            `[ESTOQUE] Criado novo estoque: lojaId=${lojaId}, produtoId=${item.produtoId}, quantidade=${novaQuantidade}`
+          );
         }
       } catch (err) {
         console.error(`[ERRO] Falha ao criar produto idx ${idx}:`, item, err);
