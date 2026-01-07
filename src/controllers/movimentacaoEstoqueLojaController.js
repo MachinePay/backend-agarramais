@@ -8,8 +8,8 @@ export const listarMovimentacoesEstoqueLoja = async (req, res) => {
     const movimentacoes = await MovimentacaoEstoqueLoja.findAll({
       order: [["dataMovimentacao", "DESC"]],
       include: [
-        { model: Loja, attributes: ["id", "nome"] },
-        { model: Usuario, attributes: ["id", "nome"] },
+        { model: Loja, as: "loja", attributes: ["id", "nome"] },
+        { model: Usuario, as: "usuario", attributes: ["id", "nome"] },
         {
           model: MovimentacaoEstoqueLojaProduto,
           as: "produtosEnviados",
@@ -37,28 +37,28 @@ export const criarMovimentacaoEstoqueLoja = async (req, res) => {
     console.log("[DEBUG] produtos:", produtos);
     if (!lojaId || !Array.isArray(produtos) || produtos.length === 0) {
       console.error("[ERRO] Loja ou produtos ausentes", { lojaId, produtos });
-      return res
-        .status(400)
-        .json({ error: "Loja e pelo menos um produto são obrigatórios" });
-    }
-    // Checar se todos os produtos têm produtoId, quantidade e tipoMovimentacao
-    for (const [idx, item] of produtos.entries()) {
-      if (!item.produtoId || !item.quantidade || !item.tipoMovimentacao) {
-        console.error(`[ERRO] Produto inválido no índice ${idx}:`, item);
-        return res.status(400).json({
-          error:
-            "Produto, quantidade e tipoMovimentacao são obrigatórios para cada item",
-          item,
-          idx,
-        });
+      try {
+        const movimentacaoCompleta = await MovimentacaoEstoqueLoja.findByPk(
+          movimentacao.id,
+          {
+            include: [
+              { model: Loja, as: "loja", attributes: ["id", "nome"] },
+              { model: Usuario, as: "usuario", attributes: ["id", "nome"] },
+              {
+                model: MovimentacaoEstoqueLojaProduto,
+                as: "produtosEnviados",
+                include: [
+                  { model: Produto, as: "produto", attributes: ["id", "nome"] },
+                ],
+              },
+            ],
+          }
+        );
+        res.status(201).json(movimentacaoCompleta);
+      } catch (err) {
+        console.error("[ERRO] Falha ao buscar movimentacao completa:", err);
+        res.status(500).json({ error: "Erro ao buscar movimentação completa", details: err.message });
       }
-    }
-    let movimentacao;
-    try {
-      movimentacao = await MovimentacaoEstoqueLoja.create({
-        lojaId,
-        usuarioId,
-        observacao,
         dataMovimentacao: dataMovimentacao || new Date(),
       });
       console.log("[DEBUG] Movimentacao criada:", movimentacao.id);
