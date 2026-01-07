@@ -25,7 +25,6 @@ export const listarMovimentacoesEstoqueLoja = async (req, res) => {
   }
 };
 
-
 // Criar nova movimentação
 export const criarMovimentacaoEstoqueLoja = async (req, res) => {
   try {
@@ -53,19 +52,44 @@ export const criarMovimentacaoEstoqueLoja = async (req, res) => {
 
     console.log("[DEBUG] Movimentacao criada ID:", movimentacao.id);
 
-    // 3. Salvar produtos enviados (Itens)
+    // 3. Salvar produtos enviados (Itens) e atualizar estoque
+    const { EstoqueLoja } = await import("../models/index.js");
     for (const [idx, item] of produtos.entries()) {
       try {
         await MovimentacaoEstoqueLojaProduto.create({
           movimentacaoEstoqueLojaId: movimentacao.id,
           produtoId: item.produtoId,
           quantidade: Number(item.quantidade),
-          tipoMovimentacao: item.tipoMovimentacao || "saida", // Valor padrão caso não venha
+          tipoMovimentacao: item.tipoMovimentacao || "saida",
         });
+
+        // Atualizar estoque da loja
+        const estoque = await EstoqueLoja.findOne({
+          where: { lojaId, produtoId: item.produtoId },
+        });
+        let novaQuantidade = 0;
+        if (estoque) {
+          if ((item.tipoMovimentacao || "saida") === "entrada") {
+            novaQuantidade = estoque.quantidade + Number(item.quantidade);
+          } else {
+            novaQuantidade = estoque.quantidade - Number(item.quantidade);
+            if (novaQuantidade < 0) novaQuantidade = 0;
+          }
+          await estoque.update({ quantidade: novaQuantidade });
+        } else {
+          // Se não existe, cria novo registro de estoque
+          novaQuantidade =
+            (item.tipoMovimentacao || "saida") === "entrada"
+              ? Number(item.quantidade)
+              : 0;
+          await EstoqueLoja.create({
+            lojaId,
+            produtoId: item.produtoId,
+            quantidade: novaQuantidade,
+          });
+        }
       } catch (err) {
         console.error(`[ERRO] Falha ao criar produto idx ${idx}:`, item, err);
-        // Não vamos parar a requisição inteira se um produto falhar, mas logamos o erro.
-        // Se quiser que pare tudo, use uma Transaction do Sequelize.
       }
     }
 
