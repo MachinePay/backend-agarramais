@@ -11,6 +11,11 @@ import MovimentacaoEstoqueLoja from "./MovimentacaoEstoqueLoja.js";
 import MovimentacaoEstoqueLojaProduto from "./MovimentacaoEstoqueLojaProduto.js";
 
 // Relacionamentos
+MovimentacaoEstoqueLoja.belongsTo(Loja, { foreignKey: "lojaId", as: "loja" });
+Loja.hasMany(MovimentacaoEstoqueLoja, { foreignKey: "lojaId", as: "movimentacoesEstoque" });
+
+MovimentacaoEstoqueLoja.belongsTo(Usuario, { foreignKey: "usuarioId", as: "usuario" });
+Usuario.hasMany(MovimentacaoEstoqueLoja, { foreignKey: "usuarioId", as: "movimentacoesEstoque" });
 
 // Loja -> Máquinas
 Loja.hasMany(Maquina, { foreignKey: "lojaId", as: "maquinas" });
