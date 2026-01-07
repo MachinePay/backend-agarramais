@@ -8,6 +8,7 @@ import movimentacaoRoutes from "./movimentacao.routes.js";
 import relatorioRoutes from "./relatorio.routes.js";
 import adminRoutes from "./admin.routes.js";
 import estoqueLojaRoutes from "./estoqueLoja.routes.js";
+import movimentacaoEstoqueLojaRoutes from "./movimentacaoEstoqueLoja.routes.js";
 
 const router = express.Router();
 
@@ -20,5 +21,6 @@ router.use("/movimentacoes", movimentacaoRoutes);
 router.use("/relatorios", relatorioRoutes);
 router.use("/admin", adminRoutes);
 router.use("/estoque-lojas", estoqueLojaRoutes);
+router.use("/movimentacao-estoque-loja", movimentacaoEstoqueLojaRoutes);
 
 export default router;

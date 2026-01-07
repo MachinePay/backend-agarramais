@@ -7,6 +7,8 @@ import MovimentacaoProduto from "./MovimentacaoProduto.js";
 import LogAtividade from "./LogAtividade.js";
 import UsuarioLoja from "./UsuarioLoja.js";
 import EstoqueLoja from "./EstoqueLoja.js";
+import MovimentacaoEstoqueLoja from "./MovimentacaoEstoqueLoja.js";
+import MovimentacaoEstoqueLojaProduto from "./MovimentacaoEstoqueLojaProduto.js";
 
 // Relacionamentos
 
@@ -91,7 +93,19 @@ Produto.belongsToMany(Loja, {
   as: "estoqueLoja",
 });
 
-// Acesso direto à tabela EstoqueLoja
+// Relacionamento MovimentacaoEstoqueLoja <-> Produto
+MovimentacaoEstoqueLoja.hasMany(MovimentacaoEstoqueLojaProduto, {
+  foreignKey: "movimentacaoEstoqueLojaId",
+  as: "produtosEnviados",
+});
+MovimentacaoEstoqueLojaProduto.belongsTo(MovimentacaoEstoqueLoja, {
+  foreignKey: "movimentacaoEstoqueLojaId",
+  as: "movimentacao",
+});
+MovimentacaoEstoqueLojaProduto.belongsTo(Produto, {
+  foreignKey: "produtoId",
+  as: "produto",
+});
 Loja.hasMany(EstoqueLoja, {
   foreignKey: "lojaId",
   as: "estoques",
@@ -113,4 +127,6 @@ export {
   LogAtividade,
   UsuarioLoja,
   EstoqueLoja,
+  MovimentacaoEstoqueLoja,
+  MovimentacaoEstoqueLojaProduto,
 };
