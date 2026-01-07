@@ -3,6 +3,7 @@ import MovimentacaoEstoqueLojaProduto from "../models/MovimentacaoEstoqueLojaPro
 import { Loja, Usuario, Produto } from "../models/index.js";
 
 // Listar todas as movimentações de estoque de loja
+export const listarMovimentacoesEstoqueLoja = async (req, res) => {
   try {
     const movimentacoes = await MovimentacaoEstoqueLoja.findAll({
       order: [["dataMovimentacao", "DESC"]],
@@ -17,12 +18,14 @@ import { Loja, Usuario, Produto } from "../models/index.js";
       ],
     });
     res.json(movimentacoes);
+    
   } catch (error) {
     res.status(500).json({ error: "Erro ao listar movimentações" });
   }
 };
 
 // Criar nova movimentação
+export const criarMovimentacaoEstoqueLoja = async (req, res) => {
   try {
     const { lojaId, usuarioId, produtos, observacao, dataMovimentacao } = req.body;
     if (!lojaId || !usuarioId || !Array.isArray(produtos) || produtos.length === 0) {
@@ -61,6 +64,7 @@ import { Loja, Usuario, Produto } from "../models/index.js";
 };
 
 // Editar movimentação
+export const editarMovimentacaoEstoqueLoja = async (req, res) => {
   try {
     const { id } = req.params;
     const { lojaId, usuarioId, produtos, observacao, dataMovimentacao } = req.body;
@@ -104,6 +108,7 @@ import { Loja, Usuario, Produto } from "../models/index.js";
 };
 
 // Deletar movimentação
+export const deletarMovimentacaoEstoqueLoja = async (req, res) => {
   try {
     const { id } = req.params;
     const movimentacao = await MovimentacaoEstoqueLoja.findByPk(id);
