@@ -31,20 +31,23 @@ export const criarMovimentacaoEstoqueLoja = async (req, res) => {
     const { lojaId, produtos, observacao, dataMovimentacao } = req.body;
     // usuarioId será preenchido automaticamente
     const usuarioId = req.usuario?.id;
+    console.log("[DEBUG] Payload recebido:", req.body);
     if (!lojaId || !Array.isArray(produtos) || produtos.length === 0) {
+      console.error("[ERRO] Loja ou produtos ausentes", { lojaId, produtos });
       return res
         .status(400)
         .json({ error: "Loja e pelo menos um produto são obrigatórios" });
     }
     // Checar se todos os produtos têm produtoId, quantidade e tipoMovimentacao
-    for (const item of produtos) {
+    for (const [idx, item] of produtos.entries()) {
       if (!item.produtoId || !item.quantidade || !item.tipoMovimentacao) {
-        return res
-          .status(400)
-          .json({
-            error:
-              "Produto, quantidade e tipoMovimentacao são obrigatórios para cada item",
-          });
+        console.error(`[ERRO] Produto inválido no índice ${idx}:`, item);
+        return res.status(400).json({
+          error:
+            "Produto, quantidade e tipoMovimentacao são obrigatórios para cada item",
+          item,
+          idx,
+        });
       }
     }
     const movimentacao = await MovimentacaoEstoqueLoja.create({
@@ -54,13 +57,22 @@ export const criarMovimentacaoEstoqueLoja = async (req, res) => {
       dataMovimentacao: dataMovimentacao || new Date(),
     });
     // Salvar produtos enviados
-    for (const item of produtos) {
-      await MovimentacaoEstoqueLojaProduto.create({
-        movimentacaoEstoqueLojaId: movimentacao.id,
-        produtoId: item.produtoId,
-        quantidade: item.quantidade,
-        tipoMovimentacao: item.tipoMovimentacao,
-      });
+    for (const [idx, item] of produtos.entries()) {
+      try {
+        await MovimentacaoEstoqueLojaProduto.create({
+          movimentacaoEstoqueLojaId: movimentacao.id,
+          produtoId: item.produtoId,
+          quantidade: item.quantidade,
+          tipoMovimentacao: item.tipoMovimentacao,
+        });
+      } catch (err) {
+        console.error(
+          `[ERRO] Falha ao criar produto na movimentação (idx ${idx}):`,
+          item,
+          err
+        );
+        throw err;
+      }
     }
     // Retornar movimentação com produtos
     const movimentacaoCompleta = await MovimentacaoEstoqueLoja.findByPk(
@@ -81,7 +93,10 @@ export const criarMovimentacaoEstoqueLoja = async (req, res) => {
     );
     res.status(201).json(movimentacaoCompleta);
   } catch (error) {
-    res.status(500).json({ error: "Erro ao criar movimentação" });
+    console.error("[ERRO] Exception geral ao criar movimentação:", error);
+    res
+      .status(500)
+      .json({ error: "Erro ao criar movimentação", details: error.message });
   }
 };
 
