@@ -37,43 +37,6 @@ export const criarMovimentacaoEstoqueLoja = async (req, res) => {
     // 1. Validação
     if (!lojaId || !Array.isArray(produtos) || produtos.length === 0) {
       console.error("[ERRO] Loja ou produtos ausentes", { lojaId, produtos });
-<<<<<<< HEAD
-      try {
-        const movimentacaoCompleta = await MovimentacaoEstoqueLoja.findByPk(
-          movimentacao.id,
-          {
-            include: [
-              { model: Loja, as: "loja", attributes: ["id", "nome"] },
-              { model: Usuario, as: "usuario", attributes: ["id", "nome"] },
-              {
-                model: MovimentacaoEstoqueLojaProduto,
-                as: "produtosEnviados",
-                include: [
-                  { model: Produto, as: "produto", attributes: ["id", "nome"] },
-                ],
-              },
-            ],
-          }
-        );
-        res.status(201).json(movimentacaoCompleta);
-      } catch (err) {
-        console.error("[ERRO] Falha ao buscar movimentacao completa:", err);
-        res.status(500).json({ error: "Erro ao buscar movimentação completa", details: err.message });
-      }
-        dataMovimentacao: dataMovimentacao || new Date(),
-      });
-      console.log("[DEBUG] Movimentacao criada:", movimentacao.id);
-    } catch (err) {
-      console.error("[ERRO] Falha ao criar MovimentacaoEstoqueLoja:", err);
-      return res
-        .status(500)
-        .json({
-          error: "Erro ao criar movimentação (MovimentacaoEstoqueLoja)",
-          details: err.message,
-        });
-    }
-    // Salvar produtos enviados
-=======
       return res
         .status(400)
         .json({ error: "Loja e Produtos são obrigatórios." });
@@ -91,7 +54,6 @@ export const criarMovimentacaoEstoqueLoja = async (req, res) => {
 
     // 3. Salvar produtos enviados (Itens) e atualizar estoque
     const { EstoqueLoja } = await import("../models/index.js");
->>>>>>> main
     for (const [idx, item] of produtos.entries()) {
       try {
         await MovimentacaoEstoqueLojaProduto.create({
