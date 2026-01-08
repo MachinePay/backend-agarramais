@@ -29,14 +29,15 @@ export const listarMovimentacoesEstoqueLoja = async (req, res) => {
 export const criarMovimentacaoEstoqueLoja = async (req, res) => {
   try {
     const { lojaId, produtos, observacao, dataMovimentacao } = req.body;
-    // usuarioId será preenchido automaticamente
+    // usuarioId será preenchido automaticamente pelo middleware de autenticação
     const usuarioId = req.usuario?.id;
+
     console.log("[DEBUG] Payload recebido:", req.body);
-    console.log("[DEBUG] usuarioId:", usuarioId);
-    console.log("[DEBUG] lojaId:", lojaId);
-    console.log("[DEBUG] produtos:", produtos);
+
+    // 1. Validação
     if (!lojaId || !Array.isArray(produtos) || produtos.length === 0) {
       console.error("[ERRO] Loja ou produtos ausentes", { lojaId, produtos });
+<<<<<<< HEAD
       try {
         const movimentacaoCompleta = await MovimentacaoEstoqueLoja.findByPk(
           movimentacao.id,
@@ -72,63 +73,98 @@ export const criarMovimentacaoEstoqueLoja = async (req, res) => {
         });
     }
     // Salvar produtos enviados
+=======
+      return res
+        .status(400)
+        .json({ error: "Loja e Produtos são obrigatórios." });
+    }
+
+    // 2. Criar a Movimentação (Header)
+    const movimentacao = await MovimentacaoEstoqueLoja.create({
+      lojaId,
+      usuarioId,
+      observacao,
+      dataMovimentacao: dataMovimentacao || new Date(),
+    });
+
+    console.log("[DEBUG] Movimentacao criada ID:", movimentacao.id);
+
+    // 3. Salvar produtos enviados (Itens) e atualizar estoque
+    const { EstoqueLoja } = await import("../models/index.js");
+>>>>>>> main
     for (const [idx, item] of produtos.entries()) {
       try {
         await MovimentacaoEstoqueLojaProduto.create({
           movimentacaoEstoqueLojaId: movimentacao.id,
           produtoId: item.produtoId,
-          quantidade: item.quantidade,
-          tipoMovimentacao: item.tipoMovimentacao,
+          quantidade: Number(item.quantidade),
+          tipoMovimentacao: item.tipoMovimentacao || "saida",
         });
-        console.log(`[DEBUG] Produto criado idx ${idx}:`, item);
-      } catch (err) {
-        console.error(
-          `[ERRO] Falha ao criar produto na movimentação (idx ${idx}):`,
-          item,
-          err
-        );
-        return res
-          .status(500)
-          .json({
-            error: `Erro ao criar produto idx ${idx}`,
-            details: err.message,
-            item,
+
+        // Atualizar estoque da loja
+        const estoque = await EstoqueLoja.findOne({
+          where: { lojaId, produtoId: item.produtoId },
+        });
+        let novaQuantidade = 0;
+        if (estoque) {
+          console.log(
+            `[ESTOQUE] Antes: lojaId=${lojaId}, produtoId=${item.produtoId}, quantidadeAtual=${estoque.quantidade}`
+          );
+          if ((item.tipoMovimentacao || "saida") === "entrada") {
+            novaQuantidade = estoque.quantidade + Number(item.quantidade);
+          } else {
+            novaQuantidade = estoque.quantidade - Number(item.quantidade);
+            if (novaQuantidade < 0) novaQuantidade = 0;
+          }
+          await estoque.update({ quantidade: novaQuantidade });
+          console.log(
+            `[ESTOQUE] Depois: lojaId=${lojaId}, produtoId=${item.produtoId}, novaQuantidade=${novaQuantidade}`
+          );
+        } else {
+          // Se não existe, cria novo registro de estoque
+          novaQuantidade =
+            (item.tipoMovimentacao || "saida") === "entrada"
+              ? Number(item.quantidade)
+              : 0;
+          await EstoqueLoja.create({
+            lojaId,
+            produtoId: item.produtoId,
+            quantidade: novaQuantidade,
           });
+          console.log(
+            `[ESTOQUE] Criado novo estoque: lojaId=${lojaId}, produtoId=${item.produtoId}, quantidade=${novaQuantidade}`
+          );
+        }
+      } catch (err) {
+        console.error(`[ERRO] Falha ao criar produto idx ${idx}:`, item, err);
       }
     }
-    // Retornar movimentação com produtos
-    try {
-      const movimentacaoCompleta = await MovimentacaoEstoqueLoja.findByPk(
-        movimentacao.id,
-        {
-          include: [
-            { model: Loja, attributes: ["id", "nome"] },
-            { model: Usuario, attributes: ["id", "nome"] },
-            {
-              model: MovimentacaoEstoqueLojaProduto,
-              as: "produtosEnviados",
-              include: [
-                { model: Produto, as: "produto", attributes: ["id", "nome"] },
-              ],
-            },
-          ],
-        }
-      );
-      res.status(201).json(movimentacaoCompleta);
-    } catch (err) {
-      console.error("[ERRO] Falha ao buscar movimentacao completa:", err);
-      res
-        .status(500)
-        .json({
-          error: "Erro ao buscar movimentação completa",
-          details: err.message,
-        });
-    }
-  } catch (error) {
-    console.error("[ERRO] Exception geral ao criar movimentação:", error);
-    res
-      .status(500)
-      .json({ error: "Erro ao criar movimentação", details: error.message });
+
+    // 4. Retornar movimentação completa com os produtos inclusos
+    const movimentacaoCompleta = await MovimentacaoEstoqueLoja.findByPk(
+      movimentacao.id,
+      {
+        include: [
+          { model: Loja, as: "loja", attributes: ["id", "nome"] },
+          { model: Usuario, as: "usuario", attributes: ["id", "nome"] },
+          {
+            model: MovimentacaoEstoqueLojaProduto,
+            as: "produtosEnviados",
+            include: [
+              { model: Produto, as: "produto", attributes: ["id", "nome"] },
+            ],
+          },
+        ],
+      }
+    );
+
+    return res.status(201).json(movimentacaoCompleta);
+  } catch (err) {
+    console.error("[ERRO] Exception geral ao criar movimentação:", err);
+    return res.status(500).json({
+      error: "Erro interno ao criar movimentação",
+      details: err.message,
+    });
   }
 };
 
@@ -138,31 +174,42 @@ export const editarMovimentacaoEstoqueLoja = async (req, res) => {
     const { id } = req.params;
     const { lojaId, usuarioId, produtos, observacao, dataMovimentacao } =
       req.body;
+
     const movimentacao = await MovimentacaoEstoqueLoja.findByPk(id);
+
     if (!movimentacao) {
       return res.status(404).json({ error: "Movimentação não encontrada" });
     }
+
+    // Atualiza campos
     movimentacao.lojaId = lojaId || movimentacao.lojaId;
     movimentacao.usuarioId = usuarioId || movimentacao.usuarioId;
     movimentacao.observacao = observacao || movimentacao.observacao;
     movimentacao.dataMovimentacao =
       dataMovimentacao || movimentacao.dataMovimentacao;
-    movimentacao.atualizadoEm = new Date();
+
+    // Se seu model tiver timestamps automáticos, não precisa desta linha:
+    // movimentacao.atualizadoEm = new Date();
+
     await movimentacao.save();
-    // Atualizar produtos enviados
+
+    // Atualizar produtos enviados (Remove antigos e cria novos)
     if (Array.isArray(produtos)) {
       await MovimentacaoEstoqueLojaProduto.destroy({
         where: { movimentacaoEstoqueLojaId: movimentacao.id },
       });
+
       for (const item of produtos) {
         await MovimentacaoEstoqueLojaProduto.create({
           movimentacaoEstoqueLojaId: movimentacao.id,
           produtoId: item.produtoId,
-          quantidade: item.quantidade,
+          quantidade: Number(item.quantidade),
+          tipoMovimentacao: item.tipoMovimentacao || "saida",
         });
       }
     }
-    // Retornar movimentação com produtos
+
+    // Retornar movimentação completa
     const movimentacaoCompleta = await MovimentacaoEstoqueLoja.findByPk(
       movimentacao.id,
       {
@@ -179,9 +226,11 @@ export const editarMovimentacaoEstoqueLoja = async (req, res) => {
         ],
       }
     );
-    res.json(movimentacaoCompleta);
+
+    return res.json(movimentacaoCompleta);
   } catch (error) {
-    res.status(500).json({ error: "Erro ao editar movimentação" });
+    console.error("Erro ao editar:", error);
+    return res.status(500).json({ error: "Erro ao editar movimentação" });
   }
 };
 
@@ -190,15 +239,22 @@ export const deletarMovimentacaoEstoqueLoja = async (req, res) => {
   try {
     const { id } = req.params;
     const movimentacao = await MovimentacaoEstoqueLoja.findByPk(id);
+
     if (!movimentacao) {
       return res.status(404).json({ error: "Movimentação não encontrada" });
     }
+
+    // Remove os produtos associados primeiro
     await MovimentacaoEstoqueLojaProduto.destroy({
       where: { movimentacaoEstoqueLojaId: movimentacao.id },
     });
+
+    // Remove a movimentação
     await movimentacao.destroy();
-    res.json({ message: "Movimentação excluída com sucesso" });
+
+    return res.json({ message: "Movimentação excluída com sucesso" });
   } catch (error) {
-    res.status(500).json({ error: "Erro ao excluir movimentação" });
+    console.error("Erro ao excluir:", error);
+    return res.status(500).json({ error: "Erro ao excluir movimentação" });
   }
 };

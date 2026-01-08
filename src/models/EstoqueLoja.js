@@ -40,6 +40,12 @@ const EstoqueLoja = sequelize.define(
       defaultValue: 0,
       comment: "Estoque mínimo para alerta",
     },
+    ativo: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: true,
+      comment: "Produto ativo no estoque da loja",
+    },
   },
   {
     tableName: "estoque_lojas",
