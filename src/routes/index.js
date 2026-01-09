@@ -9,6 +9,7 @@ import relatorioRoutes from "./relatorio.routes.js";
 import adminRoutes from "./admin.routes.js";
 import estoqueLojaRoutes from "./estoqueLoja.routes.js";
 import movimentacaoEstoqueLojaRoutes from "./movimentacaoEstoqueLoja.routes.js";
+import resumoVendaLojaProdutoRoutes from "./resumoVendaLojaProduto.routes.js";
 
 const router = express.Router();
 
@@ -22,5 +23,6 @@ router.use("/relatorios", relatorioRoutes);
 router.use("/admin", adminRoutes);
 router.use("/estoque-lojas", estoqueLojaRoutes);
 router.use("/movimentacao-estoque-loja", movimentacaoEstoqueLojaRoutes);
+router.use("/resumo-venda-loja-produto", resumoVendaLojaProdutoRoutes);
 
 export default router;

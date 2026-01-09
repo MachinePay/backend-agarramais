@@ -25,13 +25,24 @@ import UsuarioLoja from "./UsuarioLoja.js";
 import EstoqueLoja from "./EstoqueLoja.js";
 import MovimentacaoEstoqueLoja from "./MovimentacaoEstoqueLoja.js";
 import MovimentacaoEstoqueLojaProduto from "./MovimentacaoEstoqueLojaProduto.js";
+import ResumoVendaLojaProdutoDef from "./ResumoVendaLojaProduto.js";
+const ResumoVendaLojaProduto = ResumoVendaLojaProdutoDef(sequelize);
 
 // Relacionamentos
 MovimentacaoEstoqueLoja.belongsTo(Loja, { foreignKey: "lojaId", as: "loja" });
-Loja.hasMany(MovimentacaoEstoqueLoja, { foreignKey: "lojaId", as: "movimentacoesEstoque" });
+Loja.hasMany(MovimentacaoEstoqueLoja, {
+  foreignKey: "lojaId",
+  as: "movimentacoesEstoque",
+});
 
-MovimentacaoEstoqueLoja.belongsTo(Usuario, { foreignKey: "usuarioId", as: "usuario" });
-Usuario.hasMany(MovimentacaoEstoqueLoja, { foreignKey: "usuarioId", as: "movimentacoesEstoque" });
+MovimentacaoEstoqueLoja.belongsTo(Usuario, {
+  foreignKey: "usuarioId",
+  as: "usuario",
+});
+Usuario.hasMany(MovimentacaoEstoqueLoja, {
+  foreignKey: "usuarioId",
+  as: "movimentacoesEstoque",
+});
 
 // Loja -> Máquinas
 Loja.hasMany(Maquina, { foreignKey: "lojaId", as: "maquinas" });
@@ -150,4 +161,5 @@ export {
   EstoqueLoja,
   MovimentacaoEstoqueLoja,
   MovimentacaoEstoqueLojaProduto,
+  ResumoVendaLojaProduto,
 };
