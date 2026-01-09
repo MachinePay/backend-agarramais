@@ -182,11 +182,14 @@ export const editarMovimentacaoEstoqueLoja = async (req, res) => {
           tipoMovimentacao: item.tipoMovimentacao || "saida",
         });
 
-        // Ajuste de estoque: calcula diferença entre novo e antigo
+        // Ajuste de estoque considerando tipo antigo e novo
         const antigo = mapAntigos[item.produtoId];
         const quantidadeAntiga = antigo ? Number(antigo.quantidade) : 0;
+        const tipoAntigo = antigo
+          ? antigo.tipoMovimentacao
+          : item.tipoMovimentacao || "saida";
         const quantidadeNova = Number(item.quantidade);
-        const diff = quantidadeNova - quantidadeAntiga;
+        const tipoNovo = item.tipoMovimentacao || "saida";
 
         // Buscar estoque atual
         const estoque = await EstoqueLoja.findOne({
@@ -194,17 +197,24 @@ export const editarMovimentacaoEstoqueLoja = async (req, res) => {
         });
         if (estoque) {
           let novaQuantidade = estoque.quantidade;
-          if ((item.tipoMovimentacao || "saida") === "entrada") {
-            novaQuantidade += diff;
+          // Reverte o efeito do antigo
+          if (tipoAntigo === "entrada") {
+            novaQuantidade -= quantidadeAntiga;
           } else {
-            novaQuantidade -= diff;
+            novaQuantidade += quantidadeAntiga;
+          }
+          // Aplica o efeito do novo
+          if (tipoNovo === "entrada") {
+            novaQuantidade += quantidadeNova;
+          } else {
+            novaQuantidade -= quantidadeNova;
           }
           if (novaQuantidade < 0) novaQuantidade = 0;
           await estoque.update({ quantidade: novaQuantidade });
         } else {
           // Se não existe, cria novo registro de estoque
           let novaQuantidade = 0;
-          if ((item.tipoMovimentacao || "saida") === "entrada") {
+          if (tipoNovo === "entrada") {
             novaQuantidade = quantidadeNova;
           } else {
             novaQuantidade = 0;
@@ -248,12 +258,36 @@ export const deletarMovimentacaoEstoqueLoja = async (req, res) => {
   try {
     const { id } = req.params;
     const movimentacao = await MovimentacaoEstoqueLoja.findByPk(id);
-
     if (!movimentacao) {
       return res.status(404).json({ error: "Movimentação não encontrada" });
     }
 
-    // Remove os produtos associados primeiro
+    // Buscar todos os produtos associados à movimentação
+    const produtosMovimentados = await MovimentacaoEstoqueLojaProduto.findAll({
+      where: { movimentacaoEstoqueLojaId: movimentacao.id },
+    });
+
+    // Atualizar o estoque da loja para cada produto
+    const { EstoqueLoja } = await import("../models/index.js");
+    for (const item of produtosMovimentados) {
+      const estoque = await EstoqueLoja.findOne({
+        where: { lojaId: movimentacao.lojaId, produtoId: item.produtoId },
+      });
+      if (estoque) {
+        let novaQuantidade = estoque.quantidade;
+        if ((item.tipoMovimentacao || "saida") === "entrada") {
+          // Se era uma entrada, ao deletar deve subtrair do estoque
+          novaQuantidade = estoque.quantidade - item.quantidade;
+        } else {
+          // Se era uma saída, ao deletar deve somar de volta ao estoque
+          novaQuantidade = estoque.quantidade + item.quantidade;
+        }
+        if (novaQuantidade < 0) novaQuantidade = 0;
+        await estoque.update({ quantidade: novaQuantidade });
+      }
+    }
+
+    // Remove os produtos associados
     await MovimentacaoEstoqueLojaProduto.destroy({
       where: { movimentacaoEstoqueLojaId: movimentacao.id },
     });
