@@ -25,8 +25,7 @@ import UsuarioLoja from "./UsuarioLoja.js";
 import EstoqueLoja from "./EstoqueLoja.js";
 import MovimentacaoEstoqueLoja from "./MovimentacaoEstoqueLoja.js";
 import MovimentacaoEstoqueLojaProduto from "./MovimentacaoEstoqueLojaProduto.js";
-import ResumoVendaLojaProdutoDef from "./ResumoVendaLojaProduto.js";
-const ResumoVendaLojaProduto = ResumoVendaLojaProdutoDef(sequelize);
+
 
 // Relacionamentos
 MovimentacaoEstoqueLoja.belongsTo(Loja, { foreignKey: "lojaId", as: "loja" });
@@ -161,5 +160,4 @@ export {
   EstoqueLoja,
   MovimentacaoEstoqueLoja,
   MovimentacaoEstoqueLojaProduto,
-  ResumoVendaLojaProduto,
 };
