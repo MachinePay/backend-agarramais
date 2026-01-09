@@ -157,10 +157,23 @@ export const editarMovimentacaoEstoqueLoja = async (req, res) => {
 
     // Atualizar produtos enviados (Remove antigos e cria novos)
     if (Array.isArray(produtos)) {
+      // Buscar produtos antigos antes de remover
+      const produtosAntigos = await MovimentacaoEstoqueLojaProduto.findAll({
+        where: { movimentacaoEstoqueLojaId: movimentacao.id },
+      });
+
       await MovimentacaoEstoqueLojaProduto.destroy({
         where: { movimentacaoEstoqueLojaId: movimentacao.id },
       });
 
+      // Mapear produtos antigos por produtoId para fácil acesso
+      const mapAntigos = {};
+      for (const prod of produtosAntigos) {
+        mapAntigos[prod.produtoId] = prod;
+      }
+
+      // Atualizar/ajustar estoque da loja para cada produto
+      const { EstoqueLoja } = await import("../models/index.js");
       for (const item of produtos) {
         await MovimentacaoEstoqueLojaProduto.create({
           movimentacaoEstoqueLojaId: movimentacao.id,
@@ -168,6 +181,40 @@ export const editarMovimentacaoEstoqueLoja = async (req, res) => {
           quantidade: Number(item.quantidade),
           tipoMovimentacao: item.tipoMovimentacao || "saida",
         });
+
+        // Ajuste de estoque: calcula diferença entre novo e antigo
+        const antigo = mapAntigos[item.produtoId];
+        const quantidadeAntiga = antigo ? Number(antigo.quantidade) : 0;
+        const quantidadeNova = Number(item.quantidade);
+        const diff = quantidadeNova - quantidadeAntiga;
+
+        // Buscar estoque atual
+        const estoque = await EstoqueLoja.findOne({
+          where: { lojaId: movimentacao.lojaId, produtoId: item.produtoId },
+        });
+        if (estoque) {
+          let novaQuantidade = estoque.quantidade;
+          if ((item.tipoMovimentacao || "saida") === "entrada") {
+            novaQuantidade += diff;
+          } else {
+            novaQuantidade -= diff;
+          }
+          if (novaQuantidade < 0) novaQuantidade = 0;
+          await estoque.update({ quantidade: novaQuantidade });
+        } else {
+          // Se não existe, cria novo registro de estoque
+          let novaQuantidade = 0;
+          if ((item.tipoMovimentacao || "saida") === "entrada") {
+            novaQuantidade = quantidadeNova;
+          } else {
+            novaQuantidade = 0;
+          }
+          await EstoqueLoja.create({
+            lojaId: movimentacao.lojaId,
+            produtoId: item.produtoId,
+            quantidade: novaQuantidade,
+          });
+        }
       }
     }
 
