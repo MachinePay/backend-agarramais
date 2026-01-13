@@ -100,9 +100,10 @@ import { sequelize } from "../database/connection.js";
 // US13 - Dashboard de Balanço Semanal
 export const balançoSemanal = async (req, res) => {
   try {
-          const diffOut =
-            (atual.contadorOut || 0) - (anterior.contadorOut || 0);
-          const diffIn = (atual.contadorIn || 0) - (anterior.contadorIn || 0);
+    const { lojaId, dataInicio, dataFim } = req.query;
+
+    // Definir período padrão (últimos 7 dias)
+    const fim = dataFim ? new Date(dataFim) : new Date();
     const inicio = dataInicio
       ? new Date(dataInicio)
       : new Date(fim.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -116,9 +117,8 @@ export const balançoSemanal = async (req, res) => {
     const includeMaquina = {
       model: Maquina,
       as: "maquina",
-              contador_out: atual.contadorOut || 0,
-              contador_in: atual.contadorIn || 0,
-              include: [
+      attributes: ["id", "codigo", "lojaId"],
+      include: [
         {
           model: Loja,
           as: "loja",
