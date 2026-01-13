@@ -53,7 +53,7 @@ export const registrarMovimentacao = async (req, res) => {
       totalPre > ultimaMov.totalPos
     ) {
       return res.status(400).json({
-        error: `Não é permitido abastecer a máquina com uma quantidade maior (${totalPre}) do que o total pós da última movimentação (${ultimaMov.totalPos}). Verifique o estoque anterior ou corrija a movimentação anterior.`,
+        error: `Não é permitido abastecer a máquina com uma quantidade maior (${totalPre}) do que o total pós da última movimentação. Confira o que você digitou.`,
       });
     }
 
