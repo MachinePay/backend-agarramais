@@ -118,6 +118,7 @@ export const balançoSemanal = async (req, res) => {
       as: "maquina",
               contador_out: atual.contadorOut || 0,
               contador_in: atual.contadorIn || 0,
+              include: [
         {
           model: Loja,
           as: "loja",
