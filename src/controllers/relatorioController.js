@@ -4,7 +4,88 @@ import {
   Maquina,
   Loja,
   Produto,
+  AlertaIgnorado,
 } from "../models/index.js";
+// Alertas de inconsistência de movimentação
+export const buscarAlertasDeInconsistencia = async (req, res) => {
+  try {
+    const usuarioId = req.usuario?.id;
+    const maquinas = await Maquina.findAll({ where: { ativo: true } });
+    const alertas = [];
+
+    // Buscar alertas ignorados pelo usuário
+    const ignorados = await AlertaIgnorado.findAll({
+      where: usuarioId ? { usuarioId } : {},
+    });
+    const ignoradosSet = new Set(ignorados.map((a) => a.alertaId));
+
+    for (const maquina of maquinas) {
+      // Busca todas movimentações da máquina, ordenadas por data
+      const movimentacoes = await Movimentacao.findAll({
+        where: { maquinaId: maquina.id },
+        order: [["dataColeta", "ASC"]],
+      });
+
+      for (let i = 1; i < movimentacoes.length; i++) {
+        const anterior = movimentacoes[i - 1];
+        const atual = movimentacoes[i];
+
+        // OUT: diferença do campo out
+        const diffOut = (atual.out || 0) - (anterior.out || 0);
+        // IN: diferença do campo in
+        const diffIn = (atual.in || 0) - (anterior.in || 0);
+
+        const alertaId = `${maquina.id}-${atual.id}`;
+
+        // Se a diferença não bate com a quantidade de saída/fichas
+        if (
+          (diffOut !== (atual.sairam || 0) || diffIn !== (atual.fichas || 0)) &&
+          !ignoradosSet.has(alertaId)
+        ) {
+          alertas.push({
+            id: alertaId,
+            maquinaId: maquina.id,
+            maquinaNome: maquina.nome,
+            out: atual.out,
+            in: atual.in,
+            fichas: atual.fichas,
+            dataMovimentacao: atual.dataColeta,
+            mensagem: `Inconsistência detectada: OUT (${diffOut}) esperado ${atual.sairam}, IN (${diffIn}) esperado ${atual.fichas}.`,
+          });
+        }
+      }
+    }
+
+    res.json({ alertas });
+  } catch (error) {
+    res.status(500).json({
+      error: "Erro ao buscar alertas de movimentação",
+      message: error.message,
+    });
+  }
+};
+
+// Endpoint para ignorar alerta
+export const ignorarAlertaMovimentacao = async (req, res) => {
+  try {
+    const { id } = req.params; // alertaId
+    const usuarioId = req.usuario?.id;
+    const { maquinaId } = req.body;
+    if (!usuarioId || !maquinaId || !id) {
+      return res.status(400).json({ error: "Dados obrigatórios ausentes." });
+    }
+    await AlertaIgnorado.create({
+      alertaId: id,
+      maquinaId,
+      usuarioId,
+    });
+    res.json({ success: true });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ error: "Erro ao ignorar alerta", message: error.message });
+  }
+};
 import { Op, fn, col, literal } from "sequelize";
 import { sequelize } from "../database/connection.js";
 

@@ -9,6 +9,7 @@ import UsuarioLoja from "./UsuarioLoja.js";
 import EstoqueLoja from "./EstoqueLoja.js";
 import MovimentacaoEstoqueLoja from "./MovimentacaoEstoqueLoja.js";
 import MovimentacaoEstoqueLojaProduto from "./MovimentacaoEstoqueLojaProduto.js";
+import AlertaIgnorado from "./AlertaIgnorado.js";
 
 // Relacionamentos
 MovimentacaoEstoqueLoja.belongsTo(Loja, { foreignKey: "lojaId", as: "loja" });

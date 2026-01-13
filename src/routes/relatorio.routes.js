@@ -1,9 +1,10 @@
 import express from "express";
-import {
   balançoSemanal,
   alertasEstoque,
   performanceMaquinas,
   relatorioImpressao,
+  alertasMovimentacaoInconsistente,
+  ignorarAlertaMovimentacao,
 } from "../controllers/relatorioController.js";
 import { autenticar, autorizarRole } from "../middlewares/auth.js";
 
@@ -15,6 +16,18 @@ router.get(
   autenticar,
   autorizarRole("ADMIN"),
   balançoSemanal
+);
+router.get(
+  "/alertas-movimentacao-inconsistente",
+  autenticar,
+  autorizarRole("ADMIN"),
+  alertasMovimentacaoInconsistente
+);
+router.delete(
+  "/alertas-movimentacao-inconsistente/:id",
+  autenticar,
+  autorizarRole("ADMIN"),
+  ignorarAlertaMovimentacao
 );
 router.get(
   "/alertas-estoque",
