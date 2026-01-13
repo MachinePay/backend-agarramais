@@ -24,6 +24,15 @@ export const buscarAlertasDeInconsistencia = async (req, res) => {
       const movimentacoes = await Movimentacao.findAll({
         where: { maquinaId: maquina.id },
         order: [["dataColeta", "ASC"]],
+        attributes: [
+          "id",
+          "contadorIn",
+          "contadorOut",
+          "fichas",
+          "sairam",
+          "dataColeta",
+          // adicione outros campos necessários se precisar
+        ],
       });
 
       for (let i = 1; i < movimentacoes.length; i++) {
