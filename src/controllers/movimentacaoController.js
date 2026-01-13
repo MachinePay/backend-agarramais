@@ -42,6 +42,21 @@ export const registrarMovimentacao = async (req, res) => {
       });
     }
 
+    // --- REGRA DE SEGURANÇA: Não permitir totalPre maior que totalPos da última movimentação ---
+    const ultimaMov = await Movimentacao.findOne({
+      where: { maquinaId },
+      order: [["createdAt", "DESC"]],
+    });
+    if (
+      ultimaMov &&
+      typeof ultimaMov.totalPos === "number" &&
+      totalPre > ultimaMov.totalPos
+    ) {
+      return res.status(400).json({
+        error: `Não é permitido abastecer a máquina com uma quantidade maior (${totalPre}) do que o total pós da última movimentação (${ultimaMov.totalPos}). Verifique o estoque anterior ou corrija a movimentação anterior.`,
+      });
+    }
+
     // Buscar máquina para pegar valorFicha
     const maquina = await Maquina.findByPk(maquinaId);
     if (!maquina) {
