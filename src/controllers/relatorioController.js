@@ -30,24 +30,26 @@ export const buscarAlertasDeInconsistencia = async (req, res) => {
         const anterior = movimentacoes[i - 1];
         const atual = movimentacoes[i];
 
-        // OUT: diferença do campo out
-        const diffOut = (atual.out || 0) - (anterior.out || 0);
-        // IN: diferença do campo in
-        const diffIn = (atual.in || 0) - (anterior.in || 0);
+        // OUT: diferença do campo contador_out
+        const diffOut =
+          (atual.contador_out || 0) - (anterior.contador_out || 0);
+        // IN: diferença do campo contador_in
+        const diffIn = (atual.contador_in || 0) - (anterior.contador_in || 0);
 
         const alertaId = `${maquina.id}-${atual.id}`;
 
         // Se a diferença não bate com a quantidade de saída/fichas
         if (
           (diffOut !== (atual.sairam || 0) || diffIn !== (atual.fichas || 0)) &&
-          !ignoradosSet.has(alertaId)
+          !ignoradosSet.has(alertaId) &&
+          !(atual.contador_out === 0 && atual.contador_in === 0)
         ) {
           alertas.push({
             id: alertaId,
             maquinaId: maquina.id,
             maquinaNome: maquina.nome,
-            out: atual.out,
-            in: atual.in,
+            out: atual.contador_out,
+            in: atual.contador_in,
             fichas: atual.fichas,
             dataMovimentacao: atual.dataColeta,
             mensagem: `Inconsistência detectada: OUT (${diffOut}) esperado ${atual.sairam}, IN (${diffIn}) esperado ${atual.fichas}.`,
