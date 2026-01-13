@@ -52,7 +52,13 @@ export const buscarAlertasDeInconsistencia = async (req, res) => {
             contador_in: atual.contador_in || 0,
             fichas: atual.fichas,
             dataMovimentacao: atual.dataColeta,
-            mensagem: `Inconsistência detectada: OUT (${diffOut}) esperado ${atual.sairam}, IN (${diffIn}) esperado ${atual.fichas}.\nOUT registrado: ${atual.contador_out} | IN registrado: ${atual.contador_in} | Fichas: ${atual.fichas}`,
+            mensagem: `Inconsistência detectada: OUT (${diffOut}) esperado ${
+              atual.sairam
+            }, IN (${diffIn}) esperado ${atual.fichas}.\nOUT registrado: ${
+              atual.contador_out || 0
+            } | IN registrado: ${atual.contador_in || 0} | Fichas: ${
+              atual.fichas
+            }`,
           });
         }
       }
@@ -94,10 +100,9 @@ import { sequelize } from "../database/connection.js";
 // US13 - Dashboard de Balanço Semanal
 export const balançoSemanal = async (req, res) => {
   try {
-    const { lojaId, dataInicio, dataFim } = req.query;
-
-    // Definir período padrão (últimos 7 dias)
-    const fim = dataFim ? new Date(dataFim) : new Date();
+          const diffOut =
+            (atual.contadorOut || 0) - (anterior.contadorOut || 0);
+          const diffIn = (atual.contadorIn || 0) - (anterior.contadorIn || 0);
     const inicio = dataInicio
       ? new Date(dataInicio)
       : new Date(fim.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -111,8 +116,8 @@ export const balançoSemanal = async (req, res) => {
     const includeMaquina = {
       model: Maquina,
       as: "maquina",
-      attributes: ["id", "codigo", "lojaId"],
-      include: [
+              contador_out: atual.contadorOut || 0,
+              contador_in: atual.contadorIn || 0,
         {
           model: Loja,
           as: "loja",
