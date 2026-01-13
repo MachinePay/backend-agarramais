@@ -21,10 +21,11 @@ export const buscarAlertasDeInconsistencia = async (req, res) => {
     const ignoradosSet = new Set(ignorados.map((a) => a.alertaId));
 
     for (const maquina of maquinas) {
-      // Busca todas movimentações da máquina, ordenadas por data
+      // Busca as duas últimas movimentações da máquina, ordenadas por data decrescente
       const movimentacoes = await Movimentacao.findAll({
         where: { maquinaId: maquina.id },
-        order: [["dataColeta", "ASC"]],
+        order: [["dataColeta", "DESC"]],
+        limit: 2,
         attributes: [
           "id",
           "contadorIn",
@@ -32,22 +33,16 @@ export const buscarAlertasDeInconsistencia = async (req, res) => {
           "fichas",
           "sairam",
           "dataColeta",
-          // adicione outros campos necessários se precisar
         ],
       });
 
-      for (let i = 1; i < movimentacoes.length; i++) {
-        const anterior = movimentacoes[i - 1];
-        const atual = movimentacoes[i];
+      if (movimentacoes.length === 2) {
+        const atual = movimentacoes[0]; // mais recente
+        const anterior = movimentacoes[1];
 
-        console.log("Movimentação atual:", atual.dataValues);
-        console.log("Movimentação anterior:", anterior.dataValues);
-
-        // OUT: diferença do campo contador_out
-        const diffOut =
-          (atual.contador_out || 0) - (anterior.contador_out || 0);
-        // IN: diferença do campo contador_in
-        const diffIn = (atual.contador_in || 0) - (anterior.contador_in || 0);
+        // OUT: diferença do campo contadorOut
+        const diffOut = (atual.contadorOut || 0) - (anterior.contadorOut || 0);
+        const diffIn = (atual.contadorIn || 0) - (anterior.contadorIn || 0);
 
         const alertaId = `${maquina.id}-${atual.id}`;
 
@@ -55,21 +50,21 @@ export const buscarAlertasDeInconsistencia = async (req, res) => {
         if (
           (diffOut !== (atual.sairam || 0) || diffIn !== (atual.fichas || 0)) &&
           !ignoradosSet.has(alertaId) &&
-          !(atual.contador_out === 0 && atual.contador_in === 0)
+          !(atual.contadorOut === 0 && atual.contadorIn === 0)
         ) {
           alertas.push({
             id: alertaId,
             maquinaId: maquina.id,
             maquinaNome: maquina.nome,
-            contador_out: atual.contador_out || 0,
-            contador_in: atual.contador_in || 0,
+            contador_out: atual.contadorOut || 0,
+            contador_in: atual.contadorIn || 0,
             fichas: atual.fichas,
             dataMovimentacao: atual.dataColeta,
             mensagem: `Inconsistência detectada: OUT (${diffOut}) esperado ${
               atual.sairam
             }, IN (${diffIn}) esperado ${atual.fichas}.\nOUT registrado: ${
-              atual.contador_out || 0
-            } | IN registrado: ${atual.contador_in || 0} | Fichas: ${
+              atual.contadorOut || 0
+            } | IN registrado: ${atual.contadorIn || 0} | Fichas: ${
               atual.fichas
             }`,
           });
