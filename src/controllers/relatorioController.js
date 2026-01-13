@@ -52,7 +52,7 @@ export const buscarAlertasDeInconsistencia = async (req, res) => {
             in: atual.contador_in,
             fichas: atual.fichas,
             dataMovimentacao: atual.dataColeta,
-            mensagem: `Inconsistência detectada: OUT (${diffOut}) esperado ${atual.sairam}, IN (${diffIn}) esperado ${atual.fichas}.`,
+            mensagem: `Inconsistência detectada: OUT (${diffOut}) esperado ${atual.sairam}, IN (${diffIn}) esperado ${atual.fichas}.\nOUT registrado: ${atual.contador_out} | IN registrado: ${atual.contador_in} | Fichas: ${atual.fichas}`,
           });
         }
       }
