@@ -8,6 +8,7 @@ import {
 } from "../models/index.js";
 // Alertas de inconsistência de movimentação
 export const buscarAlertasDeInconsistencia = async (req, res) => {
+  console.log("--- INICIANDO ALERTAS DE INCONSISTÊNCIA ---");
   try {
     const usuarioId = req.usuario?.id;
     const maquinas = await Maquina.findAll({ where: { ativo: true } });
@@ -38,6 +39,9 @@ export const buscarAlertasDeInconsistencia = async (req, res) => {
       for (let i = 1; i < movimentacoes.length; i++) {
         const anterior = movimentacoes[i - 1];
         const atual = movimentacoes[i];
+
+        console.log("Movimentação atual:", atual.dataValues);
+        console.log("Movimentação anterior:", anterior.dataValues);
 
         // OUT: diferença do campo contador_out
         const diffOut =
