@@ -1,176 +1,207 @@
 // Dashboard agregador via SQL
 import { Sequelize } from "sequelize";
+// src/controllers/relatorioController.js
+
+// ... certifique-se de ter os imports no topo do arquivo:
+// import { Op, fn, col, literal } from "sequelize";
+// import { Movimentacao, MovimentacaoProduto, Maquina, Loja, Produto } from "../models/index.js";
+
 export const dashboardRelatorio = async (req, res) => {
   try {
     const { lojaId, dataInicio, dataFim } = req.query;
-    // Filtros base
-    const whereMov = {};
-    if (lojaId) {
-      // Filtrar máquinas da loja
-      const maquinas = await Maquina.findAll({ where: { lojaId } });
-      const maquinaIds = maquinas.map((m) => m.id);
-      whereMov.maquinaId = { [Sequelize.Op.in]: maquinaIds };
-    }
-    if (dataInicio || dataFim) {
-      whereMov.dataColeta = {};
-      if (dataInicio)
-        whereMov.dataColeta[Sequelize.Op.gte] = new Date(dataInicio);
-      if (dataFim)
-        whereMov.dataColeta[Sequelize.Op.lte] = new Date(dataFim + "T23:59:59");
-    }
 
-    // Totais
-    const totais = await Movimentacao.findOne({
+    // 1. Configuração de Datas
+    const fim = dataFim ? new Date(`${dataFim}T23:59:59`) : new Date();
+    const inicio = dataInicio
+      ? new Date(`${dataInicio}T00:00:00`)
+      : new Date(new Date().setDate(fim.getDate() - 30));
+
+    // 2. Filtros (Where)
+    const whereMovimentacao = {
+      dataColeta: { [Op.between]: [inicio, fim] },
+    };
+
+    const whereMaquina = {};
+    if (lojaId) whereMaquina.lojaId = lojaId;
+
+    // --- QUERY 1: TOTAIS GERAIS (Faturamento, Fichas, Saídas) ---
+    const totaisRaw = await Movimentacao.findAll({
       attributes: [
-        [Sequelize.fn("SUM", Sequelize.col("fichas")), "fichas"],
-        [Sequelize.fn("SUM", Sequelize.col("sairam")), "saidas"],
-        [
-          Sequelize.fn("SUM", Sequelize.literal("fichas * Maquina.valorFicha")),
-          "faturamento",
-        ],
+        [fn("SUM", col("fichas")), "totalFichas"],
+        [fn("SUM", col("sairam")), "totalSairam"],
+        [fn("SUM", col("valorFaturado")), "faturamentoTotal"],
       ],
-      include: [{ model: Maquina, as: "maquina", attributes: [] }],
-      where: whereMov,
-      raw: true,
-    });
-
-    // Lucro: SUM(fichas * valorFicha) - SUM(produtos_saiu * custoUnitario)
-    const lucroQuery = await Movimentacao.findAll({
-      attributes: [],
       include: [
         {
           model: Maquina,
           as: "maquina",
-          attributes: ["valorFicha"],
+          where: whereMaquina,
+          attributes: [],
+        },
+      ],
+      where: whereMovimentacao,
+      raw: true,
+    });
+
+    const totaisDados = totaisRaw[0] || {};
+    const faturamento = parseFloat(totaisDados.faturamentoTotal || 0);
+    const saidas = parseInt(totaisDados.totalSairam || 0);
+    const fichas = parseInt(totaisDados.totalFichas || 0);
+
+    // --- QUERY 2: CUSTO TOTAL (Abordagem Segura via JS) ---
+    // Buscamos apenas os produtos vendidos para somar o custo no Node.js
+    // Isso evita erros de SQL com "literal" e apelidos de tabelas
+    const itensVendidos = await MovimentacaoProduto.findAll({
+      attributes: ["quantidadeSaiu"],
+      include: [
+        {
+          model: Produto,
+          as: "produto",
+          attributes: ["custoUnitario"],
         },
         {
-          model: MovimentacaoProduto,
-          as: "detalhesProdutos",
+          model: Movimentacao,
+          // REMOVIDO 'as: "movimentacao"' POIS NÃO EXISTE NO MODEL INDEX
           attributes: [],
+          where: whereMovimentacao,
           include: [
             {
-              model: Produto,
-              as: "produto",
-              attributes: ["custoUnitario"],
+              model: Maquina,
+              as: "maquina",
+              where: whereMaquina,
+              attributes: [],
             },
           ],
         },
       ],
-      where: whereMov,
       raw: true,
+      nest: true, // Importante para organizar o objeto produto
     });
-    // Lucro aproximado: precisa somar fichas*valorFicha e subtrair SUM(quantidadeSaiu*custoUnitario)
-    // Para simplificação, pode ser feito em duas queries separadas
-    const totalFaturamento = totais.faturamento || 0;
-    // Custo total dos produtos vendidos
-    const custoProdutos = await MovimentacaoProduto.findOne({
+
+    // Calcula custo somando (Qtd * CustoUnitario)
+    const custoTotal = itensVendidos.reduce((acc, item) => {
+      const qtd = item.quantidadeSaiu || 0;
+      const custo = parseFloat(item.produto?.custoUnitario || 0);
+      return acc + qtd * custo;
+    }, 0);
+
+    const lucro = faturamento - custoTotal;
+
+    // --- QUERY 3: GRÁFICO FINANCEIRO (Linha do Tempo) ---
+    const timelineRaw = await Movimentacao.findAll({
       attributes: [
-        [
-          Sequelize.fn(
-            "SUM",
-            Sequelize.literal("quantidadeSaiu * produto.custoUnitario")
-          ),
-          "custoTotal",
-        ],
+        [fn("DATE", col("dataColeta")), "data"], // Postgre/MySQL compatível
+        [fn("SUM", col("valorFaturado")), "faturamento"],
       ],
       include: [
         {
-          model: Produto,
-          as: "produto",
+          model: Maquina,
+          as: "maquina",
+          where: whereMaquina,
           attributes: [],
         },
-        {
-          model: Movimentacao,
-          as: "movimentacao",
-          attributes: [],
-          where: whereMov,
-        },
       ],
+      where: whereMovimentacao,
+      group: [fn("DATE", col("dataColeta"))],
+      order: [[fn("DATE", col("dataColeta")), "ASC"]],
       raw: true,
     });
-    const totalCusto = custoProdutos.custoTotal || 0;
-    const totalLucro = totalFaturamento - totalCusto;
 
-    // Grafico Financeiro: agrupado por dia
-    const graficoFinanceiro = await Movimentacao.findAll({
+    // --- QUERY 4: PERFORMANCE POR MÁQUINA ---
+    // Agregamos por ID da máquina para garantir unicidade
+    const performanceRaw = await Movimentacao.findAll({
       attributes: [
-        [Sequelize.fn("DATE", Sequelize.col("dataColeta")), "data"],
-        [
-          Sequelize.fn("SUM", Sequelize.literal("fichas * Maquina.valorFicha")),
-          "faturamento",
-        ],
-      ],
-      include: [{ model: Maquina, as: "maquina", attributes: [] }],
-      where: whereMov,
-      group: [Sequelize.fn("DATE", Sequelize.col("dataColeta"))],
-      order: [[Sequelize.fn("DATE", Sequelize.col("dataColeta")), "ASC"]],
-      raw: true,
-    });
-    // Custo por dia
-    // (Para cada dia, somar quantidadeSaiu*custoUnitario)
-    // Pode ser feito em MovimentacaoProduto, agrupando por dataColeta
-    // Para simplificação, pode ser feito no frontend se necessário, ou com uma query extra
-
-    // Ranking Produtos
-    const rankingProdutos = await MovimentacaoProduto.findAll({
-      attributes: [
-        "produtoId",
-        [Sequelize.fn("SUM", Sequelize.col("quantidadeSaiu")), "quantidade"],
+        [col("maquina.nome"), "nome"],
+        [fn("SUM", col("valorFaturado")), "faturamento"],
       ],
       include: [
         {
-          model: Produto,
-          as: "produto",
-          attributes: ["nome"],
-        },
-        {
-          model: Movimentacao,
-          as: "movimentacao",
-          attributes: [],
-          where: whereMov,
+          model: Maquina,
+          as: "maquina",
+          where: whereMaquina,
+          attributes: ["id", "nome", "capacidadePadrao", "estoqueAtual"],
         },
       ],
-      group: ["produtoId", "produto.nome"],
-      order: [[Sequelize.fn("SUM", Sequelize.col("quantidadeSaiu")), "DESC"]],
+      where: whereMovimentacao,
+      group: [
+        "maquina.id",
+        "maquina.nome",
+        "maquina.capacidadePadrao",
+        "maquina.estoqueAtual",
+      ],
+      raw: true,
+      nest: true,
+    });
+
+    const performanceMaquinas = performanceRaw.map((p) => ({
+      nome: p.maquina.nome,
+      faturamento: parseFloat(p.faturamento || 0),
+      // Cálculo de ocupação baseado no estado ATUAL da máquina
+      ocupacao:
+        p.maquina.capacidadePadrao > 0
+          ? (
+              (p.maquina.estoqueAtual / p.maquina.capacidadePadrao) *
+              100
+            ).toFixed(1)
+          : 0,
+    }));
+
+    // --- QUERY 5: RANKING DE PRODUTOS ---
+    const rankingRaw = await MovimentacaoProduto.findAll({
+      attributes: [
+        [col("produto.nome"), "nome"],
+        [fn("SUM", col("quantidadeSaiu")), "quantidade"],
+      ],
+      include: [
+        { model: Produto, as: "produto", attributes: ["id", "nome"] },
+        {
+          model: Movimentacao,
+          // Sem alias aqui também
+          attributes: [],
+          where: whereMovimentacao,
+          include: [
+            {
+              model: Maquina,
+              as: "maquina",
+              where: whereMaquina,
+              attributes: [],
+            },
+          ],
+        },
+      ],
+      group: ["produto.id", "produto.nome"],
+      order: [[fn("SUM", col("quantidadeSaiu")), "DESC"]],
       limit: 10,
       raw: true,
     });
 
-    // Performance Máquinas
-    const performanceMaquinas = await Movimentacao.findAll({
-      attributes: [
-        "maquinaId",
-        [
-          Sequelize.fn("SUM", Sequelize.literal("fichas * Maquina.valorFicha")),
-          "faturamento",
-        ],
-        [Sequelize.fn("AVG", Sequelize.col("totalPre")), "ocupacao"],
-      ],
-      include: [{ model: Maquina, as: "maquina", attributes: ["nome"] }],
-      where: whereMov,
-      group: ["maquinaId", "maquina.nome"],
-      raw: true,
-    });
+    const rankingProdutos = rankingRaw.map((r) => ({
+      nome: r.nome || "Desconhecido",
+      quantidade: parseInt(r.quantidade || 0),
+    }));
 
+    // --- RESPOSTA FINAL ---
     res.json({
       totais: {
-        faturamento: Number(totalFaturamento),
-        lucro: Number(totalLucro),
-        saidas: Number(totais.saidas),
-        fichas: Number(totais.fichas),
+        faturamento,
+        lucro,
+        saidas,
+        fichas,
       },
-      graficoFinanceiro,
-      rankingProdutos,
+      graficoFinanceiro: timelineRaw.map((t) => ({
+        data: t.data,
+        faturamento: parseFloat(t.faturamento || 0),
+        custo: 0, // Custo diário é complexo, mantemos 0 por enquanto
+      })),
       performanceMaquinas,
+      rankingProdutos,
     });
   } catch (error) {
-    console.error("Erro no dashboardRelatorio:", error);
-    res
-      .status(500)
-      .json({
-        error: "Erro ao gerar relatório do dashboard",
-        message: error.message,
-      });
+    console.error("Erro Crítico no Dashboard:", error); // Isso vai aparecer no terminal do backend
+    res.status(500).json({
+      error: "Erro interno ao processar dashboard.",
+      details: error.message,
+    });
   }
 };
 import {
