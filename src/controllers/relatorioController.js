@@ -6,6 +6,8 @@ import { Sequelize } from "sequelize";
 // import { Op, fn, col, literal } from "sequelize";
 // import { Movimentacao, MovimentacaoProduto, Maquina, Loja, Produto } from "../models/index.js";
 
+// src/controllers/relatorioController.js
+
 export const dashboardRelatorio = async (req, res) => {
   try {
     const { lojaId, dataInicio, dataFim } = req.query;
@@ -16,7 +18,7 @@ export const dashboardRelatorio = async (req, res) => {
       ? new Date(`${dataInicio}T00:00:00`)
       : new Date(new Date().setDate(fim.getDate() - 30));
 
-    // 2. Filtros (Where)
+    // 2. Filtros
     const whereMovimentacao = {
       dataColeta: { [Op.between]: [inicio, fim] },
     };
@@ -24,7 +26,7 @@ export const dashboardRelatorio = async (req, res) => {
     const whereMaquina = {};
     if (lojaId) whereMaquina.lojaId = lojaId;
 
-    // --- QUERY 1: TOTAIS GERAIS (Faturamento, Fichas, Saídas) ---
+    // --- QUERY 1: TOTAIS GERAIS ---
     const totaisRaw = await Movimentacao.findAll({
       attributes: [
         [fn("SUM", col("fichas")), "totalFichas"],
@@ -48,9 +50,7 @@ export const dashboardRelatorio = async (req, res) => {
     const saidas = parseInt(totaisDados.totalSairam || 0);
     const fichas = parseInt(totaisDados.totalFichas || 0);
 
-    // --- QUERY 2: CUSTO TOTAL (Abordagem Segura via JS) ---
-    // Buscamos apenas os produtos vendidos para somar o custo no Node.js
-    // Isso evita erros de SQL com "literal" e apelidos de tabelas
+    // --- QUERY 2: CUSTO TOTAL ---
     const itensVendidos = await MovimentacaoProduto.findAll({
       attributes: ["quantidadeSaiu"],
       include: [
@@ -61,7 +61,6 @@ export const dashboardRelatorio = async (req, res) => {
         },
         {
           model: Movimentacao,
-          // REMOVIDO 'as: "movimentacao"' POIS NÃO EXISTE NO MODEL INDEX
           attributes: [],
           where: whereMovimentacao,
           include: [
@@ -75,10 +74,9 @@ export const dashboardRelatorio = async (req, res) => {
         },
       ],
       raw: true,
-      nest: true, // Importante para organizar o objeto produto
+      nest: true,
     });
 
-    // Calcula custo somando (Qtd * CustoUnitario)
     const custoTotal = itensVendidos.reduce((acc, item) => {
       const qtd = item.quantidadeSaiu || 0;
       const custo = parseFloat(item.produto?.custoUnitario || 0);
@@ -87,10 +85,10 @@ export const dashboardRelatorio = async (req, res) => {
 
     const lucro = faturamento - custoTotal;
 
-    // --- QUERY 3: GRÁFICO FINANCEIRO (Linha do Tempo) ---
+    // --- QUERY 3: GRÁFICO FINANCEIRO ---
     const timelineRaw = await Movimentacao.findAll({
       attributes: [
-        [fn("DATE", col("dataColeta")), "data"], // Postgre/MySQL compatível
+        [fn("DATE", col("dataColeta")), "data"],
         [fn("SUM", col("valorFaturado")), "faturamento"],
       ],
       include: [
@@ -107,8 +105,8 @@ export const dashboardRelatorio = async (req, res) => {
       raw: true,
     });
 
-    // --- QUERY 4: PERFORMANCE POR MÁQUINA ---
-    // Agregamos por ID da máquina para garantir unicidade
+    // --- QUERY 4: PERFORMANCE POR MÁQUINA (Corrigido) ---
+    // Buscamos dados financeiros agregados
     const performanceRaw = await Movimentacao.findAll({
       attributes: [
         [col("maquina.nome"), "nome"],
@@ -119,32 +117,41 @@ export const dashboardRelatorio = async (req, res) => {
           model: Maquina,
           as: "maquina",
           where: whereMaquina,
-          attributes: ["id", "nome", "capacidadePadrao", "estoqueAtual"],
+          // REMOVIDO 'estoqueAtual' DAQUI
+          attributes: ["id", "nome", "capacidadePadrao"],
         },
       ],
       where: whereMovimentacao,
       group: [
         "maquina.id",
         "maquina.nome",
-        "maquina.capacidadePadrao",
-        "maquina.estoqueAtual",
+        "maquina.capacidadePadrao"
       ],
       raw: true,
       nest: true,
     });
 
-    const performanceMaquinas = performanceRaw.map((p) => ({
-      nome: p.maquina.nome,
-      faturamento: parseFloat(p.faturamento || 0),
-      // Cálculo de ocupação baseado no estado ATUAL da máquina
-      ocupacao:
-        p.maquina.capacidadePadrao > 0
-          ? (
-              (p.maquina.estoqueAtual / p.maquina.capacidadePadrao) *
-              100
-            ).toFixed(1)
-          : 0,
-    }));
+    // Para calcular ocupação, precisamos buscar o estoque atual (última movimentação)
+    // Fazemos isso em paralelo para cada máquina encontrada
+    const performanceMaquinas = await Promise.all(
+      performanceRaw.map(async (p) => {
+        // Busca a última movimentação dessa máquina para pegar o estoque real
+        const ultimaMov = await Movimentacao.findOne({
+          where: { maquinaId: p.maquina.id },
+          order: [["dataColeta", "DESC"]],
+          attributes: ["totalPos"],
+        });
+
+        const estoqueAtual = ultimaMov ? ultimaMov.totalPos : 0;
+        const capacidade = p.maquina.capacidadePadrao || 100;
+
+        return {
+          nome: p.maquina.nome,
+          faturamento: parseFloat(p.faturamento || 0),
+          ocupacao: ((estoqueAtual / capacidade) * 100).toFixed(1),
+        };
+      })
+    );
 
     // --- QUERY 5: RANKING DE PRODUTOS ---
     const rankingRaw = await MovimentacaoProduto.findAll({
@@ -156,7 +163,6 @@ export const dashboardRelatorio = async (req, res) => {
         { model: Produto, as: "produto", attributes: ["id", "nome"] },
         {
           model: Movimentacao,
-          // Sem alias aqui também
           attributes: [],
           where: whereMovimentacao,
           include: [
@@ -191,13 +197,13 @@ export const dashboardRelatorio = async (req, res) => {
       graficoFinanceiro: timelineRaw.map((t) => ({
         data: t.data,
         faturamento: parseFloat(t.faturamento || 0),
-        custo: 0, // Custo diário é complexo, mantemos 0 por enquanto
+        custo: 0,
       })),
       performanceMaquinas,
       rankingProdutos,
     });
   } catch (error) {
-    console.error("Erro Crítico no Dashboard:", error); // Isso vai aparecer no terminal do backend
+    console.error("Erro Crítico no Dashboard:", error);
     res.status(500).json({
       error: "Erro interno ao processar dashboard.",
       details: error.message,
