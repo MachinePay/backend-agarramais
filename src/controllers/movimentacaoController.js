@@ -47,6 +47,35 @@ export const registrarMovimentacao = async (req, res) => {
       where: { maquinaId },
       order: [["createdAt", "DESC"]],
     });
+    // Validação: contadorIn/contadorOut não pode ser menor que o anterior, exceto ADMIN, ou se não enviado ou zero
+    if (ultimaMov) {
+      // contadorIn
+      if (
+        typeof contadorIn === "number" &&
+        contadorIn > 0 &&
+        typeof ultimaMov.contadorIn === "number" &&
+        ultimaMov.contadorIn !== null &&
+        contadorIn < ultimaMov.contadorIn &&
+        req.usuario.role !== "ADMIN"
+      ) {
+        return res.status(400).json({
+          error: `O contador IN (${contadorIn}) não pode ser menor que o anterior. Verifique o valor digitado ou peça ajuda ao gestor.`,
+        });
+      }
+      // contadorOut
+      if (
+        typeof contadorOut === "number" &&
+        contadorOut > 0 &&
+        typeof ultimaMov.contadorOut === "number" &&
+        ultimaMov.contadorOut !== null &&
+        contadorOut < ultimaMov.contadorOut &&
+        req.usuario.role !== "ADMIN"
+      ) {
+        return res.status(400).json({
+          error: `O contador OUT (${contadorOut}) não pode ser menor que o anterior. Verifique o valor digitado ou peça ajuda ao gestor.`,
+        });
+      }
+    }
     if (
       ultimaMov &&
       typeof ultimaMov.totalPos === "number" &&
