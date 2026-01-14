@@ -543,3 +543,79 @@ export const alertasAbastecimentoIncompleto = async (req, res) => {
       .json({ error: "Erro ao buscar alertas de abastecimento incompleto" });
   }
 };
+
+// GET /maquinas/:id/problema
+export const problemaMaquina = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const maquina = await Maquina.findByPk(id);
+    if (!maquina) {
+      return res.status(404).json({ error: "Máquina não encontrada" });
+    }
+    // Busca última movimentação
+    const ultimaMov = await Movimentacao.findOne({
+      where: { maquinaId: id },
+      order: [["createdAt", "DESC"]],
+    });
+    const problemas = [];
+    // Regra: contadorIn/contadorOut menor que anterior
+    if (ultimaMov) {
+      if (
+        typeof ultimaMov.contadorIn === "number" &&
+        typeof ultimaMov.contadorOut === "number"
+      ) {
+        // Busca penúltima movimentação
+        const penultimaMov = await Movimentacao.findOne({
+          where: { maquinaId: id, id: { [Op.ne]: ultimaMov.id } },
+          order: [["createdAt", "DESC"]],
+        });
+        if (penultimaMov) {
+          if (ultimaMov.contadorIn < penultimaMov.contadorIn) {
+            problemas.push({
+              tipo: "contadorIn",
+              mensagem: `O contador IN (${ultimaMov.contadorIn}) está menor que o anterior (${penultimaMov.contadorIn}).`,
+              data: ultimaMov.dataColeta,
+            });
+          }
+          if (ultimaMov.contadorOut < penultimaMov.contadorOut) {
+            problemas.push({
+              tipo: "contadorOut",
+              mensagem: `O contador OUT (${ultimaMov.contadorOut}) está menor que o anterior (${penultimaMov.contadorOut}).`,
+              data: ultimaMov.dataColeta,
+            });
+          }
+        }
+      }
+      // Regra: abastecimento incompleto
+      if (
+        typeof ultimaMov.abastecidas === "number" &&
+        typeof ultimaMov.totalPre === "number" &&
+        ultimaMov.abastecidas > 0 &&
+        ultimaMov.totalPre + ultimaMov.abastecidas < maquina.capacidadePadrao
+      ) {
+        problemas.push({
+          tipo: "abastecimento",
+          mensagem: `Abastecimento incompleto: padrão ${
+            maquina.capacidadePadrao
+          }, tinha ${ultimaMov.totalPre}, abasteceu ${
+            ultimaMov.abastecidas
+          }, ficou com ${ultimaMov.totalPre + ultimaMov.abastecidas}. Motivo: ${
+            ultimaMov.observacoes || "Não informado"
+          }`,
+          data: ultimaMov.dataColeta,
+        });
+      }
+    }
+    res.json({
+      maquina: {
+        id: maquina.id,
+        nome: maquina.nome,
+        capacidadePadrao: maquina.capacidadePadrao,
+      },
+      problemas,
+    });
+  } catch (error) {
+    console.error("Erro ao buscar problema da máquina:", error);
+    res.status(500).json({ error: "Erro ao buscar problema da máquina" });
+  }
+};
