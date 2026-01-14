@@ -42,7 +42,7 @@ export const registrarMovimentacao = async (req, res) => {
       });
     }
 
-    // --- REGRA DE SEGURANÇA: Não permitir totalPre maior que totalPos da última movimentação, exceto para ADMIN ---
+    // --- REGRA DE SEGURANÇA: Não permitir total maior que totalPos da última movimentação, exceto para ADMIN ---
     const ultimaMov = await Movimentacao.findOne({
       where: { maquinaId },
       order: [["createdAt", "DESC"]],
@@ -57,6 +57,13 @@ export const registrarMovimentacao = async (req, res) => {
         error: `Não é permitido abastecer a máquina com uma quantidade maior (${totalPre}) do que o total pós da última movimentação. Confira o que você digitou.`,
       });
     }
+
+    // --- Recalcular saída (sairam) para garantir consistência ---
+    let saidaRecalculada = 0;
+    if (ultimaMov && typeof ultimaMov.totalPos === "number") {
+      saidaRecalculada = Math.max(0, ultimaMov.totalPos - totalPre);
+    }
+    // Se não houver movimentação anterior, saída é zero
 
     // Buscar máquina para pegar valorFicha
     const maquina = await Maquina.findByPk(maquinaId);
@@ -75,9 +82,9 @@ export const registrarMovimentacao = async (req, res) => {
     console.log("📝 [registrarMovimentacao] Criando movimentação:", {
       maquinaId,
       totalPre,
-      sairam,
+      sairam: saidaRecalculada,
       abastecidas,
-      totalPosCalculado: totalPre - sairam + abastecidas,
+      totalPosCalculado: totalPre - saidaRecalculada + abastecidas,
       fichas: fichas || 0,
       valorFaturado,
     });
@@ -88,7 +95,7 @@ export const registrarMovimentacao = async (req, res) => {
       usuarioId: req.usuario.id,
       dataColeta: dataColeta || new Date(),
       totalPre,
-      sairam,
+      sairam: saidaRecalculada,
       abastecidas,
       fichas: fichas || 0,
       contadorMaquina,
