@@ -555,56 +555,64 @@ export const problemaMaquina = async (req, res) => {
     // Busca última movimentação
     const ultimaMov = await Movimentacao.findOne({
       where: { maquinaId: id },
-      order: [["createdAt", "DESC"]],
+      order: [["dataColeta", "DESC"]],
     });
     const problemas = [];
-    // Regra: contadorIn/contadorOut menor que anterior
-    if (ultimaMov) {
+    // Buscar alerta de inconsistência de IN/OUT (igual rota de alertas)
+    const movimentacoes = await Movimentacao.findAll({
+      where: { maquinaId: id },
+      order: [["dataColeta", "DESC"]],
+      limit: 2,
+      attributes: [
+        "id",
+        "contadorIn",
+        "contadorOut",
+        "fichas",
+        "sairam",
+        "dataColeta",
+      ],
+    });
+    if (movimentacoes.length === 2) {
+      const atual = movimentacoes[0];
+      const anterior = movimentacoes[1];
+      const diffOut = (atual.contadorOut || 0) - (anterior.contadorOut || 0);
+      const diffIn = (atual.contadorIn || 0) - (anterior.contadorIn || 0);
       if (
-        typeof ultimaMov.contadorIn === "number" &&
-        typeof ultimaMov.contadorOut === "number"
-      ) {
-        // Busca penúltima movimentação
-        const penultimaMov = await Movimentacao.findOne({
-          where: { maquinaId: id, id: { [Op.ne]: ultimaMov.id } },
-          order: [["createdAt", "DESC"]],
-        });
-        if (penultimaMov) {
-          if (ultimaMov.contadorIn < penultimaMov.contadorIn) {
-            problemas.push({
-              tipo: "contadorIn",
-              mensagem: `O contador IN (${ultimaMov.contadorIn}) está menor que o anterior (${penultimaMov.contadorIn}).`,
-              data: ultimaMov.dataColeta,
-            });
-          }
-          if (ultimaMov.contadorOut < penultimaMov.contadorOut) {
-            problemas.push({
-              tipo: "contadorOut",
-              mensagem: `O contador OUT (${ultimaMov.contadorOut}) está menor que o anterior (${penultimaMov.contadorOut}).`,
-              data: ultimaMov.dataColeta,
-            });
-          }
-        }
-      }
-      // Regra: abastecimento incompleto
-      if (
-        typeof ultimaMov.abastecidas === "number" &&
-        typeof ultimaMov.totalPre === "number" &&
-        ultimaMov.abastecidas > 0 &&
-        ultimaMov.totalPre + ultimaMov.abastecidas < maquina.capacidadePadrao
+        (diffOut !== (atual.sairam || 0) || diffIn !== (atual.fichas || 0)) &&
+        !(atual.contadorOut === 0 && atual.contadorIn === 0)
       ) {
         problemas.push({
-          tipo: "abastecimento",
-          mensagem: `Abastecimento incompleto: padrão ${
-            maquina.capacidadePadrao
-          }, tinha ${ultimaMov.totalPre}, abasteceu ${
-            ultimaMov.abastecidas
-          }, ficou com ${ultimaMov.totalPre + ultimaMov.abastecidas}. Motivo: ${
-            ultimaMov.observacoes || "Não informado"
+          tipo: "inconsistencia_contador",
+          mensagem: `Inconsistência detectada: OUT (${diffOut}) esperado ${
+            atual.sairam
+          }, IN (${diffIn}) esperado ${atual.fichas}. OUT registrado: ${
+            atual.contadorOut || 0
+          } | IN registrado: ${atual.contadorIn || 0} | Fichas: ${
+            atual.fichas
           }`,
-          data: ultimaMov.dataColeta,
+          data: atual.dataColeta,
         });
       }
+    }
+    // Regra: abastecimento incompleto
+    if (
+      ultimaMov &&
+      typeof ultimaMov.abastecidas === "number" &&
+      typeof ultimaMov.totalPre === "number" &&
+      ultimaMov.abastecidas > 0 &&
+      ultimaMov.totalPre + ultimaMov.abastecidas < maquina.capacidadePadrao
+    ) {
+      problemas.push({
+        tipo: "abastecimento",
+        mensagem: `Abastecimento incompleto: padrão ${
+          maquina.capacidadePadrao
+        }, tinha ${ultimaMov.totalPre}, abasteceu ${
+          ultimaMov.abastecidas
+        }, ficou com ${ultimaMov.totalPre + ultimaMov.abastecidas}. Motivo: ${
+          ultimaMov.observacoes || "Não informado"
+        }`,
+        data: ultimaMov.dataColeta,
+      });
     }
     res.json({
       maquina: {
