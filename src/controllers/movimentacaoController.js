@@ -42,7 +42,7 @@ export const registrarMovimentacao = async (req, res) => {
       });
     }
 
-    // --- REGRA DE SEGURANÇA: Não permitir totalPre maior que totalPos da última movimentação ---
+    // --- REGRA DE SEGURANÇA: Não permitir totalPre maior que totalPos da última movimentação, exceto para ADMIN ---
     const ultimaMov = await Movimentacao.findOne({
       where: { maquinaId },
       order: [["createdAt", "DESC"]],
@@ -50,7 +50,8 @@ export const registrarMovimentacao = async (req, res) => {
     if (
       ultimaMov &&
       typeof ultimaMov.totalPos === "number" &&
-      totalPre > ultimaMov.totalPos
+      totalPre > ultimaMov.totalPos &&
+      req.usuario.role !== "ADMIN"
     ) {
       return res.status(400).json({
         error: `Não é permitido abastecer a máquina com uma quantidade maior (${totalPre}) do que o total pós da última movimentação. Confira o que você digitou.`,
