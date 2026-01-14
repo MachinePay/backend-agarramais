@@ -6,6 +6,7 @@ import {
   relatorioImpressao,
   buscarAlertasDeInconsistencia,
   ignorarAlertaMovimentacao,
+  dashboardRelatorio,
 } from "../controllers/relatorioController.js";
 import { autenticar, autorizarRole } from "../middlewares/auth.js";
 
@@ -47,6 +48,12 @@ router.get(
   autenticar,
   autorizarRole("ADMIN"),
   relatorioImpressao
+);
+router.get(
+  "/dashboard",
+  autenticar,
+  autorizarRole("ADMIN"),
+  dashboardRelatorio
 );
 
 export default router;

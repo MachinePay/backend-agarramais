@@ -1,3 +1,178 @@
+// Dashboard agregador via SQL
+import { Sequelize } from "sequelize";
+export const dashboardRelatorio = async (req, res) => {
+  try {
+    const { lojaId, dataInicio, dataFim } = req.query;
+    // Filtros base
+    const whereMov = {};
+    if (lojaId) {
+      // Filtrar máquinas da loja
+      const maquinas = await Maquina.findAll({ where: { lojaId } });
+      const maquinaIds = maquinas.map((m) => m.id);
+      whereMov.maquinaId = { [Sequelize.Op.in]: maquinaIds };
+    }
+    if (dataInicio || dataFim) {
+      whereMov.dataColeta = {};
+      if (dataInicio)
+        whereMov.dataColeta[Sequelize.Op.gte] = new Date(dataInicio);
+      if (dataFim)
+        whereMov.dataColeta[Sequelize.Op.lte] = new Date(dataFim + "T23:59:59");
+    }
+
+    // Totais
+    const totais = await Movimentacao.findOne({
+      attributes: [
+        [Sequelize.fn("SUM", Sequelize.col("fichas")), "fichas"],
+        [Sequelize.fn("SUM", Sequelize.col("sairam")), "saidas"],
+        [
+          Sequelize.fn("SUM", Sequelize.literal("fichas * Maquina.valorFicha")),
+          "faturamento",
+        ],
+      ],
+      include: [{ model: Maquina, as: "maquina", attributes: [] }],
+      where: whereMov,
+      raw: true,
+    });
+
+    // Lucro: SUM(fichas * valorFicha) - SUM(produtos_saiu * custoUnitario)
+    const lucroQuery = await Movimentacao.findAll({
+      attributes: [],
+      include: [
+        {
+          model: Maquina,
+          as: "maquina",
+          attributes: ["valorFicha"],
+        },
+        {
+          model: MovimentacaoProduto,
+          as: "detalhesProdutos",
+          attributes: [],
+          include: [
+            {
+              model: Produto,
+              as: "produto",
+              attributes: ["custoUnitario"],
+            },
+          ],
+        },
+      ],
+      where: whereMov,
+      raw: true,
+    });
+    // Lucro aproximado: precisa somar fichas*valorFicha e subtrair SUM(quantidadeSaiu*custoUnitario)
+    // Para simplificação, pode ser feito em duas queries separadas
+    const totalFaturamento = totais.faturamento || 0;
+    // Custo total dos produtos vendidos
+    const custoProdutos = await MovimentacaoProduto.findOne({
+      attributes: [
+        [
+          Sequelize.fn(
+            "SUM",
+            Sequelize.literal("quantidadeSaiu * produto.custoUnitario")
+          ),
+          "custoTotal",
+        ],
+      ],
+      include: [
+        {
+          model: Produto,
+          as: "produto",
+          attributes: [],
+        },
+        {
+          model: Movimentacao,
+          as: "movimentacao",
+          attributes: [],
+          where: whereMov,
+        },
+      ],
+      raw: true,
+    });
+    const totalCusto = custoProdutos.custoTotal || 0;
+    const totalLucro = totalFaturamento - totalCusto;
+
+    // Grafico Financeiro: agrupado por dia
+    const graficoFinanceiro = await Movimentacao.findAll({
+      attributes: [
+        [Sequelize.fn("DATE", Sequelize.col("dataColeta")), "data"],
+        [
+          Sequelize.fn("SUM", Sequelize.literal("fichas * Maquina.valorFicha")),
+          "faturamento",
+        ],
+      ],
+      include: [{ model: Maquina, as: "maquina", attributes: [] }],
+      where: whereMov,
+      group: [Sequelize.fn("DATE", Sequelize.col("dataColeta"))],
+      order: [[Sequelize.fn("DATE", Sequelize.col("dataColeta")), "ASC"]],
+      raw: true,
+    });
+    // Custo por dia
+    // (Para cada dia, somar quantidadeSaiu*custoUnitario)
+    // Pode ser feito em MovimentacaoProduto, agrupando por dataColeta
+    // Para simplificação, pode ser feito no frontend se necessário, ou com uma query extra
+
+    // Ranking Produtos
+    const rankingProdutos = await MovimentacaoProduto.findAll({
+      attributes: [
+        "produtoId",
+        [Sequelize.fn("SUM", Sequelize.col("quantidadeSaiu")), "quantidade"],
+      ],
+      include: [
+        {
+          model: Produto,
+          as: "produto",
+          attributes: ["nome"],
+        },
+        {
+          model: Movimentacao,
+          as: "movimentacao",
+          attributes: [],
+          where: whereMov,
+        },
+      ],
+      group: ["produtoId", "produto.nome"],
+      order: [[Sequelize.fn("SUM", Sequelize.col("quantidadeSaiu")), "DESC"]],
+      limit: 10,
+      raw: true,
+    });
+
+    // Performance Máquinas
+    const performanceMaquinas = await Movimentacao.findAll({
+      attributes: [
+        "maquinaId",
+        [
+          Sequelize.fn("SUM", Sequelize.literal("fichas * Maquina.valorFicha")),
+          "faturamento",
+        ],
+        [Sequelize.fn("AVG", Sequelize.col("totalPre")), "ocupacao"],
+      ],
+      include: [{ model: Maquina, as: "maquina", attributes: ["nome"] }],
+      where: whereMov,
+      group: ["maquinaId", "maquina.nome"],
+      raw: true,
+    });
+
+    res.json({
+      totais: {
+        faturamento: Number(totalFaturamento),
+        lucro: Number(totalLucro),
+        saidas: Number(totais.saidas),
+        fichas: Number(totais.fichas),
+      },
+      graficoFinanceiro,
+      rankingProdutos,
+      performanceMaquinas,
+    });
+  } catch (error) {
+    console.error("Erro no dashboardRelatorio:", error);
+    res
+      .status(500)
+      .json({
+        error: "Erro ao gerar relatório do dashboard",
+        message: error.message,
+      });
+  }
+};
 import {
   Movimentacao,
   MovimentacaoProduto,
