@@ -8,6 +8,7 @@ import {
   ignorarAlertaMovimentacao,
   dashboardRelatorio,
 } from "../controllers/relatorioController.js";
+import { alertasAbastecimentoIncompleto } from "../controllers/movimentacaoController.js";
 import { autenticar, autorizarRole } from "../middlewares/auth.js";
 
 const router = express.Router();
@@ -59,8 +60,7 @@ router.get(
   "/alertas-abastecimento-incompleto",
   autenticar,
   autorizarRole("ADMIN"),
-  require("../controllers/movimentacaoController.js")
-    .alertasAbastecimentoIncompleto
+  alertasAbastecimentoIncompleto
 );
 
 export default router;
