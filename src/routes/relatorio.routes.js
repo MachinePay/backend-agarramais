@@ -55,5 +55,12 @@ router.get(
   autorizarRole("ADMIN"),
   dashboardRelatorio
 );
+router.get(
+  "/alertas-abastecimento-incompleto",
+  autenticar,
+  autorizarRole("ADMIN"),
+  require("../controllers/movimentacaoController.js")
+    .alertasAbastecimentoIncompleto
+);
 
 export default router;

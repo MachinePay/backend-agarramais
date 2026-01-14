@@ -467,3 +467,79 @@ export const deletarMovimentacao = async (req, res) => {
     res.status(500).json({ error: "Erro ao deletar movimentação" });
   }
 };
+
+// GET /relatorios/alertas-abastecimento-incompleto?lojaId=...&dataInicio=...&dataFim=...
+export const alertasAbastecimentoIncompleto = async (req, res) => {
+  try {
+    const { lojaId, dataInicio, dataFim } = req.query;
+    const { Movimentacao, Maquina, Usuario } = await import(
+      "../models/index.js"
+    );
+
+    // Busca movimentações no período e loja
+    const whereMov = {};
+    if (dataInicio || dataFim) {
+      whereMov.dataColeta = {};
+      if (dataInicio) whereMov.dataColeta[Op.gte] = new Date(dataInicio);
+      if (dataFim) whereMov.dataColeta[Op.lte] = new Date(dataFim);
+    }
+
+    const include = [
+      {
+        model: Maquina,
+        as: "maquina",
+        attributes: ["id", "nome", "capacidadePadrao", "lojaId"],
+        ...(lojaId ? { where: { lojaId } } : {}),
+      },
+      {
+        model: Usuario,
+        as: "usuario",
+        attributes: ["id", "nome"],
+      },
+    ];
+
+    // Busca movimentações com abastecimento
+    const movimentacoes = await Movimentacao.findAll({
+      where: whereMov,
+      include,
+      order: [["dataColeta", "DESC"]],
+    });
+
+    // Gera alertas para abastecimento incompleto
+    const alertas = movimentacoes
+      .filter((mov) => {
+        // Só alerta se houve abastecimento e não encheu até o padrão
+        if (
+          mov.abastecidas > 0 &&
+          mov.totalPre + mov.abastecidas < mov.maquina.capacidadePadrao
+        ) {
+          return true;
+        }
+        return false;
+      })
+      .map((mov) => ({
+        id: mov.id,
+        maquinaId: mov.maquina.id,
+        maquinaNome: mov.maquina.nome,
+        capacidadePadrao: mov.maquina.capacidadePadrao,
+        totalAntes: mov.totalPre,
+        abastecido: mov.abastecidas,
+        totalDepois: mov.totalPre + mov.abastecidas,
+        usuario: mov.usuario?.nome,
+        dataMovimentacao: mov.dataColeta,
+        observacao: mov.observacoes || "Sem observação",
+        mensagem: `Abastecimento incompleto: padrão ${
+          mov.maquina.capacidadePadrao
+        }, tinha ${mov.totalPre}, abasteceu ${mov.abastecidas}, ficou com ${
+          mov.totalPre + mov.abastecidas
+        }. Motivo: ${mov.observacoes || "Não informado"}`,
+      }));
+
+    res.json({ alertas });
+  } catch (error) {
+    console.error("Erro ao buscar alertas de abastecimento incompleto:", error);
+    res
+      .status(500)
+      .json({ error: "Erro ao buscar alertas de abastecimento incompleto" });
+  }
+};
