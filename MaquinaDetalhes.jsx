@@ -13,27 +13,48 @@ export function MaquinaDetalhes() {
   const [movimentacoes, setMovimentacoes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [estoqueAtual, setEstoqueAtual] = useState(null);
+  const [alertaInconsistencia, setAlertaInconsistencia] = useState(null);
+  const [alertaAbastecimento, setAlertaAbastecimento] = useState(null);
 
   useEffect(() => {
     carregarDados();
     // eslint-disable-next-line
   }, [id]);
 
+  // Atualiza o estoque atual sempre que as movimentações mudam
+  useEffect(() => {
+    if (movimentacoes && movimentacoes.length > 0) {
+      // Considera o campo totalPos, se existir, senão tenta outros nomes comuns
+      const ultimaMov = movimentacoes[0];
+      const totalPos =
+        ultimaMov.totalPos ?? ultimaMov.total_pos ?? ultimaMov.totalpos ?? null;
+      setEstoqueAtual(totalPos);
+    } else {
+      setEstoqueAtual(null);
+    }
+  }, [movimentacoes]);
+
   const carregarDados = async () => {
     try {
       setLoading(true);
-      const [maquinaRes, movimentacoesRes, problemaRes] = await Promise.all([
+      const [
+        maquinaRes,
+        movimentacoesRes,
+        resInconsistencia,
+        resAbastecimento,
+      ] = await Promise.all([
         api.get(`/maquinas/${id}`),
         api.get(`/movimentacoes?maquinaId=${id}`),
-        api.get(`/maquinas/${id}/problema`),
+        api.get(
+          `/relatorios/alertas-movimentacao-inconsistente?maquinaId=${id}`
+        ),
+        api.get(`/relatorios/alertas-abastecimento-incompleto?maquinaId=${id}`),
       ]);
-      setMaquina({
-        ...maquinaRes.data,
-        problemas: Array.isArray(problemaRes.data?.problemas)
-          ? problemaRes.data.problemas
-          : [],
-      });
+      setMaquina(maquinaRes.data);
       setMovimentacoes(movimentacoesRes.data);
+      setAlertaInconsistencia(resInconsistencia.data?.alertas?.[0] || null);
+      setAlertaAbastecimento(resAbastecimento.data?.alertas?.[0] || null);
     } catch (error) {
       setError(
         "Erro ao carregar dados: " +
@@ -75,8 +96,8 @@ export function MaquinaDetalhes() {
                   { data: { maquinaId: maquina.id } }
                 );
                 window.location.assign("/alertas");
-              } catch (err) {
-                alert("Erro ao marcar como corrigido.");
+              } catch (error) {
+                alert("Erro ao marcar como corrigido.", error);
               }
             }}
             disabled={!maquina.alertaId}
@@ -91,6 +112,25 @@ export function MaquinaDetalhes() {
           icon="🎰"
         />
         <div className="bg-white rounded-lg shadow p-6 mb-8">
+          {/* Detalhes dos alertas */}
+          {alertaInconsistencia && (
+            <div className="mb-4 p-3 bg-yellow-50 border border-yellow-300 rounded text-yellow-900">
+              <strong>Alerta de Inconsistência:</strong>{" "}
+              {alertaInconsistencia.mensagem ||
+                `Inconsistência detectada: OUT (${alertaInconsistencia.contador_out})/IN (${alertaInconsistencia.contador_in}) não bate com fichas (${alertaInconsistencia.fichas}).`}
+            </div>
+          )}
+          {alertaAbastecimento && (
+            <div className="mb-4 p-3 bg-yellow-50 border border-yellow-300 rounded text-yellow-900">
+              <strong>Alerta de Abastecimento Incompleto:</strong>{" "}
+              {alertaAbastecimento.mensagem ||
+                `Abastecimento incompleto: padrão ${
+                  alertaAbastecimento.padrao
+                }, tinha ${alertaAbastecimento.anterior}, abastecido ${
+                  alertaAbastecimento.abastecido
+                }. Motivo: ${alertaAbastecimento.observacao || "-"}`}
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <p>
@@ -102,8 +142,8 @@ export function MaquinaDetalhes() {
               </p>
               <p>
                 <strong>Estoque Atual:</strong>{" "}
-                {maquina.estoqueAtual !== undefined
-                  ? maquina.estoqueAtual
+                {estoqueAtual !== null && estoqueAtual !== undefined
+                  ? estoqueAtual
                   : "-"}
               </p>
               <p>
@@ -136,18 +176,7 @@ export function MaquinaDetalhes() {
             </div>
           </div>
         </div>
-        <div className="mb-4 p-3 bg-yellow-50 border border-yellow-300 rounded text-yellow-900">
-          <strong>Problema:</strong>{" "}
-          {maquina.problemas && maquina.problemas.length > 0 ? (
-            <ul className="list-disc ml-5">
-              {maquina.problemas.map((p, idx) => (
-                <li key={idx}>{p.mensagem}</li>
-              ))}
-            </ul>
-          ) : (
-            "Nenhum problema registrado para esta máquina."
-          )}
-        </div>
+
         <h2 className="text-xl font-bold mb-4">Movimentações</h2>
         <div className="bg-white rounded-lg shadow p-4 mb-4">
           {movimentacoes.length === 0 ? (

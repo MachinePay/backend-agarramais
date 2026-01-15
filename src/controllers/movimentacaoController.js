@@ -508,10 +508,10 @@ export const alertasAbastecimentoIncompleto = async (req, res) => {
     // Gera alertas para abastecimento incompleto
     const alertas = movimentacoes
       .filter((mov) => {
-        // Só alerta se houve abastecimento e não encheu até o padrão
+        // Só alerta se houve abastecimento e o totalDepois é diferente do padrão
         if (
           mov.abastecidas > 0 &&
-          mov.totalPre + mov.abastecidas < mov.maquina.capacidadePadrao
+          mov.totalPre + mov.abastecidas !== mov.maquina.capacidadePadrao
         ) {
           return true;
         }
