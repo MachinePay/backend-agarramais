@@ -600,7 +600,7 @@ export const problemaMaquina = async (req, res) => {
       typeof ultimaMov.abastecidas === "number" &&
       typeof ultimaMov.totalPre === "number" &&
       ultimaMov.abastecidas > 0 &&
-      ultimaMov.totalPre + ultimaMov.abastecidas < maquina.capacidadePadrao
+      ultimaMov.totalPre + ultimaMov.abastecidas !== maquina.capacidadePadrao
     ) {
       problemas.push({
         tipo: "abastecimento",
