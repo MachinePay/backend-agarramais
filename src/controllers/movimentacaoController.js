@@ -471,17 +471,20 @@ export const deletarMovimentacao = async (req, res) => {
 // GET /relatorios/alertas-abastecimento-incompleto?lojaId=...&dataInicio=...&dataFim=...
 export const alertasAbastecimentoIncompleto = async (req, res) => {
   try {
-    const { lojaId, dataInicio, dataFim } = req.query;
+    const { lojaId, dataInicio, dataFim, maquinaId } = req.query;
     const { Movimentacao, Maquina, Usuario } = await import(
       "../models/index.js"
     );
 
-    // Busca movimentações no período e loja
+    // Busca movimentações no período, loja e máquina
     const whereMov = {};
     if (dataInicio || dataFim) {
       whereMov.dataColeta = {};
       if (dataInicio) whereMov.dataColeta[Op.gte] = new Date(dataInicio);
       if (dataFim) whereMov.dataColeta[Op.lte] = new Date(dataFim);
+    }
+    if (maquinaId) {
+      whereMov.maquinaId = maquinaId;
     }
 
     const include = [

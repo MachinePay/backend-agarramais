@@ -152,12 +152,6 @@ export function MaquinaDetalhes() {
                   ? maquina.valorFicha.toFixed(2)
                   : maquina.valorFicha || "-"}
               </p>
-              <p>
-                <strong>Status:</strong>{" "}
-                <Badge variant={maquina.ativa ? "success" : "danger"}>
-                  {maquina.ativa ? "Ativa" : "Inativa"}
-                </Badge>
-              </p>
             </div>
             <div>
               <p>
