@@ -122,11 +122,7 @@ export const dashboardRelatorio = async (req, res) => {
         },
       ],
       where: whereMovimentacao,
-      group: [
-        "maquina.id",
-        "maquina.nome",
-        "maquina.capacidadePadrao"
-      ],
+      group: ["maquina.id", "maquina.nome", "maquina.capacidadePadrao"],
       raw: true,
       nest: true,
     });
@@ -150,7 +146,7 @@ export const dashboardRelatorio = async (req, res) => {
           faturamento: parseFloat(p.faturamento || 0),
           ocupacao: ((estoqueAtual / capacidade) * 100).toFixed(1),
         };
-      })
+      }),
     );
 
     // --- QUERY 5: RANKING DE PRODUTOS ---
@@ -258,11 +254,15 @@ export const buscarAlertasDeInconsistencia = async (req, res) => {
 
         const alertaId = `${maquina.id}-${atual.id}`;
 
+        // Pular alertas se a máquina não tem contadores (contador_out é 0 ou null)
+        const temContadores =
+          atual.contadorOut !== null && atual.contadorOut !== 0;
+
         // Se a diferença não bate com a quantidade de saída/fichas
         if (
+          temContadores &&
           (diffOut !== (atual.sairam || 0) || diffIn !== (atual.fichas || 0)) &&
-          !ignoradosSet.has(alertaId) &&
-          !(atual.contadorOut === 0 && atual.contadorIn === 0)
+          !ignoradosSet.has(alertaId)
         ) {
           alertas.push({
             id: alertaId,
@@ -384,7 +384,7 @@ export const balançoSemanal = async (req, res) => {
         totalFaturamento: 0,
         totalSairam: 0,
         totalAbastecidas: 0,
-      }
+      },
     );
 
     // Calcular média fichas/prêmio
@@ -516,8 +516,8 @@ export const alertasEstoque = async (req, res) => {
             percentualAtual < 10
               ? "CRÍTICO"
               : percentualAtual < 20
-              ? "ALTO"
-              : "MÉDIO",
+                ? "ALTO"
+                : "MÉDIO",
           ultimaAtualizacao: ultimaMovimentacao?.dataColeta,
         });
       }
@@ -525,7 +525,7 @@ export const alertasEstoque = async (req, res) => {
 
     // Ordenar por percentual (mais críticos primeiro)
     alertas.sort(
-      (a, b) => parseFloat(a.percentualAtual) - parseFloat(b.percentualAtual)
+      (a, b) => parseFloat(a.percentualAtual) - parseFloat(b.percentualAtual),
     );
 
     res.json({
@@ -602,7 +602,7 @@ export const performanceMaquinas = async (req, res) => {
         totalFaturamento: parseFloat(p.getDataValue("totalFaturamento") || 0),
         totalSairam: parseInt(p.getDataValue("totalSairam") || 0),
         mediaFichasPremio: parseFloat(
-          p.getDataValue("mediaFichasPremioGeral") || 0
+          p.getDataValue("mediaFichasPremioGeral") || 0,
         ).toFixed(2),
       },
     }));
@@ -677,15 +677,15 @@ export const relatorioImpressao = async (req, res) => {
     // Calcular totais
     const totalFichas = movimentacoes.reduce(
       (sum, m) => sum + (m.fichas || 0),
-      0
+      0,
     );
     const totalSairam = movimentacoes.reduce(
       (sum, m) => sum + (m.sairam || 0),
-      0
+      0,
     );
     const totalAbastecidas = movimentacoes.reduce(
       (sum, m) => sum + (m.abastecidas || 0),
-      0
+      0,
     );
 
     // Consolidar produtos que saíram
@@ -723,11 +723,11 @@ export const relatorioImpressao = async (req, res) => {
     });
 
     const produtosSairam = Object.values(produtosSairamMap).sort(
-      (a, b) => b.quantidade - a.quantidade
+      (a, b) => b.quantidade - a.quantidade,
     );
 
     const produtosEntraram = Object.values(produtosEntraramMap).sort(
-      (a, b) => b.quantidade - a.quantidade
+      (a, b) => b.quantidade - a.quantidade,
     );
 
     // Consolidar dados por máquina
