@@ -266,11 +266,13 @@ export const buscarAlertasDeInconsistencia = async (req, res) => {
         ) {
           alertas.push({
             id: alertaId,
+            tipo: "inconsistencia_contador",
             maquinaId: maquina.id,
             maquinaNome: maquina.nome,
             contador_out: atual.contadorOut || 0,
             contador_in: atual.contadorIn || 0,
             fichas: atual.fichas,
+            sairam: atual.sairam,
             dataMovimentacao: atual.dataColeta,
             mensagem: `Inconsistência detectada: OUT (${diffOut}) esperado ${
               atual.sairam

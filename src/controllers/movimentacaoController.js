@@ -166,7 +166,7 @@ export const registrarMovimentacao = async (req, res) => {
               lojaId: maquina.lojaId,
               produtoId: produto.produtoId,
               quantidadeAbastecida: produto.quantidadeAbastecida,
-            }
+            },
           );
 
           // Buscar estoque do produto na loja da máquina
@@ -182,7 +182,7 @@ export const registrarMovimentacao = async (req, res) => {
             // Descontar a quantidade abastecida (não permite ficar negativo)
             const novaQuantidade = Math.max(
               0,
-              estoqueLoja.quantidade - produto.quantidadeAbastecida
+              estoqueLoja.quantidade - produto.quantidadeAbastecida,
             );
 
             console.log(
@@ -192,7 +192,7 @@ export const registrarMovimentacao = async (req, res) => {
                 quantidadeAnterior,
                 quantidadeAbastecida: produto.quantidadeAbastecida,
                 novaQuantidade,
-              }
+              },
             );
 
             await estoqueLoja.update({ quantidade: novaQuantidade });
@@ -202,7 +202,7 @@ export const registrarMovimentacao = async (req, res) => {
               {
                 lojaId: maquina.lojaId,
                 produtoId: produto.produtoId,
-              }
+              },
             );
           }
         }
@@ -472,9 +472,10 @@ export const deletarMovimentacao = async (req, res) => {
 export const alertasAbastecimentoIncompleto = async (req, res) => {
   try {
     const { lojaId, dataInicio, dataFim, maquinaId } = req.query;
-    const { Movimentacao, Maquina, Usuario } = await import(
-      "../models/index.js"
-    );
+    const { Movimentacao, Maquina, Usuario, AlertaIgnorado } =
+      await import("../models/index.js");
+
+    const usuarioId = req.usuario?.id;
 
     // Busca movimentações no período, loja e máquina
     const whereMov = {};
@@ -508,20 +509,30 @@ export const alertasAbastecimentoIncompleto = async (req, res) => {
       order: [["dataColeta", "DESC"]],
     });
 
+    // Buscar alertas ignorados pelo usuário
+    const ignorados = await AlertaIgnorado.findAll({
+      where: usuarioId ? { usuarioId } : {},
+    });
+    const ignoradosSet = new Set(ignorados.map((a) => a.alertaId));
+
     // Gera alertas para abastecimento incompleto
     const alertas = movimentacoes
       .filter((mov) => {
+        const alertaId = `abastecimento-${mov.maquina.id}-${mov.id}`;
         // Só alerta se houve abastecimento e o totalDepois é diferente do padrão
+        // e se não foi ignorado pelo usuário
         if (
           mov.abastecidas > 0 &&
-          mov.totalPre + mov.abastecidas !== mov.maquina.capacidadePadrao
+          mov.totalPre + mov.abastecidas !== mov.maquina.capacidadePadrao &&
+          !ignoradosSet.has(alertaId)
         ) {
           return true;
         }
         return false;
       })
       .map((mov) => ({
-        id: mov.id,
+        id: `abastecimento-${mov.maquina.id}-${mov.id}`,
+        tipo: "abastecimento_incompleto",
         maquinaId: mov.maquina.id,
         maquinaNome: mov.maquina.nome,
         capacidadePadrao: mov.maquina.capacidadePadrao,
