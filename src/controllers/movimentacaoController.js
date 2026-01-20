@@ -509,10 +509,8 @@ export const alertasAbastecimentoIncompleto = async (req, res) => {
       order: [["dataColeta", "DESC"]],
     });
 
-    // Buscar alertas ignorados pelo usuário
-    const ignorados = await AlertaIgnorado.findAll({
-      where: usuarioId ? { usuarioId } : {},
-    });
+    // Buscar alertas ignorados globalmente
+    const ignorados = await AlertaIgnorado.findAll();
     const ignoradosSet = new Set(ignorados.map((a) => a.alertaId));
 
     // Gera alertas para abastecimento incompleto
