@@ -1,17 +1,15 @@
-// Dashboard agregador via SQL
-import { Sequelize, Op, fn, col } from "sequelize";
 // src/controllers/relatorioController.js
-
+import { Sequelize, Op, fn, col } from "sequelize";
 import {
   Movimentacao,
   MovimentacaoProduto,
   Maquina,
   Loja,
   Produto,
+  AlertaIgnorado, // Adicionei a importação que parecia faltar para o AlertaIgnorado
 } from "../models/index.js";
 
-// src/controllers/relatorioController.js
-
+// --- DASHBOARD GERAL ---
 export const dashboardRelatorio = async (req, res) => {
   try {
     const { lojaId, dataInicio, dataFim } = req.query;
@@ -30,7 +28,7 @@ export const dashboardRelatorio = async (req, res) => {
     const whereMaquina = {};
     if (lojaId) whereMaquina.lojaId = lojaId;
 
-    // --- QUERY 1: TOTAIS GERAIS (incluindo dinheiro e pix) ---
+    // --- QUERY 1: TOTAIS GERAIS ---
     const totaisRaw = await Movimentacao.findAll({
       attributes: [
         [fn("SUM", col("fichas")), "totalFichas"],
@@ -113,8 +111,7 @@ export const dashboardRelatorio = async (req, res) => {
       raw: true,
     });
 
-    // --- QUERY 4: PERFORMANCE POR MÁQUINA (Corrigido) ---
-    // Buscamos dados financeiros agregados
+    // --- QUERY 4: PERFORMANCE POR MÁQUINA ---
     const performanceRaw = await Movimentacao.findAll({
       attributes: [
         [col("maquina.nome"), "nome"],
@@ -125,7 +122,6 @@ export const dashboardRelatorio = async (req, res) => {
           model: Maquina,
           as: "maquina",
           where: whereMaquina,
-          // REMOVIDO 'estoqueAtual' DAQUI
           attributes: ["id", "nome", "capacidadePadrao"],
         },
       ],
@@ -135,11 +131,8 @@ export const dashboardRelatorio = async (req, res) => {
       nest: true,
     });
 
-    // Para calcular ocupação, precisamos buscar o estoque atual (última movimentação)
-    // Fazemos isso em paralelo para cada máquina encontrada
     const performanceMaquinas = await Promise.all(
       performanceRaw.map(async (p) => {
-        // Busca a última movimentação dessa máquina para pegar o estoque real
         const ultimaMov = await Movimentacao.findOne({
           where: { maquinaId: p.maquina.id },
           order: [["dataColeta", "DESC"]],
@@ -204,7 +197,6 @@ export const dashboardRelatorio = async (req, res) => {
         data: t.data,
         faturamento: parseFloat(t.faturamento || 0),
         custo: 0,
-        // Futuro: pode-se adicionar dinheiro/pix diário aqui também
       })),
       performanceMaquinas,
       rankingProdutos,
@@ -217,11 +209,12 @@ export const dashboardRelatorio = async (req, res) => {
     });
   }
 };
-// Alertas de inconsistência de movimentação
+
+// --- ALERTAS DE INCONSISTÊNCIA (CORRIGIDO) ---
 export const buscarAlertasDeInconsistencia = async (req, res) => {
   console.log("--- INICIANDO ALERTAS DE INCONSISTÊNCIA ---");
   try {
-    const usuarioId = req.usuario?.id;
+    // const usuarioId = req.usuario?.id; // Pode ser usado se necessário no futuro
     const maquinas = await Maquina.findAll({ where: { ativo: true } });
     const alertas = [];
 
@@ -230,7 +223,7 @@ export const buscarAlertasDeInconsistencia = async (req, res) => {
     const ignoradosSet = new Set(ignorados.map((a) => a.alertaId));
 
     for (const maquina of maquinas) {
-      // Busca as duas últimas movimentações da máquina, ordenadas por data decrescente
+      // Busca as duas últimas movimentações da máquina
       const movimentacoes = await Movimentacao.findAll({
         where: { maquinaId: maquina.id },
         order: [["dataColeta", "DESC"]],
@@ -245,45 +238,49 @@ export const buscarAlertasDeInconsistencia = async (req, res) => {
         ],
       });
 
-      if (movimentacoes.length === 2) {
-        const atual = movimentacoes[0]; // mais recente
-        const anterior = movimentacoes[1];
+      // CORREÇÃO APLICADA AQUI:
+      // Se não houver pelo menos 2 movimentações, pula esta máquina.
+      if (!movimentacoes || movimentacoes.length < 2) {
+        continue;
+      }
 
-        // OUT: diferença do campo contadorOut
-        const diffOut = (atual.contadorOut || 0) - (anterior.contadorOut || 0);
-        const diffIn = (atual.contadorIn || 0) - (anterior.contadorIn || 0);
+      const atual = movimentacoes[0]; // mais recente
+      const anterior = movimentacoes[1];
 
-        const alertaId = `${maquina.id}-${atual.id}`;
+      // OUT: diferença do campo contadorOut
+      const diffOut = (atual.contadorOut || 0) - (anterior.contadorOut || 0);
+      const diffIn = (atual.contadorIn || 0) - (anterior.contadorIn || 0);
 
-        // Pular alertas se a máquina não tem contadores (contador_out é 0 ou null)
-        const temContadores =
-          atual.contadorOut !== null && atual.contadorOut !== 0;
+      const alertaId = `${maquina.id}-${atual.id}`;
 
-        // Se a diferença não bate com a quantidade de saída/fichas
-        if (
-          temContadores &&
-          (diffOut !== (atual.sairam || 0) || diffIn !== (atual.fichas || 0)) &&
-          !ignoradosSet.has(alertaId)
-        ) {
-          alertas.push({
-            id: alertaId,
-            tipo: "inconsistencia_contador",
-            maquinaId: maquina.id,
-            maquinaNome: maquina.nome,
-            contador_out: atual.contadorOut || 0,
-            contador_in: atual.contadorIn || 0,
-            fichas: atual.fichas,
-            sairam: atual.sairam,
-            dataMovimentacao: atual.dataColeta,
-            mensagem: `Inconsistência detectada: OUT (${diffOut}) esperado ${
-              atual.sairam
-            }, IN (${diffIn}) esperado ${atual.fichas}.\nOUT registrado: ${
-              atual.contadorOut || 0
-            } | IN registrado: ${atual.contadorIn || 0} | Fichas: ${
-              atual.fichas
-            }`,
-          });
-        }
+      // Pular alertas se a máquina não tem contadores (contador_out é 0 ou null)
+      const temContadores =
+        atual.contadorOut !== null && atual.contadorOut !== 0;
+
+      // Se a diferença não bate com a quantidade de saída/fichas
+      if (
+        temContadores &&
+        (diffOut !== (atual.sairam || 0) || diffIn !== (atual.fichas || 0)) &&
+        !ignoradosSet.has(alertaId)
+      ) {
+        alertas.push({
+          id: alertaId,
+          tipo: "inconsistencia_contador",
+          maquinaId: maquina.id,
+          maquinaNome: maquina.nome,
+          contador_out: atual.contadorOut || 0,
+          contador_in: atual.contadorIn || 0,
+          fichas: atual.fichas,
+          sairam: atual.sairam,
+          dataMovimentacao: atual.dataColeta,
+          mensagem: `Inconsistência detectada: OUT (${diffOut}) esperado ${
+            atual.sairam
+          }, IN (${diffIn}) esperado ${atual.fichas}.\nOUT registrado: ${
+            atual.contadorOut || 0
+          } | IN registrado: ${atual.contadorIn || 0} | Fichas: ${
+            atual.fichas
+          }`,
+        });
       }
     }
 
@@ -296,7 +293,7 @@ export const buscarAlertasDeInconsistencia = async (req, res) => {
   }
 };
 
-// Endpoint para ignorar alerta
+// --- IGNORAR ALERTA ---
 export const ignorarAlertaMovimentacao = async (req, res) => {
   try {
     const { id } = req.params; // alertaId
@@ -317,14 +314,12 @@ export const ignorarAlertaMovimentacao = async (req, res) => {
       .json({ error: "Erro ao ignorar alerta", message: error.message });
   }
 };
-import { sequelize } from "../database/connection.js";
 
-// US13 - Dashboard de Balanço Semanal
+// --- BALANÇO SEMANAL ---
 export const balançoSemanal = async (req, res) => {
   try {
     const { lojaId, dataInicio, dataFim } = req.query;
 
-    // Definir período padrão (últimos 7 dias)
     const fim = dataFim ? new Date(dataFim) : new Date();
     const inicio = dataInicio
       ? new Date(dataInicio)
@@ -353,7 +348,6 @@ export const balançoSemanal = async (req, res) => {
       includeMaquina.where = { lojaId };
     }
 
-    // Buscar todas movimentações do período
     const movimentacoes = await Movimentacao.findAll({
       where: whereMovimentacao,
       include: [
@@ -372,7 +366,6 @@ export const balançoSemanal = async (req, res) => {
       ],
     });
 
-    // Calcular totais gerais
     const totais = movimentacoes.reduce(
       (acc, mov) => {
         acc.totalFichas += mov.fichas || 0;
@@ -389,13 +382,11 @@ export const balançoSemanal = async (req, res) => {
       },
     );
 
-    // Calcular média fichas/prêmio
     totais.mediaFichasPremio =
       totais.totalSairam > 0
         ? (totais.totalFichas / totais.totalSairam).toFixed(2)
         : 0;
 
-    // Agrupar por produto
     const produtosMap = {};
     movimentacoes.forEach((mov) => {
       mov.detalhesProdutos?.forEach((dp) => {
@@ -413,7 +404,6 @@ export const balançoSemanal = async (req, res) => {
       });
     });
 
-    // Calcular porcentagens
     const distribuicaoProdutos = Object.values(produtosMap)
       .map((p) => ({
         ...p,
@@ -424,7 +414,6 @@ export const balançoSemanal = async (req, res) => {
       }))
       .sort((a, b) => b.quantidadeSaiu - a.quantidadeSaiu);
 
-    // Agrupar por loja
     const lojasMap = {};
     movimentacoes.forEach((mov) => {
       const lojaNome = mov.maquina?.loja?.nome || "Não especificado";
@@ -466,7 +455,7 @@ export const balançoSemanal = async (req, res) => {
   }
 };
 
-// US14 - Alertas de Estoque Baixo
+// --- ALERTAS DE ESTOQUE ---
 export const alertasEstoque = async (req, res) => {
   try {
     const { lojaId } = req.query;
@@ -490,7 +479,6 @@ export const alertasEstoque = async (req, res) => {
     const alertas = [];
 
     for (const maquina of maquinas) {
-      // Buscar última movimentação
       const ultimaMovimentacao = await Movimentacao.findOne({
         where: { maquinaId: maquina.id },
         order: [["dataColeta", "DESC"]],
@@ -525,7 +513,6 @@ export const alertasEstoque = async (req, res) => {
       }
     }
 
-    // Ordenar por percentual (mais críticos primeiro)
     alertas.sort(
       (a, b) => parseFloat(a.percentualAtual) - parseFloat(b.percentualAtual),
     );
@@ -540,7 +527,7 @@ export const alertasEstoque = async (req, res) => {
   }
 };
 
-// Relatório de performance por máquina
+// --- PERFORMANCE MÁQUINAS ---
 export const performanceMaquinas = async (req, res) => {
   try {
     const { lojaId, dataInicio, dataFim } = req.query;
@@ -622,7 +609,7 @@ export const performanceMaquinas = async (req, res) => {
   }
 };
 
-// Relatório de Impressão por Loja
+// --- RELATÓRIO DE IMPRESSÃO (RESTAURADO E CORRIGIDO) ---
 export const relatorioImpressao = async (req, res) => {
   try {
     const { lojaId, dataInicio, dataFim } = req.query;
@@ -639,15 +626,13 @@ export const relatorioImpressao = async (req, res) => {
 
     const inicio = new Date(dataInicio);
     const fim = new Date(dataFim);
-    fim.setHours(23, 59, 59, 999); // Incluir todo o dia final
+    fim.setHours(23, 59, 59, 999);
 
-    // Buscar informações da loja
     const loja = await Loja.findByPk(lojaId);
     if (!loja) {
       return res.status(404).json({ error: "Loja não encontrada" });
     }
 
-    // Buscar todas as movimentações da loja no período
     const movimentacoes = await Movimentacao.findAll({
       where: {
         dataColeta: {
@@ -690,51 +675,31 @@ export const relatorioImpressao = async (req, res) => {
       0,
     );
 
-    // Consolidar produtos que saíram
+    // Consolidar produtos
     const produtosSairamMap = {};
+    const produtosEntraramMap = {};
+    const dadosPorMaquina = {};
+
     movimentacoes.forEach((mov) => {
+      // Agregação Global Produtos
       mov.detalhesProdutos?.forEach((mp) => {
         if (mp.quantidadeSaiu > 0) {
           const key = mp.produtoId;
           if (!produtosSairamMap[key]) {
-            produtosSairamMap[key] = {
-              produto: mp.produto,
-              quantidade: 0,
-            };
+            produtosSairamMap[key] = { produto: mp.produto, quantidade: 0 };
           }
           produtosSairamMap[key].quantidade += mp.quantidadeSaiu;
         }
-      });
-    });
-
-    // Consolidar produtos que entraram (abastecidos)
-    const produtosEntraramMap = {};
-    movimentacoes.forEach((mov) => {
-      mov.detalhesProdutos?.forEach((mp) => {
         if (mp.quantidadeAbastecida > 0) {
           const key = mp.produtoId;
           if (!produtosEntraramMap[key]) {
-            produtosEntraramMap[key] = {
-              produto: mp.produto,
-              quantidade: 0,
-            };
+            produtosEntraramMap[key] = { produto: mp.produto, quantidade: 0 };
           }
           produtosEntraramMap[key].quantidade += mp.quantidadeAbastecida;
         }
       });
-    });
 
-    const produtosSairam = Object.values(produtosSairamMap).sort(
-      (a, b) => b.quantidade - a.quantidade,
-    );
-
-    const produtosEntraram = Object.values(produtosEntraramMap).sort(
-      (a, b) => b.quantidade - a.quantidade,
-    );
-
-    // Consolidar dados por máquina
-    const dadosPorMaquina = {};
-    movimentacoes.forEach((mov) => {
+      // Agregação Por Máquina
       const maquinaId = mov.maquina.id;
       if (!dadosPorMaquina[maquinaId]) {
         dadosPorMaquina[maquinaId] = {
@@ -757,7 +722,6 @@ export const relatorioImpressao = async (req, res) => {
       dadosPorMaquina[maquinaId].totalAbastecidas += mov.abastecidas || 0;
       dadosPorMaquina[maquinaId].numMovimentacoes++;
 
-      // Produtos por máquina
       mov.detalhesProdutos?.forEach((mp) => {
         if (mp.quantidadeSaiu > 0) {
           const key = mp.produtoId;
@@ -770,7 +734,6 @@ export const relatorioImpressao = async (req, res) => {
           dadosPorMaquina[maquinaId].produtosSairam[key].quantidade +=
             mp.quantidadeSaiu;
         }
-
         if (mp.quantidadeAbastecida > 0) {
           const key = mp.produtoId;
           if (!dadosPorMaquina[maquinaId].produtosEntraram[key]) {
@@ -784,6 +747,14 @@ export const relatorioImpressao = async (req, res) => {
         }
       });
     });
+
+    const produtosSairam = Object.values(produtosSairamMap).sort(
+      (a, b) => b.quantidade - a.quantidade,
+    );
+
+    const produtosEntraram = Object.values(produtosEntraramMap).sort(
+      (a, b) => b.quantidade - a.quantidade,
+    );
 
     // Formatar dados por máquina
     const maquinasDetalhadas = Object.values(dadosPorMaquina).map((m) => ({
@@ -848,7 +819,6 @@ export const relatorioImpressao = async (req, res) => {
     });
   } catch (error) {
     console.error("Erro ao gerar relatório de impressão:", error);
-    console.error("Stack trace:", error.stack);
     res.status(500).json({
       error: "Erro ao gerar relatório de impressão",
       message:
