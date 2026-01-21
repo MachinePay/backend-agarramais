@@ -1,10 +1,14 @@
 // Dashboard agregador via SQL
-import { Sequelize } from "sequelize";
+import { Sequelize, Op, fn, col } from "sequelize";
 // src/controllers/relatorioController.js
 
-// ... certifique-se de ter os imports no topo do arquivo:
-// import { Op, fn, col, literal } from "sequelize";
-// import { Movimentacao, MovimentacaoProduto, Maquina, Loja, Produto } from "../models/index.js";
+import {
+  Movimentacao,
+  MovimentacaoProduto,
+  Maquina,
+  Loja,
+  Produto,
+} from "../models/index.js";
 
 // src/controllers/relatorioController.js
 
@@ -26,12 +30,14 @@ export const dashboardRelatorio = async (req, res) => {
     const whereMaquina = {};
     if (lojaId) whereMaquina.lojaId = lojaId;
 
-    // --- QUERY 1: TOTAIS GERAIS ---
+    // --- QUERY 1: TOTAIS GERAIS (incluindo dinheiro e pix) ---
     const totaisRaw = await Movimentacao.findAll({
       attributes: [
         [fn("SUM", col("fichas")), "totalFichas"],
         [fn("SUM", col("sairam")), "totalSairam"],
         [fn("SUM", col("valorFaturado")), "faturamentoTotal"],
+        [fn("SUM", col("quantidade_notas_entrada")), "dinheiro"],
+        [fn("SUM", col("valor_entrada_maquininha_pix")), "pix"],
       ],
       include: [
         {
@@ -49,6 +55,8 @@ export const dashboardRelatorio = async (req, res) => {
     const faturamento = parseFloat(totaisDados.faturamentoTotal || 0);
     const saidas = parseInt(totaisDados.totalSairam || 0);
     const fichas = parseInt(totaisDados.totalFichas || 0);
+    const dinheiro = parseFloat(totaisDados.dinheiro || 0);
+    const pix = parseFloat(totaisDados.pix || 0);
 
     // --- QUERY 2: CUSTO TOTAL ---
     const itensVendidos = await MovimentacaoProduto.findAll({
@@ -189,11 +197,14 @@ export const dashboardRelatorio = async (req, res) => {
         lucro,
         saidas,
         fichas,
+        dinheiro,
+        pix,
       },
       graficoFinanceiro: timelineRaw.map((t) => ({
         data: t.data,
         faturamento: parseFloat(t.faturamento || 0),
         custo: 0,
+        // Futuro: pode-se adicionar dinheiro/pix diário aqui também
       })),
       performanceMaquinas,
       rankingProdutos,
