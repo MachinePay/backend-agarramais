@@ -317,7 +317,6 @@ export const ignorarAlertaMovimentacao = async (req, res) => {
       .json({ error: "Erro ao ignorar alerta", message: error.message });
   }
 };
-import { Op, fn, col, literal } from "sequelize";
 import { sequelize } from "../database/connection.js";
 
 // US13 - Dashboard de Balanço Semanal
