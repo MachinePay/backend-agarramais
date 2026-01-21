@@ -1,6 +1,6 @@
 import express from "express";
 import { totaisDinheiroPix } from "../controllers/totaisController.js";
-import autenticar from "../middlewares/auth.js";
+import { autenticar } from "../middlewares/auth.js";
 
 const router = express.Router();
 
