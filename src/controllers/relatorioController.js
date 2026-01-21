@@ -217,14 +217,6 @@ export const dashboardRelatorio = async (req, res) => {
     });
   }
 };
-import {
-  Movimentacao,
-  MovimentacaoProduto,
-  Maquina,
-  Loja,
-  Produto,
-  AlertaIgnorado,
-} from "../models/index.js";
 // Alertas de inconsistência de movimentação
 export const buscarAlertasDeInconsistencia = async (req, res) => {
   console.log("--- INICIANDO ALERTAS DE INCONSISTÊNCIA ---");
