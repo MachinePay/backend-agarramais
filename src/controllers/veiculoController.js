@@ -1,6 +1,6 @@
-const Veiculo = require("../models/Veiculo");
+import Veiculo from "../models/Veiculo.js";
 
-module.exports = {
+const veiculoController = {
   async listar(req, res) {
     try {
       const veiculos = await Veiculo.findAll();
@@ -103,3 +103,5 @@ module.exports = {
     }
   },
 };
+
+export default veiculoController;

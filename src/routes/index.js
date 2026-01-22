@@ -10,8 +10,8 @@ import totaisRoutes from "./totais.routes.js";
 import adminRoutes from "./admin.routes.js";
 import estoqueLojaRoutes from "./estoqueLoja.routes.js";
 import movimentacaoEstoqueLojaRoutes from "./movimentacaoEstoqueLoja.routes.js";
-const veiculoRoutes = require("./veiculo.routes.js");
-const alertasVeiculosRoutes = require("./alertasVeiculos.routes.js");
+import veiculoRoutes from "./veiculo.routes.js";
+import alertasVeiculosRoutes from "./alertasVeiculos.routes.js";
 const router = express.Router();
 
 router.use("/auth", authRoutes);

@@ -1,17 +1,17 @@
-const { gerarAlertasVeiculos } = require("../utils/alertasVeiculos");
+import { gerarAlertasVeiculos } from "../utils/alertasVeiculos.js";
 
-module.exports = {
+const alertasVeiculosController = {
   async listarAlertas(req, res) {
     try {
       const alertas = await gerarAlertasVeiculos();
       res.json(alertas);
     } catch (err) {
-      res
-        .status(500)
-        .json({
-          error: "Erro ao buscar alertas de veículos",
-          details: err.message,
-        });
+      res.status(500).json({
+        error: "Erro ao buscar alertas de veículos",
+        details: err.message,
+      });
     }
   },
 };
+
+export default alertasVeiculosController;

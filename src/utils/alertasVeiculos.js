@@ -1,7 +1,7 @@
-const { Veiculo } = require("../models");
+import { Veiculo } from "../models/index.js";
 
 // Função utilitária para gerar alertas de veículos
-async function gerarAlertasVeiculos() {
+export async function gerarAlertasVeiculos() {
   const veiculos = await Veiculo.findAll();
   const alertas = [];
 
@@ -62,5 +62,3 @@ async function gerarAlertasVeiculos() {
   }
   return alertas;
 }
-
-module.exports = { gerarAlertasVeiculos };

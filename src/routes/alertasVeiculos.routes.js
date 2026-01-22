@@ -1,7 +1,7 @@
-const express = require("express");
+import express from "express";
+import alertasVeiculosController from "../controllers/alertasVeiculosController.js";
 const router = express.Router();
-const alertasVeiculosController = require("../controllers/alertasVeiculosController");
 
 router.get("/", alertasVeiculosController.listarAlertas);
 
-module.exports = router;
+export default router;
