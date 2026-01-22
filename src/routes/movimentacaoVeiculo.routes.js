@@ -4,11 +4,12 @@ import {
   listarMovimentacoesVeiculo,
   ultimasMovimentacoesPorVeiculo,
 } from "../controllers/movimentacaoVeiculoController.js";
-// Buscar últimas movimentações de cada veículo
-router.get("/ultimas", ultimasMovimentacoesPorVeiculo);
 import { autenticar } from "../middlewares/auth.js";
 
 const router = express.Router();
+
+// Buscar últimas movimentações de cada veículo
+router.get("/ultimas", ultimasMovimentacoesPorVeiculo);
 
 // Registrar retirada ou devolução
 router.post("/", autenticar, registrarMovimentacaoVeiculo);
