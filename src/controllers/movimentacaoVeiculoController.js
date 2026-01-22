@@ -8,10 +8,10 @@ export const ultimasMovimentacoesPorVeiculo = async (req, res) => {
     // Busca todas as últimas movimentações para cada veículo
     const ultimas = await MovimentacaoVeiculo.findAll({
       attributes: [
-        [Sequelize.col("veiculoId"), "veiculoId"],
-        [Sequelize.fn("MAX", Sequelize.col("dataHora")), "ultimaDataHora"],
+        [Sequelize.col("veiculoid"), "veiculoId"],
+        [Sequelize.fn("MAX", Sequelize.col("datahora")), "ultimaDataHora"],
       ],
-      group: ["veiculoId"],
+      group: ["veiculoid"],
       raw: true,
     });
 
