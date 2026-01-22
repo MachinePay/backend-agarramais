@@ -37,15 +37,20 @@ export const listarMovimentacoesVeiculo = async (req, res) => {
     const { veiculoId, dataInicio, dataFim } = req.query;
     const where = {};
     if (veiculoId) where.veiculoId = veiculoId;
-    if (dataInicio && !dataFim) {
-      // Filtra o dia inteiro em UTC
+    if (dataInicio && dataFim) {
+      // Filtro de período: do início do dia dataInicio até o fim do dia dataFim (UTC)
+      const inicio = new Date(dataInicio + "T00:00:00.000Z");
+      const fim = new Date(dataFim + "T23:59:59.999Z");
+      where.dataHora = { $gte: inicio, $lte: fim };
+    } else if (dataInicio && !dataFim) {
+      // Só início: filtra o dia inteiro
       const inicio = new Date(dataInicio + "T00:00:00.000Z");
       const fim = new Date(dataInicio + "T23:59:59.999Z");
       where.dataHora = { $gte: inicio, $lte: fim };
-    } else if (dataInicio || dataFim) {
-      where.dataHora = {};
-      if (dataInicio) where.dataHora["$gte"] = new Date(dataInicio);
-      if (dataFim) where.dataHora["$lte"] = new Date(dataFim);
+    } else if (!dataInicio && dataFim) {
+      // Só fim: até o fim do dia
+      const fim = new Date(dataFim + "T23:59:59.999Z");
+      where.dataHora = { $lte: fim };
     }
     const movimentacoes = await MovimentacaoVeiculo.findAll({
       where,

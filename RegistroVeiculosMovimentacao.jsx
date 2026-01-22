@@ -5,7 +5,8 @@ import api from "../services/api";
 export default function RegistroVeiculos({
   veiculos = [],
   loading,
-  filtroData,
+  filtroDataInicio = "",
+  filtroDataFim = "",
 }) {
   const { usuario } = useContext(AuthContext);
   const [movimentacoes, setMovimentacoes] = useState([]);
@@ -19,7 +20,8 @@ export default function RegistroVeiculos({
       try {
         const params = {};
         if (filtroVeiculo) params.veiculoId = filtroVeiculo;
-        if (filtroData) params.dataInicio = filtroData;
+        if (filtroDataInicio) params.dataInicio = filtroDataInicio;
+        if (filtroDataFim) params.dataFim = filtroDataFim;
         const { data } = await api.get("/movimentacao-veiculos", { params });
         setMovimentacoes(data);
       } catch (e) {
@@ -30,7 +32,7 @@ export default function RegistroVeiculos({
       }
     };
     fetchMov();
-  }, [usuario, filtroVeiculo, filtroData]);
+  }, [usuario, filtroVeiculo, filtroDataInicio, filtroDataFim]);
 
   if (!usuario || usuario.role !== "ADMIN") return null;
   if (loading) return <div className="p-6">Carregando veículos...</div>;

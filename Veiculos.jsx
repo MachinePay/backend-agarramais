@@ -28,7 +28,8 @@ export default function Veiculos() {
   const [loading, setLoading] = useState(true);
 
   // Estado armazena YYYY-MM-DD para compatibilidade com input type="date"
-  const [filtroData, setFiltroData] = useState("");
+  const [filtroDataInicio, setFiltroDataInicio] = useState("");
+  const [filtroDataFim, setFiltroDataFim] = useState("");
 
   const fetchVeiculos = useCallback(async () => {
     setLoading(true);
@@ -139,17 +140,29 @@ export default function Veiculos() {
           {/* Área de Filtro de Data */}
           <div className="flex flex-col sm:flex-row items-center gap-4 mb-4">
             <label className="text-blue-900 font-medium bg-white/50 px-3 py-1 rounded-lg">
-              Ver registro de movimentação de uma data:
+              Ver registro de movimentação de um período:
             </label>
             <input
               type="date"
               className="border rounded-lg p-2 focus:ring-2 focus:ring-blue-200 outline-none shadow-sm cursor-pointer"
-              value={filtroData}
-              onChange={(e) => setFiltroData(e.target.value)}
+              value={filtroDataInicio}
+              onChange={(e) => setFiltroDataInicio(e.target.value)}
+              placeholder="Data início"
             />
-            {filtroData && (
+            <span className="text-gray-500">até</span>
+            <input
+              type="date"
+              className="border rounded-lg p-2 focus:ring-2 focus:ring-blue-200 outline-none shadow-sm cursor-pointer"
+              value={filtroDataFim}
+              onChange={(e) => setFiltroDataFim(e.target.value)}
+              placeholder="Data fim"
+            />
+            {(filtroDataInicio || filtroDataFim) && (
               <button
-                onClick={() => setFiltroData("")}
+                onClick={() => {
+                  setFiltroDataInicio("");
+                  setFiltroDataFim("");
+                }}
                 className="text-sm text-red-500 hover:text-red-700 underline"
               >
                 Limpar filtro
@@ -158,14 +171,13 @@ export default function Veiculos() {
           </div>
 
           {/* Tabela de Movimentação */}
-          {filtroData && (
+          {(filtroDataInicio || filtroDataFim) && (
             <div className="bg-white/90 rounded-xl shadow p-6 border border-gray-100 animate-fadeIn">
               <RegistroVeiculosMovimentacao
                 veiculos={veiculos}
                 loading={loading}
-                // Passamos a data formatada (DD/MM/YYYY) se o componente esperar isso
-                // Se o componente esperar YYYY-MM-DD, basta passar filtroData direto
-                filtroData={filtroData}
+                filtroDataInicio={filtroDataInicio}
+                filtroDataFim={filtroDataFim}
               />
             </div>
           )}
