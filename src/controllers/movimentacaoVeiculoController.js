@@ -1,6 +1,7 @@
 import MovimentacaoVeiculo from "../models/MovimentacaoVeiculo.js";
 import Veiculo from "../models/Veiculo.js";
 import Usuario from "../models/Usuario.js";
+import { Op } from "sequelize";
 
 // Registrar movimentação (retirada ou devolução)
 export const registrarMovimentacaoVeiculo = async (req, res) => {
@@ -41,16 +42,16 @@ export const listarMovimentacoesVeiculo = async (req, res) => {
     if (dataInicio && dataFim) {
       inicio = new Date(dataInicio + "T00:00:00.000Z");
       fim = new Date(dataFim + "T23:59:59.999Z");
-      where.dataHora = { $gte: inicio, $lte: fim };
+      where.dataHora = { [Op.gte]: inicio, [Op.lte]: fim };
       console.log("[Filtro] Período:", { dataInicio, dataFim, inicio, fim });
     } else if (dataInicio && !dataFim) {
       inicio = new Date(dataInicio + "T00:00:00.000Z");
       fim = new Date(dataInicio + "T23:59:59.999Z");
-      where.dataHora = { $gte: inicio, $lte: fim };
+      where.dataHora = { [Op.gte]: inicio, [Op.lte]: fim };
       console.log("[Filtro] Só início:", { dataInicio, inicio, fim });
     } else if (!dataInicio && dataFim) {
       fim = new Date(dataFim + "T23:59:59.999Z");
-      where.dataHora = { $lte: fim };
+      where.dataHora = { [Op.lte]: fim };
       console.log("[Filtro] Só fim:", { dataFim, fim });
     }
     console.log("[Filtro] where:", JSON.stringify(where));

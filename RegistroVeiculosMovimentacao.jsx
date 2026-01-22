@@ -42,6 +42,11 @@ export default function RegistroVeiculos({
       <h2 className="text-2xl font-bold mb-6 text-blue-900 tracking-tight drop-shadow-sm">
         Registro de Movimentação
       </h2>
+      <div className="mb-2 text-sm text-gray-600">
+        {carregandoMov
+          ? "Buscando registros..."
+          : `Registros encontrados: ${movimentacoes.length}`}
+      </div>
       <div className="mb-6 flex flex-col md:flex-row gap-4 items-stretch md:items-end">
         <div className="flex-1">
           <label className="block text-sm font-medium mb-1 text-blue-900">
