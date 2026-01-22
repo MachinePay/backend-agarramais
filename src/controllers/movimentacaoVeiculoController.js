@@ -37,7 +37,13 @@ export const listarMovimentacoesVeiculo = async (req, res) => {
     const { veiculoId, dataInicio, dataFim } = req.query;
     const where = {};
     if (veiculoId) where.veiculoId = veiculoId;
-    if (dataInicio || dataFim) {
+    if (dataInicio && !dataFim) {
+      // Filtra apenas o dia selecionado
+      const inicio = new Date(dataInicio);
+      const fim = new Date(dataInicio);
+      fim.setHours(23, 59, 59, 999);
+      where.dataHora = { $gte: inicio, $lte: fim };
+    } else if (dataInicio || dataFim) {
       where.dataHora = {};
       if (dataInicio) where.dataHora["$gte"] = new Date(dataInicio);
       if (dataFim) where.dataHora["$lte"] = new Date(dataFim);
