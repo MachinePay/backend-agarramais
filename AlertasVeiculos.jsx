@@ -1,3 +1,4 @@
+import api from "./";
 import React, { useEffect, useState } from "react";
 
 const nivelCor = {
@@ -15,18 +16,8 @@ export default function AlertasVeiculos() {
     const fetchAlertas = async () => {
       setLoading(true);
       try {
-        const res = await fetch("/alertas-veiculos");
-        const text = await res.text();
-        try {
-          const data = JSON.parse(text);
-          setAlertas(data);
-        } catch (e) {
-          console.error(
-            "Resposta inesperada do backend ao buscar alertas:",
-            text,
-          );
-          setAlertas([]);
-        }
+        const { data } = await api.get("/alertas-veiculos");
+        setAlertas(data);
       } catch (error) {
         console.error("Erro ao buscar alertas:", error);
         setAlertas([]);

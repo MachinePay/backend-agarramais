@@ -2,6 +2,7 @@ import React, { useState, useContext } from "react";
 import Swal from "sweetalert2";
 import { AuthContext } from "../contexts/AuthContext";
 
+import api from "./api";
 const emojiVeiculo = (tipo, emoji) => emoji || (tipo === "moto" ? "🏍️" : "🚗");
 
 export default function ControleVeiculos({
@@ -76,10 +77,15 @@ export default function ControleVeiculos({
   const pilotarVeiculo = async () => {
     if (!veiculoSelecionado) return;
     try {
-      await fetch(`/veiculos/${veiculoSelecionado.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...veiculoSelecionado, emUso: true }),
+      await api.put(`/veiculos/${veiculoSelecionado.id}`, {
+        ...veiculoSelecionado,
+        emUso: true,
+      });
+      // Registrar movimentação de retirada
+      await api.post("/movimentacao-veiculos", {
+        veiculoId: veiculoSelecionado.id,
+        tipo: "retirada",
+        observacao: form.obs || undefined,
       });
       if (onRefresh) onRefresh();
     } catch (error) {
@@ -92,18 +98,18 @@ export default function ControleVeiculos({
   const finalizarVeiculo = async () => {
     if (!veiculoSelecionado) return;
     try {
-      await fetch(`/veiculos/${veiculoSelecionado.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...veiculoSelecionado,
-          emUso: false,
-          nivelCombustivel: getCombustivelLabel(formFinalizar.combustivel),
-        }),
+      await api.put(`/veiculos/${veiculoSelecionado.id}`, {
+        ...veiculoSelecionado,
+        emUso: false,
+        nivelCombustivel: getCombustivelLabel(formFinalizar.combustivel),
+      });
+      // Registrar movimentação de devolução
+      await api.post("/movimentacao-veiculos", {
+        veiculoId: veiculoSelecionado.id,
+        tipo: "devolucao",
+        observacao: formFinalizar.obs || undefined,
       });
       if (onRefresh) onRefresh();
-
-      // Movemos o alerta de sucesso para dentro do try para só aparecer se der certo
       Swal.fire({
         icon: "success",
         title: `${usuario?.nome || "Funcionário"} emburacou ${veiculoSelecionado?.nome}`,

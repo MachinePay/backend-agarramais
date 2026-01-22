@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from "react";
 import ControleVeiculos from "../components/ControleVeiculos";
-import RegistroVeiculos from "../components/RegistroVeiculos";
+import RegistroVeiculosMovimentacao from "./RegistroVeiculosMovimentacao";
 import AlertasVeiculos from "../components/AlertasVeiculos";
+import api from "./api";
 
 const initialFormState = {
   tipo: "moto",
@@ -28,18 +29,8 @@ export default function Veiculos() {
   const fetchVeiculos = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/veiculos");
-      const text = await res.text();
-      try {
-        const data = JSON.parse(text);
-        setVeiculos(data);
-      } catch (e) {
-        console.error(
-          "Resposta inesperada do backend ao buscar veículos:",
-          text,
-        );
-        setVeiculos([]);
-      }
+      const { data } = await api.get("/veiculos");
+      setVeiculos(data);
     } catch (error) {
       console.error("Erro ao buscar veículos:", error);
       setVeiculos([]);
@@ -79,17 +70,10 @@ export default function Veiculos() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await fetch("/veiculos", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
-
-      // Atualiza a lista após cadastrar
+      await api.post("/veiculos", form);
       fetchVeiculos();
-
       fecharModal();
-      setForm(initialFormState); // Limpa o formulário usando o estado inicial
+      setForm(initialFormState);
       alert("Veículo cadastrado com sucesso!");
     } catch (error) {
       console.error("Erro no cadastro:", error);
@@ -125,7 +109,7 @@ export default function Veiculos() {
         loading={loading}
       />
 
-      <RegistroVeiculos veiculos={veiculos} loading={loading} />
+      <RegistroVeiculosMovimentacao veiculos={veiculos} loading={loading} />
 
       {/* Modal de cadastro */}
       {modalCadastro && (
