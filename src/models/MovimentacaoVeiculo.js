@@ -29,6 +29,7 @@ const MovimentacaoVeiculo = sequelize.define(
       type: DataTypes.DATE,
       allowNull: false,
       defaultValue: DataTypes.NOW,
+      field: "datahora",
     },
     observacao: {
       type: DataTypes.TEXT,
