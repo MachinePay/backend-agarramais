@@ -38,10 +38,9 @@ export const listarMovimentacoesVeiculo = async (req, res) => {
     const where = {};
     if (veiculoId) where.veiculoId = veiculoId;
     if (dataInicio && !dataFim) {
-      // Filtra apenas o dia selecionado
-      const inicio = new Date(dataInicio);
-      const fim = new Date(dataInicio);
-      fim.setHours(23, 59, 59, 999);
+      // Filtra o dia inteiro em UTC
+      const inicio = new Date(dataInicio + "T00:00:00.000Z");
+      const fim = new Date(dataInicio + "T23:59:59.999Z");
       where.dataHora = { $gte: inicio, $lte: fim };
     } else if (dataInicio || dataFim) {
       where.dataHora = {};
