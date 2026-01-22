@@ -8,6 +8,8 @@ import { autenticar } from "../middlewares/auth.js";
 const router = express.Router();
 
 // Registrar retirada ou devolução
+router.post("/", autenticar, registrarMovimentacaoVeiculo);
+// Listar movimentações com filtro
+router.get("/", autenticar, listarMovimentacoesVeiculo);
 
 export default router;
-router.get("/", autenticar, listarMovimentacoesVeiculo); // Listar movimentações com filtroouter.post("/", autenticar, registrarMovimentacaoVeiculo);
