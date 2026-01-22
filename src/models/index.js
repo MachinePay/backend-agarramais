@@ -1,3 +1,13 @@
+import MovimentacaoVeiculo from "./MovimentacaoVeiculo.js";
+// Movimentação de Veículo -> Veículo e Usuário
+MovimentacaoVeiculo.belongsTo(Veiculo, {
+  as: "veiculo",
+  foreignKey: "veiculoId",
+});
+MovimentacaoVeiculo.belongsTo(Usuario, {
+  as: "usuario",
+  foreignKey: "usuarioId",
+});
 import Usuario from "./Usuario.js";
 import Loja from "./Loja.js";
 import Maquina from "./Maquina.js";
@@ -147,4 +157,5 @@ export {
   MovimentacaoEstoqueLojaProduto,
   AlertaIgnorado,
   Veiculo,
+  MovimentacaoVeiculo,
 };
