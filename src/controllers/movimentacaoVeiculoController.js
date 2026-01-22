@@ -1,7 +1,57 @@
 import MovimentacaoVeiculo from "../models/MovimentacaoVeiculo.js";
 import Veiculo from "../models/Veiculo.js";
 import Usuario from "../models/Usuario.js";
-import { Op } from "sequelize";
+import { Op, Sequelize } from "sequelize";
+// Buscar a última movimentação de cada veículo
+export const ultimasMovimentacoesPorVeiculo = async (req, res) => {
+  try {
+    // Busca todas as últimas movimentações para cada veículo
+    const ultimas = await MovimentacaoVeiculo.findAll({
+      attributes: [
+        [Sequelize.col("veiculoId"), "veiculoId"],
+        [Sequelize.fn("MAX", Sequelize.col("dataHora")), "ultimaDataHora"],
+      ],
+      group: ["veiculoId"],
+      raw: true,
+    });
+
+    // Buscar os detalhes completos das últimas movimentações
+    const ultimasDetalhes = await Promise.all(
+      ultimas.map(async (u) => {
+        const mov = await MovimentacaoVeiculo.findOne({
+          where: {
+            veiculoId: u.veiculoId,
+            dataHora: u.ultimaDataHora,
+          },
+          include: [
+            {
+              model: Veiculo,
+              as: "veiculo",
+              attributes: ["id", "nome", "modelo"],
+            },
+            {
+              model: Usuario,
+              as: "usuario",
+              attributes: ["id", "nome", "email"],
+            },
+          ],
+        });
+        return mov ? mov.toJSON() : null;
+      }),
+    );
+    // Retorna um objeto { [veiculoId]: movimentacao }
+    const resultado = {};
+    ultimasDetalhes.forEach((mov) => {
+      if (mov && mov.veiculoId) resultado[mov.veiculoId] = mov;
+    });
+    res.json(resultado);
+  } catch (error) {
+    console.error("Erro ao buscar últimas movimentações por veículo:", error);
+    res
+      .status(500)
+      .json({ error: "Erro ao buscar últimas movimentações por veículo" });
+  }
+};
 
 // Registrar movimentação (retirada ou devolução)
 export const registrarMovimentacaoVeiculo = async (req, res) => {
