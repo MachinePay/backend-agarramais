@@ -5,7 +5,8 @@ import Usuario from "../models/Usuario.js";
 // Registrar movimentação (retirada ou devolução)
 export const registrarMovimentacaoVeiculo = async (req, res) => {
   try {
-    const { veiculoId, tipo, observacao } = req.body;
+    const { veiculoId, tipo, gasolina, nivel_limpeza, estado, modo, obs } =
+      req.body;
     const usuarioId = req.usuario?.id;
     if (!veiculoId || !tipo || !usuarioId) {
       return res.status(400).json({ error: "Dados obrigatórios ausentes." });
@@ -15,7 +16,11 @@ export const registrarMovimentacaoVeiculo = async (req, res) => {
       usuarioId,
       tipo,
       dataHora: new Date(),
-      observacao,
+      gasolina,
+      nivel_limpeza,
+      estado,
+      modo,
+      obs,
     });
     res.status(201).json(movimentacao);
   } catch (error) {
