@@ -37,21 +37,23 @@ export const listarMovimentacoesVeiculo = async (req, res) => {
     const { veiculoId, dataInicio, dataFim } = req.query;
     const where = {};
     if (veiculoId) where.veiculoId = veiculoId;
+    let inicio, fim;
     if (dataInicio && dataFim) {
-      // Filtro de período: do início do dia dataInicio até o fim do dia dataFim (UTC)
-      const inicio = new Date(dataInicio + "T00:00:00.000Z");
-      const fim = new Date(dataFim + "T23:59:59.999Z");
+      inicio = new Date(dataInicio + "T00:00:00.000Z");
+      fim = new Date(dataFim + "T23:59:59.999Z");
       where.dataHora = { $gte: inicio, $lte: fim };
+      console.log("[Filtro] Período:", { dataInicio, dataFim, inicio, fim });
     } else if (dataInicio && !dataFim) {
-      // Só início: filtra o dia inteiro
-      const inicio = new Date(dataInicio + "T00:00:00.000Z");
-      const fim = new Date(dataInicio + "T23:59:59.999Z");
+      inicio = new Date(dataInicio + "T00:00:00.000Z");
+      fim = new Date(dataInicio + "T23:59:59.999Z");
       where.dataHora = { $gte: inicio, $lte: fim };
+      console.log("[Filtro] Só início:", { dataInicio, inicio, fim });
     } else if (!dataInicio && dataFim) {
-      // Só fim: até o fim do dia
-      const fim = new Date(dataFim + "T23:59:59.999Z");
+      fim = new Date(dataFim + "T23:59:59.999Z");
       where.dataHora = { $lte: fim };
+      console.log("[Filtro] Só fim:", { dataFim, fim });
     }
+    console.log("[Filtro] where:", JSON.stringify(where));
     const movimentacoes = await MovimentacaoVeiculo.findAll({
       where,
       include: [
