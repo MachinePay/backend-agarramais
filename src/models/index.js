@@ -10,6 +10,7 @@ import EstoqueLoja from "./EstoqueLoja.js";
 import MovimentacaoEstoqueLoja from "./MovimentacaoEstoqueLoja.js";
 import MovimentacaoEstoqueLojaProduto from "./MovimentacaoEstoqueLojaProduto.js";
 import AlertaIgnorado from "./AlertaIgnorado.js";
+import Veiculo from "./Veiculo.js";
 
 // Relacionamentos
 MovimentacaoEstoqueLoja.belongsTo(Loja, { foreignKey: "lojaId", as: "loja" });
@@ -145,4 +146,5 @@ export {
   MovimentacaoEstoqueLoja,
   MovimentacaoEstoqueLojaProduto,
   AlertaIgnorado,
+  Veiculo,
 };

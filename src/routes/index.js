@@ -10,6 +10,8 @@ import totaisRoutes from "./totais.routes.js";
 import adminRoutes from "./admin.routes.js";
 import estoqueLojaRoutes from "./estoqueLoja.routes.js";
 import movimentacaoEstoqueLojaRoutes from "./movimentacaoEstoqueLoja.routes.js";
+import veiculoRoutes from "./veiculo.routes.js";
+import alertasVeiculosRoutes from "./alertasVeiculos.routes.js";
 const router = express.Router();
 
 router.use("/auth", authRoutes);
@@ -23,5 +25,8 @@ router.use("/totais", totaisRoutes);
 router.use("/admin", adminRoutes);
 router.use("/estoque-lojas", estoqueLojaRoutes);
 router.use("/movimentacao-estoque-loja", movimentacaoEstoqueLojaRoutes);
+
+router.use("/veiculos", veiculoRoutes);
+router.use("/alertas-veiculos", alertasVeiculosRoutes);
 
 export default router;
