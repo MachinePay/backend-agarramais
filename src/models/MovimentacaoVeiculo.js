@@ -31,7 +31,23 @@ const MovimentacaoVeiculo = sequelize.define(
       defaultValue: DataTypes.NOW,
       field: "datahora",
     },
-    observacao: {
+    gasolina: {
+      type: DataTypes.STRING(30),
+      allowNull: true,
+    },
+    nivel_limpeza: {
+      type: DataTypes.STRING(30),
+      allowNull: true,
+    },
+    estado: {
+      type: DataTypes.STRING(30),
+      allowNull: true,
+    },
+    modo: {
+      type: DataTypes.STRING(30),
+      allowNull: true,
+    },
+    obs: {
       type: DataTypes.TEXT,
       allowNull: true,
     },

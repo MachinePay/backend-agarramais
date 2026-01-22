@@ -85,7 +85,13 @@ export default function ControleVeiculos({
       await api.post("/movimentacao-veiculos", {
         veiculoId: veiculoSelecionado.id,
         tipo: "retirada",
-        observacao: form.obs || undefined,
+        gasolina: form.combustivel
+          ? getCombustivelLabel(form.combustivel)
+          : undefined,
+        nivel_limpeza: form.limpeza,
+        estado: form.estado,
+        modo: form.modo,
+        obs: form.obs || undefined,
       });
       if (onRefresh) onRefresh();
     } catch (error) {
@@ -107,7 +113,13 @@ export default function ControleVeiculos({
       await api.post("/movimentacao-veiculos", {
         veiculoId: veiculoSelecionado.id,
         tipo: "devolucao",
-        observacao: formFinalizar.obs || undefined,
+        gasolina: formFinalizar.combustivel
+          ? getCombustivelLabel(formFinalizar.combustivel)
+          : undefined,
+        nivel_limpeza: formFinalizar.limpeza,
+        estado: formFinalizar.estado,
+        modo: veiculoSelecionado.modo,
+        obs: formFinalizar.obs || undefined,
       });
       if (onRefresh) onRefresh();
       Swal.fire({
