@@ -12,11 +12,13 @@ const MovimentacaoVeiculo = sequelize.define(
     veiculoId: {
       type: DataTypes.UUID,
       allowNull: false,
+      field: "veiculoid",
       references: { model: "veiculos", key: "id" },
     },
     usuarioId: {
       type: DataTypes.UUID,
       allowNull: false,
+      field: "usuarioid",
       references: { model: "usuarios", key: "id" },
     },
     tipo: {
