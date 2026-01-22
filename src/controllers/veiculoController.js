@@ -3,9 +3,12 @@ import Veiculo from "../models/Veiculo.js";
 const veiculoController = {
   async listar(req, res) {
     try {
+      console.log("[LOG] GET /veiculos chamado");
       const veiculos = await Veiculo.findAll();
+      console.log("[LOG] Veículos retornados:", veiculos);
       res.json(veiculos);
     } catch (err) {
+      console.error("[ERRO] Erro ao buscar veículos:", err);
       res
         .status(500)
         .json({ error: "Erro ao buscar veículos", details: err.message });
