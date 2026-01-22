@@ -5,18 +5,18 @@ const MovimentacaoVeiculo = sequelize.define(
   "MovimentacaoVeiculo",
   {
     id: {
-      type: DataTypes.INTEGER,
-      autoIncrement: true,
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
       primaryKey: true,
     },
     veiculoId: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.UUID,
       allowNull: false,
       field: "veiculoid",
       references: { model: "veiculos", key: "id" },
     },
     usuarioId: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.UUID,
       allowNull: false,
       field: "usuarioid",
       references: { model: "usuarios", key: "id" },
