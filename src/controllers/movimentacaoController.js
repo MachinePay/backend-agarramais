@@ -224,13 +224,50 @@ export const registrarMovimentacao = async (req, res) => {
       }
     }
 
+    // Se for devolução ao estoque da loja, somar retiradaProduto
+    for (const produto of produtos) {
+      if (
+        produto.retiradaProdutoDevolverEstoque &&
+        produto.retiradaProduto > 0
+      ) {
+        const estoqueLoja = await EstoqueLoja.findOne({
+          where: {
+            lojaId: maquina.lojaId,
+            produtoId: produto.produtoId,
+          },
+        });
+        if (estoqueLoja) {
+          const quantidadeAnterior = estoqueLoja.quantidade;
+          const novaQuantidade = quantidadeAnterior + produto.retiradaProduto;
+          await estoqueLoja.update({ quantidade: novaQuantidade });
+          console.log(
+            "✅ [registrarMovimentacao] Devolução: retirada devolvida ao estoque da loja:",
+            {
+              produtoId: produto.produtoId,
+              quantidadeAnterior,
+              devolvida: produto.retiradaProduto,
+              novaQuantidade,
+            },
+          );
+        } else {
+          console.log(
+            "⚠️ [registrarMovimentacao] Estoque da loja não encontrado para devolução:",
+            {
+              lojaId: maquina.lojaId,
+              produtoId: produto.produtoId,
+            },
+          );
+        }
+      }
+    }
+
     // Buscar movimentação completa para retornar
     const movimentacaoCompleta = await Movimentacao.findByPk(movimentacao.id, {
       include: [
         {
           model: Maquina,
           as: "maquina",
-          attributes: ["id", "codigo", "nome"],
+          attributes: ["id", "codigo", "nome", "lojaId"],
         },
         {
           model: Usuario,
