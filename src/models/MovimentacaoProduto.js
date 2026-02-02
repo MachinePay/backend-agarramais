@@ -38,11 +38,17 @@ const MovimentacaoProduto = sequelize.define(
       defaultValue: 0,
       comment: "Quantidade deste produto que foi abastecida",
     },
+    retiradaProduto: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
+      comment: "Quantidade deste produto retirada (não conta no financeiro)",
+    },
   },
   {
     tableName: "movimentacao_produtos",
     timestamps: true,
-  }
+  },
 );
 
 export default MovimentacaoProduto;

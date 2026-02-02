@@ -148,18 +148,32 @@ export const registrarMovimentacao = async (req, res) => {
 
     // Se produtos foram informados, registrar detalhes
     if (produtos && produtos.length > 0) {
-      const detalhesProdutos = produtos.map((p) => ({
-        movimentacaoId: movimentacao.id,
-        produtoId: p.produtoId,
-        quantidadeSaiu: p.quantidadeSaiu || 0,
-        quantidadeAbastecida: p.quantidadeAbastecida || 0,
-      }));
+      // Garantir que quantidadeSaiu dos produtos seja igual ao sairam da movimentação
+      let quantidadeSaiuDistribuida = saidaRecalculada;
+      const detalhesProdutos = produtos.map((p, idx) => {
+        let quantidadeSaiu = 0;
+        // Se só tem um produto, recebe tudo
+        if (produtos.length === 1) {
+          quantidadeSaiu = quantidadeSaiuDistribuida;
+        } else {
+          // Se vier do frontend, usa, senão distribui proporcionalmente (aqui pode ser ajustado conforme regra)
+          quantidadeSaiu = p.quantidadeSaiu || 0;
+        }
+        return {
+          movimentacaoId: movimentacao.id,
+          produtoId: p.produtoId,
+          quantidadeSaiu,
+          quantidadeAbastecida: p.quantidadeAbastecida || 0,
+          retiradaProduto: p.retiradaProduto || 0,
+        };
+      });
 
       await MovimentacaoProduto.bulkCreate(detalhesProdutos);
 
       // Descontar do estoque da loja os produtos abastecidos
       for (const produto of produtos) {
         if (produto.quantidadeAbastecida && produto.quantidadeAbastecida > 0) {
+          // Só desconta do estoque da loja o que foi abastecido, retiradaProduto não interfere
           console.log(
             "🏪 [registrarMovimentacao] Atualizando estoque da loja:",
             {
@@ -206,6 +220,7 @@ export const registrarMovimentacao = async (req, res) => {
             );
           }
         }
+        // Se houver retiradaProduto, não altera estoque da loja
       }
     }
 
