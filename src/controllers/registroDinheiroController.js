@@ -14,6 +14,12 @@ const registroDinheiroController = {
         observacoes,
       } = req.body;
 
+      // Validação de campos obrigatórios
+      if (!loja || !inicio || !fim) {
+        return res
+          .status(400)
+          .json({ error: "Campos obrigatórios ausentes: loja, início e fim." });
+      }
       // Se registrarTotalLoja, não registrar máquina
       const registro = await RegistroDinheiro.create({
         lojaId: loja,
