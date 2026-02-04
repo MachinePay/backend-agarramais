@@ -1,4 +1,4 @@
-import { RegistroDinheiro } from "../models";
+import RegistroDinheiro from "../models/RegistroDinheiro.js";
 
 const registroDinheiroController = {
   async criar(req, res) {
@@ -47,4 +47,4 @@ const registroDinheiroController = {
   },
 };
 
-module.exports = registroDinheiroController;
+export default registroDinheiroController;
