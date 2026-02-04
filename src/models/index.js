@@ -13,7 +13,6 @@ import MovimentacaoEstoqueLojaProduto from "./MovimentacaoEstoqueLojaProduto.js"
 import AlertaIgnorado from "./AlertaIgnorado.js";
 import Veiculo from "./Veiculo.js";
 import RegistroDinheiro from "./RegistroDinheiro.js";
-import MovimentacaoVeiculo from "./MovimentacaoVeiculo.js";
 // Movimentação de Veículo -> Veículo e Usuário
 MovimentacaoVeiculo.belongsTo(Veiculo, {
   as: "veiculo",
