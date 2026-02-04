@@ -21,6 +21,7 @@ import MovimentacaoEstoqueLoja from "./MovimentacaoEstoqueLoja.js";
 import MovimentacaoEstoqueLojaProduto from "./MovimentacaoEstoqueLojaProduto.js";
 import AlertaIgnorado from "./AlertaIgnorado.js";
 import Veiculo from "./Veiculo.js";
+import RegistroDinheiro from "./RegistroDinheiro.js";
 
 // Relacionamentos
 MovimentacaoEstoqueLoja.belongsTo(Loja, { foreignKey: "lojaId", as: "loja" });
@@ -143,7 +144,7 @@ Produto.hasMany(EstoqueLoja, {
 EstoqueLoja.belongsTo(Loja, { foreignKey: "lojaId", as: "loja" });
 EstoqueLoja.belongsTo(Produto, { foreignKey: "produtoId", as: "produto" });
 
-import RegistroDinheiro from "./RegistroDinheiro.js";
+
 
 export {
   Usuario,
