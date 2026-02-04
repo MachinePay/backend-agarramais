@@ -827,13 +827,23 @@ export const relatorioImpressao = async (req, res) => {
         .sort((a, b) => b.quantidade - a.quantidade),
     }));
 
-    // Alerta: diferença entre valor das fichas e valor total da loja
-    const valorFichas = totalFichas;
+    // Alerta: diferença entre valor das fichas (em reais) e valor total da loja
+    // Calcular valor médio da ficha das máquinas
+    let valorMedioFicha = 2.5;
+    if (Object.values(dadosPorMaquina).length > 0) {
+      const somaValorFicha = Object.values(dadosPorMaquina).reduce((acc, m) => {
+        // Se houver valorFicha na máquina, use, senão 2.5
+        const v = m.maquina.valorFicha ? Number(m.maquina.valorFicha) : 2.5;
+        return acc + v;
+      }, 0);
+      valorMedioFicha = somaValorFicha / Object.values(dadosPorMaquina).length;
+    }
+    const valorFichasReais = totalFichas * valorMedioFicha;
     const valorTotal = valorTotalLoja;
-    const diferenca = valorFichas - valorTotal;
+    const diferenca = valorFichasReais - valorTotal;
     let avisoFichas = null;
     if (Math.abs(diferenca) > 0.01) {
-      avisoFichas = `Atenção: diferença entre valor das fichas (${valorFichas}) e valor total da loja (${valorTotal.toFixed(2)}). Diferença: ${diferenca.toFixed(2)}`;
+      avisoFichas = `Atenção: diferença entre valor das fichas em reais (R$ ${valorFichasReais.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}) e valor total da loja (R$ ${valorTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}). Diferença: R$ ${diferenca.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
     }
 
     // Dados para gráficos
