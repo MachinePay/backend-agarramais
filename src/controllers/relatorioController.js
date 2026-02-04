@@ -827,13 +827,13 @@ export const relatorioImpressao = async (req, res) => {
         .sort((a, b) => b.quantidade - a.quantidade),
     }));
 
-    // Verificação de diferença entre valores e fichas
-    const valorFichasCalculado =
-      valorTotalLoja - valorDinheiroLoja - valorCartaoPixLoja;
-    const diferencaFichas = valorFichasCalculado - totalFichas;
+    // Alerta: diferença entre valor das fichas e valor total da loja
+    const valorFichas = totalFichas;
+    const valorTotal = valorTotalLoja;
+    const diferenca = valorFichas - valorTotal;
     let avisoFichas = null;
-    if (Math.abs(diferencaFichas) > 0.01) {
-      avisoFichas = `Atenção: diferença entre valor das fichas (${totalFichas}) e valor calculado (${valorFichasCalculado.toFixed(2)}). Diferença: ${diferencaFichas.toFixed(2)}`;
+    if (Math.abs(diferenca) > 0.01) {
+      avisoFichas = `Atenção: diferença entre valor das fichas (${valorFichas}) e valor total da loja (${valorTotal.toFixed(2)}). Diferença: ${diferenca.toFixed(2)}`;
     }
 
     // Dados para gráficos
