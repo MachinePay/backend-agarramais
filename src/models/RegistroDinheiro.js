@@ -1,5 +1,5 @@
-const { DataTypes } = require("sequelize");
-const db = require("../database/connection");
+import { DataTypes } from "sequelize";
+import db from "../database/connection";
 
 const RegistroDinheiro = db.define(
   "RegistroDinheiro",
@@ -48,4 +48,4 @@ const RegistroDinheiro = db.define(
   },
 );
 
-module.exports = RegistroDinheiro;
+export default RegistroDinheiro;

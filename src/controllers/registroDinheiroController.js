@@ -1,4 +1,4 @@
-const RegistroDinheiro = require("../models/RegistroDinheiro");
+import { RegistroDinheiro } from "../models";
 
 const registroDinheiroController = {
   async criar(req, res) {
