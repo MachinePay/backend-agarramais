@@ -23,20 +23,6 @@ MovimentacaoVeiculo.belongsTo(Usuario, {
   as: "usuario",
   foreignKey: "usuarioId",
 });
-import Usuario from "./Usuario.js";
-import Loja from "./Loja.js";
-import Maquina from "./Maquina.js";
-import Produto from "./Produto.js";
-import Movimentacao from "./Movimentacao.js";
-import MovimentacaoProduto from "./MovimentacaoProduto.js";
-import LogAtividade from "./LogAtividade.js";
-import UsuarioLoja from "./UsuarioLoja.js";
-import EstoqueLoja from "./EstoqueLoja.js";
-import MovimentacaoEstoqueLoja from "./MovimentacaoEstoqueLoja.js";
-import MovimentacaoEstoqueLojaProduto from "./MovimentacaoEstoqueLojaProduto.js";
-import AlertaIgnorado from "./AlertaIgnorado.js";
-import Veiculo from "./Veiculo.js";
-import RegistroDinheiro from "./RegistroDinheiro.js";
 
 // Relacionamentos
 MovimentacaoEstoqueLoja.belongsTo(Loja, { foreignKey: "lojaId", as: "loja" });
