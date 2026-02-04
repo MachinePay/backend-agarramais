@@ -1,7 +1,7 @@
 import { DataTypes } from "sequelize";
-import { sequelize } from "../database/connection.js";
+import db from "../database/connection.js";
 
-const MovimentacaoVeiculo = sequelize.define(
+const MovimentacaoVeiculo = db.define(
   "MovimentacaoVeiculo",
   {
     id: {
