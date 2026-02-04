@@ -143,6 +143,8 @@ Produto.hasMany(EstoqueLoja, {
 EstoqueLoja.belongsTo(Loja, { foreignKey: "lojaId", as: "loja" });
 EstoqueLoja.belongsTo(Produto, { foreignKey: "produtoId", as: "produto" });
 
+import RegistroDinheiro from "./RegistroDinheiro.js";
+
 export {
   Usuario,
   Loja,
@@ -158,4 +160,5 @@ export {
   AlertaIgnorado,
   Veiculo,
   MovimentacaoVeiculo,
+  RegistroDinheiro,
 };

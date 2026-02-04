@@ -6,7 +6,8 @@ import {
   Maquina,
   Loja,
   Produto,
-  AlertaIgnorado, // Adicionei a importação que parecia faltar para o AlertaIgnorado
+  AlertaIgnorado,
+  RegistroDinheiro,
 } from "../models/index.js";
 
 // --- DASHBOARD GERAL ---
@@ -633,6 +634,17 @@ export const relatorioImpressao = async (req, res) => {
       return res.status(404).json({ error: "Loja não encontrada" });
     }
 
+    // Buscar registros de dinheiro da loja e máquinas
+    const registrosDinheiro = await RegistroDinheiro.findAll({
+      where: {
+        lojaId,
+        inicio: { [Op.lte]: fim },
+        fim: { [Op.gte]: inicio },
+      },
+      raw: true,
+    });
+
+    // Buscar movimentações normalmente
     const movimentacoes = await Movimentacao.findAll({
       where: {
         dataColeta: {
@@ -659,6 +671,34 @@ export const relatorioImpressao = async (req, res) => {
         },
       ],
       order: [["dataColeta", "DESC"]],
+    });
+
+    // Consolidar valores de RegistroDinheiro
+    let valorTotalLoja = 0;
+    let valorDinheiroLoja = 0;
+    let valorCartaoPixLoja = 0;
+    registrosDinheiro.forEach((r) => {
+      if (r.registrarTotalLoja) {
+        valorTotalLoja +=
+          parseFloat(r.valorDinheiro || 0) + parseFloat(r.valorCartaoPix || 0);
+        valorDinheiroLoja += parseFloat(r.valorDinheiro || 0);
+        valorCartaoPixLoja += parseFloat(r.valorCartaoPix || 0);
+      }
+    });
+
+    // Consolidar valores por máquina
+    const valoresPorMaquina = {};
+    registrosDinheiro.forEach((r) => {
+      if (!r.registrarTotalLoja && r.maquinaId) {
+        if (!valoresPorMaquina[r.maquinaId])
+          valoresPorMaquina[r.maquinaId] = { dinheiro: 0, cartaoPix: 0 };
+        valoresPorMaquina[r.maquinaId].dinheiro += parseFloat(
+          r.valorDinheiro || 0,
+        );
+        valoresPorMaquina[r.maquinaId].cartaoPix += parseFloat(
+          r.valorCartaoPix || 0,
+        );
+      }
     });
 
     // Calcular totais
@@ -756,7 +796,7 @@ export const relatorioImpressao = async (req, res) => {
       (a, b) => b.quantidade - a.quantidade,
     );
 
-    // Formatar dados por máquina
+    // Formatar dados por máquina, incluindo valores de dinheiro/cartão/pix
     const maquinasDetalhadas = Object.values(dadosPorMaquina).map((m) => ({
       maquina: m.maquina,
       totais: {
@@ -764,6 +804,8 @@ export const relatorioImpressao = async (req, res) => {
         produtosSairam: m.totalSairam,
         produtosEntraram: m.totalAbastecidas,
         movimentacoes: m.numMovimentacoes,
+        dinheiro: valoresPorMaquina[m.maquina.id]?.dinheiro || 0,
+        cartaoPix: valoresPorMaquina[m.maquina.id]?.cartaoPix || 0,
       },
       produtosSairam: Object.values(m.produtosSairam)
         .map((p) => ({
@@ -785,6 +827,25 @@ export const relatorioImpressao = async (req, res) => {
         .sort((a, b) => b.quantidade - a.quantidade),
     }));
 
+    // Verificação de diferença entre valores e fichas
+    const valorFichasCalculado =
+      valorTotalLoja - valorDinheiroLoja - valorCartaoPixLoja;
+    const diferencaFichas = valorFichasCalculado - totalFichas;
+    let avisoFichas = null;
+    if (Math.abs(diferencaFichas) > 0.01) {
+      avisoFichas = `Atenção: diferença entre valor das fichas (${totalFichas}) e valor calculado (${valorFichasCalculado.toFixed(2)}). Diferença: ${diferencaFichas.toFixed(2)}`;
+    }
+
+    // Dados para gráficos
+    const graficoSaidaPorMaquina = maquinasDetalhadas.map((m) => ({
+      maquina: m.maquina.nome,
+      produtosSairam: m.totais.produtosSairam,
+    }));
+    const graficoSaidaPorProduto = produtosSairam.map((p) => ({
+      produto: p.produto.nome,
+      quantidade: p.quantidade,
+    }));
+
     res.json({
       loja: {
         id: loja.id,
@@ -800,6 +861,9 @@ export const relatorioImpressao = async (req, res) => {
         produtosSairam: totalSairam,
         produtosEntraram: totalAbastecidas,
         movimentacoes: movimentacoes.length,
+        valorTotalLoja,
+        valorDinheiroLoja,
+        valorCartaoPixLoja,
       },
       produtosSairam: produtosSairam.map((p) => ({
         id: p.produto.id,
@@ -816,6 +880,9 @@ export const relatorioImpressao = async (req, res) => {
         quantidade: p.quantidade,
       })),
       maquinas: maquinasDetalhadas,
+      graficoSaidaPorMaquina,
+      graficoSaidaPorProduto,
+      avisoFichas,
     });
   } catch (error) {
     console.error("Erro ao gerar relatório de impressão:", error);
