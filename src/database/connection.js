@@ -5,7 +5,7 @@ dotenv.config();
 
 // Se DATABASE_URL estiver definida (Render), usar ela
 // Caso contrário, usar as variáveis individuais (desenvolvimento local)
-const db = process.env.DATABASE_URL
+export const sequelize = process.env.DATABASE_URL
   ? new Sequelize(process.env.DATABASE_URL, {
       dialect: "postgres",
       logging: process.env.NODE_ENV === "development" ? console.log : false,
@@ -37,7 +37,5 @@ const db = process.env.DATABASE_URL
           acquire: 30000,
           idle: 10000,
         },
-      },
+      }
     );
-
-export default db;

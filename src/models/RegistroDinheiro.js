@@ -1,7 +1,7 @@
 import { DataTypes } from "sequelize";
-import db from "../database/connection.js";
+import { sequelize } from "../database/connection.js";
 
-const RegistroDinheiro = db.define(
+const RegistroDinheiro = sequelize.define(
   "RegistroDinheiro",
   {
     id: {
