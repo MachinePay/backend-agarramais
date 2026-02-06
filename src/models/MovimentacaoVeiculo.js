@@ -47,6 +47,10 @@ const MovimentacaoVeiculo = sequelize.define(
       type: DataTypes.STRING(30),
       allowNull: true,
     },
+    km: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
     obs: {
       type: DataTypes.TEXT,
       allowNull: true,

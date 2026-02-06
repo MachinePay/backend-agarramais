@@ -263,7 +263,7 @@ export function Relatorios() {
                       const valorFicha =
                         relatorio.loja?.valorFichaPadrao || 2.5;
                       return (totalFichas * valorFicha).toLocaleString(
-                        "pt-BR",
+                        "pt-BR",  
                         { minimumFractionDigits: 2 },
                       );
                     })()}

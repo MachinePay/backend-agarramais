@@ -56,7 +56,7 @@ export const ultimasMovimentacoesPorVeiculo = async (req, res) => {
 // Registrar movimentação (retirada ou devolução)
 export const registrarMovimentacaoVeiculo = async (req, res) => {
   try {
-    const { veiculoId, tipo, gasolina, nivel_limpeza, estado, modo, obs } =
+    const { veiculoId, tipo, gasolina, nivel_limpeza, estado, modo, obs, km } =
       req.body;
     const usuarioId = req.usuario?.id;
     if (!veiculoId || !tipo || !usuarioId) {
@@ -72,6 +72,7 @@ export const registrarMovimentacaoVeiculo = async (req, res) => {
       estado,
       modo,
       obs,
+      km,
     });
     res.status(201).json(movimentacao);
   } catch (error) {
@@ -108,7 +109,11 @@ export const listarMovimentacoesVeiculo = async (req, res) => {
     const movimentacoes = await MovimentacaoVeiculo.findAll({
       where,
       include: [
-        { model: Veiculo, as: "veiculo", attributes: ["id", "nome", "modelo"] },
+        {
+          model: Veiculo,
+          as: "veiculo",
+          attributes: ["id", "nome", "modelo", "km"],
+        },
         { model: Usuario, as: "usuario", attributes: ["id", "nome", "email"] },
       ],
       order: [["dataHora", "DESC"]],
