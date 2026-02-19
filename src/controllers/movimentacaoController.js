@@ -126,10 +126,26 @@ export const registrarMovimentacao = async (req, res) => {
         0,
       );
     }
+    console.log(
+      "🔍 [registrarMovimentacao] retiradaProduto recebido:",
+      retiradaProduto,
+    );
+    console.log("🔍 [registrarMovimentacao] produtos recebidos:", produtos);
     const totalPosCalculado =
       (parseInt(totalPre) || 0) +
       (parseInt(abastecidas) || 0) -
       retiradaProduto;
+    console.log(
+      "🔍 [registrarMovimentacao] totalPosCalculado:",
+      totalPosCalculado,
+      "(totalPre:",
+      totalPre,
+      ", abastecidas:",
+      abastecidas,
+      ", retiradaProduto:",
+      retiradaProduto,
+      ")",
+    );
 
     // Criar movimentação
     const movimentacao = await Movimentacao.create({
