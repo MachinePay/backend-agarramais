@@ -131,13 +131,6 @@ const Movimentacao = sequelize.define(
     timestamps: true,
     hooks: {
       beforeSave: async (movimentacao) => {
-        // Corrige cálculo para movimentações normais (não retirada de estoque)
-        const retiradaProduto = movimentacao.retiradaProduto || 0;
-        movimentacao.totalPos =
-          (movimentacao.totalPre || 0) +
-          (movimentacao.abastecidas || 0) -
-          retiradaProduto;
-
         // Calcular média fichas/prêmio
         if (movimentacao.sairam > 0) {
           movimentacao.mediaFichasPremio = (
