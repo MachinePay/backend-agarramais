@@ -132,16 +132,11 @@ const Movimentacao = sequelize.define(
     hooks: {
       beforeSave: async (movimentacao) => {
         // Corrige cálculo para movimentações normais (não retirada de estoque)
-        if (!movimentacao.retiradaEstoque) {
-          movimentacao.totalPos =
-            movimentacao.totalPre + movimentacao.abastecidas;
-        } else {
-          // Para retirada de estoque, mantém lógica anterior
-          movimentacao.totalPos =
-            movimentacao.totalPre -
-            movimentacao.sairam +
-            movimentacao.abastecidas;
-        }
+        const retiradaProduto = movimentacao.retiradaProduto || 0;
+        movimentacao.totalPos =
+          (movimentacao.totalPre || 0) +
+          (movimentacao.abastecidas || 0) -
+          retiradaProduto;
 
         // Calcular média fichas/prêmio
         if (movimentacao.sairam > 0) {
@@ -149,12 +144,11 @@ const Movimentacao = sequelize.define(
             movimentacao.fichas / movimentacao.sairam
           ).toFixed(2);
         }
-
         // Calcular valor faturado (será atualizado com valor da máquina na controller)
         // movimentacao.valorFaturado é calculado na controller com o valorFicha atual da máquina
       },
     },
-  }
+  },
 );
 
 export default Movimentacao;
