@@ -118,6 +118,25 @@ export const registrarMovimentacao = async (req, res) => {
       valorFaturado,
     });
 
+    // Calcular retiradaProduto e quantidadeSaiuTotal
+    let retiradaProduto = 0;
+    let quantidadeSaiuTotal = 0;
+    if (Array.isArray(produtos) && produtos.length > 0) {
+      retiradaProduto = produtos.reduce(
+        (soma, p) => soma + (parseInt(p.retiradaProduto) || 0),
+        0,
+      );
+      quantidadeSaiuTotal = produtos.reduce(
+        (soma, p) => soma + (parseInt(p.quantidadeSaiu) || 0),
+        0,
+      );
+    }
+    const totalPosCalculado =
+      (parseInt(totalPre) || 0) +
+      (parseInt(abastecidas) || 0) -
+      quantidadeSaiuTotal -
+      retiradaProduto;
+
     // Criar movimentação
     const movimentacao = await Movimentacao.create({
       maquinaId,
@@ -136,6 +155,7 @@ export const registrarMovimentacao = async (req, res) => {
       retiradaEstoque: retiradaEstoque || false,
       quantidade_notas_entrada: quantidade_notas_entrada ?? null,
       valor_entrada_maquininha_pix: valor_entrada_maquininha_pix ?? null,
+      totalPos: totalPosCalculado,
     });
 
     console.log("✅ [registrarMovimentacao] Movimentação criada:", {
