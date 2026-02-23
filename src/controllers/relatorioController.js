@@ -936,18 +936,20 @@ export const alertasMovimentacaoOut = async (req, res) => {
         diffOut !== (atual.sairam || 0) &&
         !ignoradosSet.has(alertaId)
       ) {
-        const referencia = atual.contadorOut || 0;
-        const inserido = atual.sairam ?? 0;
-        const diferenca = referencia - inserido;
+        const referencia = anterior.contadorOut || 0;
+        const inserido = atual.contadorOut || 0;
+        const saidaCalculada = atual.sairam ?? 0;
+        const diferenca = inserido - referencia - saidaCalculada;
         alertas.push({
           id: alertaId,
           tipo: "movimentacao_out",
           maquinaId: maquina.id,
           maquinaNome: maquina.nome,
-          contador_out: referencia,
-          sairam: inserido,
+          contador_out: inserido,
+          contador_out_anterior: referencia,
+          sairam: saidaCalculada,
           dataMovimentacao: atual.dataColeta,
-          mensagem: `Valor de referência (máquina): ${referencia}\nValor inserido pelo funcionário: ${inserido}\nDiferença: ${diferenca > 0 ? "+" : ""}${diferenca}`,
+          mensagem: `Valor de referência (máquina): ${referencia}\nValor inserido pelo funcionário: ${inserido}\nDiferença: ${inserido - referencia - saidaCalculada > 0 ? "+" : ""}${inserido - referencia - saidaCalculada}`,
         });
       }
     }
