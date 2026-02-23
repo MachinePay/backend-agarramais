@@ -615,6 +615,7 @@ export const alertasAbastecimentoIncompleto = async (req, res) => {
         tipo: "abastecimento_incompleto",
         maquinaId: mov.maquina.id,
         maquinaNome: mov.maquina.nome,
+        lojaNome: mov.maquina.loja?.nome || mov.maquina.lojaNome || null,
         capacidadePadrao: mov.maquina.capacidadePadrao,
         totalAntes: mov.totalPre,
         abastecido: mov.abastecidas,
