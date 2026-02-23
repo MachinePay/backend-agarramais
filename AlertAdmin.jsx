@@ -206,15 +206,73 @@ export default function AlertAdmin() {
                       </div>
                     </div>
                     {/* Conteúdo do alerta */}
-                    <p className="text-xs font-bold text-yellow-800 mb-2">
-                      {alerta.mensagem
-                        ? "⚠️ " + alerta.mensagem.split(":")[0] + ":"
-                        : "⚠️ Inconsistência Detectada:"}
-                    </p>
-                    {/* Detalhes baseados no tipo de alerta */}
-                    {alerta.tipo === "abastecimento_incompleto" ||
-                    alerta.foraPadrao === true ? (
+                    {/* Mensagem personalizada para OUT/IN/PADRÃO */}
+                    {alerta.tipo === "movimentacao_out" ? (
                       <>
+                        <p className="text-xs font-bold text-yellow-800 mb-2">
+                          Alerta de Saída (OUT)
+                        </p>
+                        <p className="text-xs text-yellow-700 mt-1">
+                          Contador OUT anterior:{" "}
+                          <strong>{alerta.contador_out_anterior ?? "-"}</strong>
+                        </p>
+                        <p className="text-xs text-yellow-700 mt-1">
+                          Contador OUT Atual:{" "}
+                          <strong>{alerta.contador_out ?? "-"}</strong>
+                        </p>
+                        <p className="text-xs text-yellow-700 mt-1">
+                          Saída registrada:{" "}
+                          <strong>{alerta.sairam ?? "-"}</strong>
+                        </p>
+                        <p className="text-xs text-yellow-700 mt-1">
+                          Diferença:{" "}
+                          <strong>
+                            {typeof alerta.contador_out === "number" &&
+                            typeof alerta.contador_out_anterior === "number" &&
+                            typeof alerta.sairam === "number"
+                              ? alerta.contador_out -
+                                alerta.contador_out_anterior -
+                                alerta.sairam
+                              : "-"}
+                          </strong>
+                        </p>
+                        <p className="text-lg text-purple-800 font-semibold mt-2">
+                          {typeof alerta.contador_out === "number" &&
+                          typeof alerta.contador_out_anterior === "number" &&
+                          typeof alerta.sairam === "number"
+                            ? `Era para ter saído ${alerta.contador_out - alerta.contador_out_anterior} mas só saiu ${alerta.sairam}`
+                            : "-"}
+                        </p>
+                      </>
+                    ) : alerta.tipo === "movimentacao_in" ? (
+                      <>
+                        <p className="text-xs font-bold text-yellow-800 mb-2">
+                          Alerta de Entrada (IN)
+                        </p>
+                        <p className="text-xs text-yellow-700 mt-1">
+                          Contador IN:{" "}
+                          <strong>{alerta.contador_in ?? "-"}</strong>
+                        </p>
+                        <p className="text-xs text-yellow-700 mt-1">
+                          Fichas registradas:{" "}
+                          <strong>{alerta.fichas ?? "-"}</strong>
+                        </p>
+                        <p className="text-xs text-yellow-700 mt-1">
+                          Diferença:{" "}
+                          <strong>
+                            {typeof alerta.contador_in === "number" &&
+                            typeof alerta.fichas === "number"
+                              ? alerta.contador_in - alerta.fichas
+                              : "-"}
+                          </strong>
+                        </p>
+                      </>
+                    ) : alerta.tipo === "abastecimento_incompleto" ||
+                      alerta.foraPadrao === true ? (
+                      <>
+                        <p className="text-xs font-bold text-yellow-800 mb-2">
+                          Alerta de Abastecimento Incompleto
+                        </p>
                         <p className="text-xs text-yellow-700 mt-1">
                           Capacidade padrão:{" "}
                           <strong>
@@ -239,11 +297,20 @@ export default function AlertAdmin() {
                       </>
                     ) : (
                       <>
-                        {alerta.mensagem && (
-                          <p className="text-xs text-yellow-700 mt-1">
-                            {alerta.mensagem.split(":").slice(1).join(":")}
-                          </p>
-                        )}
+                        <p className="text-xs font-bold text-yellow-800 mb-2">
+                          ⚠️ Inconsistência Detectada
+                        </p>
+                        <p className="text-xs text-yellow-700 mt-1">
+                          Contador OUT:{" "}
+                          <strong>{alerta.contador_out ?? "-"}</strong> |
+                          Contador IN:{" "}
+                          <strong>{alerta.contador_in ?? "-"}</strong>
+                        </p>
+                        <p className="text-xs text-yellow-700 mt-1">
+                          Fichas registradas:{" "}
+                          <strong>{alerta.fichas ?? "-"}</strong> | Saída
+                          registrada: <strong>{alerta.sairam ?? "-"}</strong>
+                        </p>
                       </>
                     )}
                     <p className="text-xs text-yellow-600 font-semibold mt-3">

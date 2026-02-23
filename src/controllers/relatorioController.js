@@ -949,7 +949,6 @@ export const alertasMovimentacaoOut = async (req, res) => {
           contador_out_anterior: referencia,
           sairam: saidaCalculada,
           dataMovimentacao: atual.dataColeta,
-          mensagem: `Contador OUT atual: ${referencia}\nContador OUT anterior: ${inserido}\nDiferença: ${inserido - referencia - saidaCalculada > 0 ? "+" : ""}${inserido - referencia - saidaCalculada}`,
         });
       }
     }
@@ -999,9 +998,9 @@ export const alertasMovimentacaoIn = async (req, res) => {
           maquinaId: maquina.id,
           maquinaNome: maquina.nome,
           contador_in: atual.contadorIn || 0,
+          contador_in_anterior: anterior.contadorIn || 0,
           fichas: atual.fichas,
           dataMovimentacao: atual.dataColeta,
-          mensagem: `IN (${diffIn}) esperado ${atual.fichas}. IN registrado: ${atual.contadorIn || 0}`,
         });
       }
     }
