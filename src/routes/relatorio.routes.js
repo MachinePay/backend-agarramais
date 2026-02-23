@@ -10,6 +10,11 @@ import {
   alertasMovimentacaoOut,
   alertasMovimentacaoIn,
 } from "../controllers/relatorioController.js";
+import { alertasAbastecimentoIncompleto } from "../controllers/movimentacaoController.js";
+import { autenticar, autorizarRole } from "../middlewares/auth.js";
+
+const router = express.Router();
+
 // Novas rotas para alertas OUT e IN
 router.get(
   "/alertas-movimentacao-out",
@@ -23,10 +28,6 @@ router.get(
   autorizarRole("ADMIN"),
   alertasMovimentacaoIn,
 );
-import { alertasAbastecimentoIncompleto } from "../controllers/movimentacaoController.js";
-import { autenticar, autorizarRole } from "../middlewares/auth.js";
-
-const router = express.Router();
 
 // Todas as rotas de relatórios são restritas a ADMIN
 router.get(
