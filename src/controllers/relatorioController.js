@@ -949,7 +949,7 @@ export const alertasMovimentacaoOut = async (req, res) => {
           contador_out_anterior: referencia,
           sairam: saidaCalculada,
           dataMovimentacao: atual.dataColeta,
-          mensagem: `Valor de referência (máquina): ${referencia}\nValor inserido pelo funcionário: ${inserido}\nDiferença: ${inserido - referencia - saidaCalculada > 0 ? "+" : ""}${inserido - referencia - saidaCalculada}`,
+          mensagem: `Contador OUT atual: ${referencia}\nContador OUT anterior: ${inserido}\nDiferença: ${inserido - referencia - saidaCalculada > 0 ? "+" : ""}${inserido - referencia - saidaCalculada}`,
         });
       }
     }

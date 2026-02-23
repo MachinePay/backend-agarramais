@@ -239,17 +239,6 @@ export default function AlertAdmin() {
                       </>
                     ) : (
                       <>
-                        <p className="text-xs text-yellow-700 mt-1">
-                          Contador OUT:{" "}
-                          <strong>{alerta.contador_out ?? "-"}</strong> |
-                          Contador IN:{" "}
-                          <strong>{alerta.contador_in ?? "-"}</strong>
-                        </p>
-                        <p className="text-xs text-yellow-700 mt-1">
-                          Fichas registradas:{" "}
-                          <strong>{alerta.fichas ?? "-"}</strong> | Saída
-                          registrada: <strong>{alerta.sairam ?? "-"}</strong>
-                        </p>
                         {alerta.mensagem && (
                           <p className="text-xs text-yellow-700 mt-1">
                             {alerta.mensagem.split(":").slice(1).join(":")}
