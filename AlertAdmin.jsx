@@ -265,7 +265,17 @@ export default function AlertAdmin() {
                               ? alerta.contador_in - alerta.fichas
                               : "-"}
                           </strong>
-                        </p>
+                        </p> 
+                        <p className="text-xs font-bold text-yellow-800 mb-2">Alerta de Entrada (IN)</p> 
+                        <p className="text-xs text-yellow-700 mt-1">Contador IN anterior: <strong>{alerta.contador_in_anterior ?? "-"}</strong></p> 
+                        <p className="text-xs text-yellow-700 mt-1">Contador IN Atual: <strong>{alerta.contador_in ?? "-"}</strong></p> 
+                        <p className="text-xs text-yellow-700 mt-1">Fichas registradas: <strong>{alerta.fichas ?? "-"}</strong></p> 
+                        <p className="text-xs text-yellow-700 mt-1">Diferença: <strong>{typeof alerta.contador_in === "number" && typeof alerta.contador_in_anterior === "number" && typeof alerta.fichas === "number" ? alerta.contador_in - alerta.contador_in_anterior - alerta.fichas : "-"}</strong></p> 
+                        <p className="text-lg text-purple-800 font-semibold mt-2"> 
+                          {typeof alerta.contador_in === "number" && typeof alerta.contador_in_anterior === "number" && typeof alerta.fichas === "number" 
+                            ? `Era para ter entrado ${alerta.contador_in - alerta.contador_in_anterior} mas só entrou ${alerta.fichas}` 
+                            : "-"} 
+                        </p> 
                       </>
                     ) : alerta.tipo === "abastecimento_incompleto" ||
                       alerta.foraPadrao === true ? (
