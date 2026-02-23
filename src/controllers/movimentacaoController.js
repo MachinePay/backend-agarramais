@@ -576,6 +576,13 @@ export const alertasAbastecimentoIncompleto = async (req, res) => {
         as: "maquina",
         attributes: ["id", "nome", "capacidadePadrao", "lojaId"],
         ...(lojaId ? { where: { lojaId } } : {}),
+        include: [
+          {
+            model: Loja,
+            as: "loja",
+            attributes: ["nome"],
+          },
+        ],
       },
       {
         model: Usuario,
