@@ -1,3 +1,4 @@
+
 // src/controllers/relatorioController.js
 import { Sequelize, Op, fn, col } from "sequelize";
 import {
@@ -901,5 +902,109 @@ export const relatorioImpressao = async (req, res) => {
       message:
         process.env.NODE_ENV === "development" ? error.message : undefined,
     });
+  }
+};
+
+// --- ALERTAS DE MOVIMENTAÇÃO OUT ---
+export const alertasMovimentacaoOut = async (req, res) => {
+  try {
+    const maquinas = await Maquina.findAll({ where: { ativo: true } });
+    const alertas = [];
+    const ignorados = await AlertaIgnorado.findAll();
+    const ignoradosSet = new Set(ignorados.map((a) => a.alertaId));
+    for (const maquina of maquinas) {
+      const movimentacoes = await Movimentacao.findAll({
+        where: { maquinaId: maquina.id },
+        order: [["dataColeta", "DESC"]],
+        limit: 2,
+        attributes: [
+          "id",
+          "contadorOut",
+          "contadorIn",
+          "fichas",
+          "sairam",
+          "dataColeta",
+        ],
+      });
+      if (!movimentacoes || movimentacoes.length < 2) continue;
+      const atual = movimentacoes[0];
+      const anterior = movimentacoes[1];
+      const diffOut = (atual.contadorOut || 0) - (anterior.contadorOut || 0);
+      const alertaId = `${maquina.id}-${atual.id}`;
+      if (
+        atual.contadorOut !== null &&
+        atual.contadorOut !== 0 &&
+        diffOut !== (atual.sairam || 0) &&
+        !ignoradosSet.has(alertaId)
+      ) {
+        alertas.push({
+          id: alertaId,
+          tipo: "movimentacao_out",
+          maquinaId: maquina.id,
+          maquinaNome: maquina.nome,
+          contador_out: atual.contadorOut || 0,
+          sairam: atual.sairam,
+          dataMovimentacao: atual.dataColeta,
+          mensagem: `OUT (${diffOut}) esperado ${atual.sairam}. OUT registrado: ${atual.contadorOut || 0}`,
+        });
+      }
+    }
+    res.json({ alertas });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ error: "Erro ao buscar alertas OUT", message: error.message });
+  }
+};
+
+// --- ALERTAS DE MOVIMENTAÇÃO IN ---
+export const alertasMovimentacaoIn = async (req, res) => {
+  try {
+    const maquinas = await Maquina.findAll({ where: { ativo: true } });
+    const alertas = [];
+    const ignorados = await AlertaIgnorado.findAll();
+    const ignoradosSet = new Set(ignorados.map((a) => a.alertaId));
+    for (const maquina of maquinas) {
+      const movimentacoes = await Movimentacao.findAll({
+        where: { maquinaId: maquina.id },
+        order: [["dataColeta", "DESC"]],
+        limit: 2,
+        attributes: [
+          "id",
+          "contadorOut",
+          "contadorIn",
+          "fichas",
+          "sairam",
+          "dataColeta",
+        ],
+      });
+      if (!movimentacoes || movimentacoes.length < 2) continue;
+      const atual = movimentacoes[0];
+      const anterior = movimentacoes[1];
+      const diffIn = (atual.contadorIn || 0) - (anterior.contadorIn || 0);
+      const alertaId = `${maquina.id}-${atual.id}`;
+      if (
+        atual.contadorIn !== null &&
+        atual.contadorIn !== 0 &&
+        diffIn !== (atual.fichas || 0) &&
+        !ignoradosSet.has(alertaId)
+      ) {
+        alertas.push({
+          id: alertaId,
+          tipo: "movimentacao_in",
+          maquinaId: maquina.id,
+          maquinaNome: maquina.nome,
+          contador_in: atual.contadorIn || 0,
+          fichas: atual.fichas,
+          dataMovimentacao: atual.dataColeta,
+          mensagem: `IN (${diffIn}) esperado ${atual.fichas}. IN registrado: ${atual.contadorIn || 0}`,
+        });
+      }
+    }
+    res.json({ alertas });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ error: "Erro ao buscar alertas IN", message: error.message });
   }
 };

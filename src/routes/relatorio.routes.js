@@ -7,7 +7,22 @@ import {
   buscarAlertasDeInconsistencia,
   ignorarAlertaMovimentacao,
   dashboardRelatorio,
+  alertasMovimentacaoOut,
+  alertasMovimentacaoIn,
 } from "../controllers/relatorioController.js";
+// Novas rotas para alertas OUT e IN
+router.get(
+  "/alertas-movimentacao-out",
+  autenticar,
+  autorizarRole("ADMIN"),
+  alertasMovimentacaoOut,
+);
+router.get(
+  "/alertas-movimentacao-in",
+  autenticar,
+  autorizarRole("ADMIN"),
+  alertasMovimentacaoIn,
+);
 import { alertasAbastecimentoIncompleto } from "../controllers/movimentacaoController.js";
 import { autenticar, autorizarRole } from "../middlewares/auth.js";
 
@@ -18,49 +33,49 @@ router.get(
   "/balanco-semanal",
   autenticar,
   autorizarRole("ADMIN"),
-  balançoSemanal
+  balançoSemanal,
 );
 router.get(
   "/alertas-movimentacao-inconsistente",
   autenticar,
   autorizarRole("ADMIN"),
-  buscarAlertasDeInconsistencia
+  buscarAlertasDeInconsistencia,
 );
 router.delete(
   "/alertas-movimentacao-inconsistente/:id",
   autenticar,
   autorizarRole("ADMIN"),
-  ignorarAlertaMovimentacao
+  ignorarAlertaMovimentacao,
 );
 router.get(
   "/alertas-estoque",
   autenticar,
   autorizarRole("ADMIN"),
-  alertasEstoque
+  alertasEstoque,
 );
 router.get(
   "/performance-maquinas",
   autenticar,
   autorizarRole("ADMIN"),
-  performanceMaquinas
+  performanceMaquinas,
 );
 router.get(
   "/impressao",
   autenticar,
   autorizarRole("ADMIN"),
-  relatorioImpressao
+  relatorioImpressao,
 );
 router.get(
   "/dashboard",
   autenticar,
   autorizarRole("ADMIN"),
-  dashboardRelatorio
+  dashboardRelatorio,
 );
 router.get(
   "/alertas-abastecimento-incompleto",
   autenticar,
   autorizarRole("ADMIN"),
-  alertasAbastecimentoIncompleto
+  alertasAbastecimentoIncompleto,
 );
 
 export default router;
