@@ -176,6 +176,14 @@ export default function AlertAdmin() {
                             {alerta.maquinaNome || alerta.maquinaId}
                           </button>
                         </p>
+                        {/* Nome da loja abaixo da máquina */}
+                        <p className="text-xs text-yellow-700">
+                          Loja:{" "}
+                          {alerta.lojaNome ||
+                            alerta.loja ||
+                            alerta.loja?.nome ||
+                            "-"}
+                        </p>
                         <p className="text-xs text-yellow-700">
                           {alerta.dataMovimentacao
                             ? new Date(alerta.dataMovimentacao).toLocaleString(
@@ -185,14 +193,14 @@ export default function AlertAdmin() {
                         </p>
                       </div>
                       <div className="flex gap-2">
-                        <button
+                        {/* <button
                           className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
                           onClick={() =>
                             navigate(`/maquinas/${alerta.maquinaId}`)
                           }
                         >
                           Ver Movimentações
-                        </button>
+                        </button> */}
                         <button
                           className="px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
                           disabled={removendo}
@@ -250,7 +258,11 @@ export default function AlertAdmin() {
                           Alerta de Entrada (IN)
                         </p>
                         <p className="text-xs text-yellow-700 mt-1">
-                          Contador IN:{" "}
+                          Contador IN anterior:{" "}
+                          <strong>{alerta.contador_in_anterior ?? "-"}</strong>
+                        </p>
+                        <p className="text-xs text-yellow-700 mt-1">
+                          Contador IN Atual:{" "}
                           <strong>{alerta.contador_in ?? "-"}</strong>
                         </p>
                         <p className="text-xs text-yellow-700 mt-1">
@@ -261,21 +273,21 @@ export default function AlertAdmin() {
                           Diferença:{" "}
                           <strong>
                             {typeof alerta.contador_in === "number" &&
+                            typeof alerta.contador_in_anterior === "number" &&
                             typeof alerta.fichas === "number"
-                              ? alerta.contador_in - alerta.fichas
+                              ? alerta.contador_in -
+                                alerta.contador_in_anterior -
+                                alerta.fichas
                               : "-"}
                           </strong>
-                        </p> 
-                        <p className="text-xs font-bold text-yellow-800 mb-2">Alerta de Entrada (IN)</p> 
-                        <p className="text-xs text-yellow-700 mt-1">Contador IN anterior: <strong>{alerta.contador_in_anterior ?? "-"}</strong></p> 
-                        <p className="text-xs text-yellow-700 mt-1">Contador IN Atual: <strong>{alerta.contador_in ?? "-"}</strong></p> 
-                        <p className="text-xs text-yellow-700 mt-1">Fichas registradas: <strong>{alerta.fichas ?? "-"}</strong></p> 
-                        <p className="text-xs text-yellow-700 mt-1">Diferença: <strong>{typeof alerta.contador_in === "number" && typeof alerta.contador_in_anterior === "number" && typeof alerta.fichas === "number" ? alerta.contador_in - alerta.contador_in_anterior - alerta.fichas : "-"}</strong></p> 
-                        <p className="text-lg text-purple-800 font-semibold mt-2"> 
-                          {typeof alerta.contador_in === "number" && typeof alerta.contador_in_anterior === "number" && typeof alerta.fichas === "number" 
-                            ? `Era para ter entrado ${alerta.contador_in - alerta.contador_in_anterior} mas só entrou ${alerta.fichas}` 
-                            : "-"} 
-                        </p> 
+                        </p>
+                        <p className="text-lg text-purple-800 font-semibold mt-2">
+                          {typeof alerta.contador_in === "number" &&
+                          typeof alerta.contador_in_anterior === "number" &&
+                          typeof alerta.fichas === "number"
+                            ? `Era para ter entrado ${alerta.contador_in - alerta.contador_in_anterior} mas só entrou ${alerta.fichas}`
+                            : "-"}
+                        </p>
                       </>
                     ) : alerta.tipo === "abastecimento_incompleto" ||
                       alerta.foraPadrao === true ? (

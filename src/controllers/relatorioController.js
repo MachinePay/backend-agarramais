@@ -907,7 +907,10 @@ export const relatorioImpressao = async (req, res) => {
 // --- ALERTAS DE MOVIMENTAÇÃO OUT ---
 export const alertasMovimentacaoOut = async (req, res) => {
   try {
-    const maquinas = await Maquina.findAll({ where: { ativo: true } });
+    const maquinas = await Maquina.findAll({
+      where: { ativo: true },
+      include: [{ model: Loja, as: "loja", attributes: ["nome"] }],
+    });
     const alertas = [];
     const ignorados = await AlertaIgnorado.findAll();
     const ignoradosSet = new Set(ignorados.map((a) => a.alertaId));
@@ -964,7 +967,10 @@ export const alertasMovimentacaoOut = async (req, res) => {
 // --- ALERTAS DE MOVIMENTAÇÃO IN ---
 export const alertasMovimentacaoIn = async (req, res) => {
   try {
-    const maquinas = await Maquina.findAll({ where: { ativo: true } });
+    const maquinas = await Maquina.findAll({
+      where: { ativo: true },
+      include: [{ model: Loja, as: "loja", attributes: ["nome"] }],
+    });
     const alertas = [];
     const ignorados = await AlertaIgnorado.findAll();
     const ignoradosSet = new Set(ignorados.map((a) => a.alertaId));
