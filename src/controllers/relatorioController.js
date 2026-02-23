@@ -1,4 +1,3 @@
-
 // src/controllers/relatorioController.js
 import { Sequelize, Op, fn, col } from "sequelize";
 import {
@@ -937,15 +936,18 @@ export const alertasMovimentacaoOut = async (req, res) => {
         diffOut !== (atual.sairam || 0) &&
         !ignoradosSet.has(alertaId)
       ) {
+        const referencia = atual.contadorOut || 0;
+        const inserido = atual.sairam ?? 0;
+        const diferenca = referencia - inserido;
         alertas.push({
           id: alertaId,
           tipo: "movimentacao_out",
           maquinaId: maquina.id,
           maquinaNome: maquina.nome,
-          contador_out: atual.contadorOut || 0,
-          sairam: atual.sairam,
+          contador_out: referencia,
+          sairam: inserido,
           dataMovimentacao: atual.dataColeta,
-          mensagem: `OUT (${diffOut}) esperado ${atual.sairam}. OUT registrado: ${atual.contadorOut || 0}`,
+          mensagem: `Valor de referência (máquina): ${referencia}\nValor inserido pelo funcionário: ${inserido}\nDiferença: ${diferenca > 0 ? "+" : ""}${diferenca}`,
         });
       }
     }
