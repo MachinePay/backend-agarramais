@@ -64,7 +64,7 @@ export const dashboardRelatorio = async (req, res) => {
         {
           model: Produto,
           as: "produto",
-          attributes: ["custoUnitario"],
+          attributes: ["id", "nome", "codigo", "emoji", "custoUnitario"],
         },
         {
           model: Movimentacao,
@@ -665,7 +665,7 @@ export const relatorioImpressao = async (req, res) => {
             {
               model: Produto,
               as: "produto",
-              attributes: ["id", "nome", "codigo", "emoji"],
+              attributes: ["id", "nome", "codigo", "emoji", "custoUnitario"],
             },
           ],
         },
@@ -797,17 +797,29 @@ export const relatorioImpressao = async (req, res) => {
     );
 
     // Formatar dados por máquina, incluindo valores de dinheiro/cartão/pix
-    const maquinasDetalhadas = Object.values(dadosPorMaquina).map((m) => ({
-      maquina: m.maquina,
-      totais: {
-        fichas: m.fichas,
-        produtosSairam: m.totalSairam,
-        produtosEntraram: m.totalAbastecidas,
-        movimentacoes: m.numMovimentacoes,
-        dinheiro: valoresPorMaquina[m.maquina.id]?.dinheiro || 0,
-        cartaoPix: valoresPorMaquina[m.maquina.id]?.cartaoPix || 0,
-      },
-      produtosSairam: Object.values(m.produtosSairam)
+    const maquinasDetalhadas = Object.values(dadosPorMaquina).map((m) => {
+      // Calcular custo total dos produtos que saíram nesta máquina
+      let custoProdutosSairam = 0;
+      const produtosSairamDetalhados = Object.values(m.produtosSairam)
+        .map((p) => {
+          const custoUnitario = p.produto.custoUnitario
+            ? Number(p.produto.custoUnitario)
+            : 0;
+          const custoTotal = custoUnitario * p.quantidade;
+          custoProdutosSairam += custoTotal;
+          return {
+            id: p.produto.id,
+            nome: p.produto.nome,
+            codigo: p.produto.codigo,
+            emoji: p.produto.emoji,
+            quantidade: p.quantidade,
+            custoUnitario,
+            custoTotal,
+          };
+        })
+        .sort((a, b) => b.quantidade - a.quantidade);
+
+      const produtosEntraramDetalhados = Object.values(m.produtosEntraram)
         .map((p) => ({
           id: p.produto.id,
           nome: p.produto.nome,
@@ -815,17 +827,23 @@ export const relatorioImpressao = async (req, res) => {
           emoji: p.produto.emoji,
           quantidade: p.quantidade,
         }))
-        .sort((a, b) => b.quantidade - a.quantidade),
-      produtosEntraram: Object.values(m.produtosEntraram)
-        .map((p) => ({
-          id: p.produto.id,
-          nome: p.produto.nome,
-          codigo: p.produto.codigo,
-          emoji: p.produto.emoji,
-          quantidade: p.quantidade,
-        }))
-        .sort((a, b) => b.quantidade - a.quantidade),
-    }));
+        .sort((a, b) => b.quantidade - a.quantidade);
+
+      return {
+        maquina: m.maquina,
+        totais: {
+          fichas: m.fichas,
+          produtosSairam: m.totalSairam,
+          produtosEntraram: m.totalAbastecidas,
+          movimentacoes: m.numMovimentacoes,
+          dinheiro: valoresPorMaquina[m.maquina.id]?.dinheiro || 0,
+          cartaoPix: valoresPorMaquina[m.maquina.id]?.cartaoPix || 0,
+          custoProdutosSairam, // Novo campo: custo total dos produtos que saíram
+        },
+        produtosSairam: produtosSairamDetalhados,
+        produtosEntraram: produtosEntraramDetalhados,
+      };
+    });
 
     // Alerta: diferença entre valor das fichas (em reais) e valor total da loja
     // Calcular valor médio da ficha das máquinas
