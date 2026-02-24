@@ -445,19 +445,6 @@ export function Relatorios() {
                           Resumo de Movimentações desta Máquina
                         </span>
                       </h4>
-                      {/* Custo total das pelúcias */}
-                      {maquina.totais.custoProdutosSairam !== undefined && (
-                        <div className="mb-3">
-                          <span className="inline-block bg-yellow-100 text-yellow-800 px-3 py-1 rounded font-bold text-sm">
-                            💸 Custo total das pelúcias: R${" "}
-                            {Number(
-                              maquina.totais.custoProdutosSairam,
-                            ).toLocaleString("pt-BR", {
-                              minimumFractionDigits: 2,
-                            })}
-                          </span>
-                        </div>
-                      )}
                       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2 sm:gap-4">
                         {/* Fichas */}
                         <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-3 sm:p-5 rounded-xl shadow-lg">
@@ -533,7 +520,7 @@ export function Relatorios() {
                             Produtos Entraram
                           </div>
                         </div>
-                        {/* Movimentações */}
+                        {/* Movimentações
                         <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white p-3 sm:p-5 rounded-xl shadow-lg">
                           <div className="text-2xl sm:text-4xl mb-1 sm:mb-2 text-center">
                             🔄
@@ -544,7 +531,30 @@ export function Relatorios() {
                           <div className="text-xs sm:text-sm text-center mt-1 sm:mt-2 opacity-90">
                             Total de Movimentações
                           </div>
+                        </div> */}
+                        <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white p-3 sm:p-5 rounded-xl shadow-lg">
+                          <div className="text-2xl sm:text-4xl mb-1 sm:mb-2 text-center">
+                            ➖💸
+                          </div>
+                          <div className="text-xl sm:text-3xl font-bold text-center">
+                            {maquina.totais.custoProdutosSairam !==
+                              undefined && (
+                              <div className="text-xl sm:text-3xl font-bold text-center">
+                                R${" "}
+                                {Number(
+                                  maquina.totais.custoProdutosSairam,
+                                ).toLocaleString("pt-BR", {
+                                  minimumFractionDigits: 2,
+                                })}
+                              </div>
+                            )}
+                          </div>
+                          <div className="text-xs sm:text-sm text-center mt-1 sm:mt-2 opacity-90">
+                            Custo dos produtos que saíram
+                          </div>
                         </div>
+                        {/* Custo total das pelúcias */}
+
                         {/* Lucro da máquina */}
                         <div className="bg-gradient-to-br from-yellow-500 to-orange-600 text-white p-3 sm:p-5 rounded-xl shadow-lg">
                           <div className="text-2xl sm:text-4xl mb-1 sm:mb-2 text-center">
@@ -561,6 +571,23 @@ export function Relatorios() {
                           </div>
                           <div className="text-xs sm:text-sm text-center mt-1 sm:mt-2 opacity-90">
                             Lucro da Máquina
+                          </div>
+                        </div>
+                        {/* Lucro Líquido da máquina */}
+                        <div className="bg-gradient-to-br from-green-700 to-green-400 text-white p-3 sm:p-5 rounded-xl shadow-lg">
+                          <div className="text-2xl sm:text-4xl mb-1 sm:mb-2 text-center">
+                            🟩
+                          </div>
+                          <div className="text-xl sm:text-3xl font-bold text-center">
+                            R${" "}
+                            {Number(
+                              maquina.totais.lucroLiquido || 0,
+                            ).toLocaleString("pt-BR", {
+                              minimumFractionDigits: 2,
+                            })}
+                          </div>
+                          <div className="text-xs sm:text-sm text-center mt-1 sm:mt-2 opacity-90">
+                            Lucro Líquido da Máquina
                           </div>
                         </div>
                       </div>

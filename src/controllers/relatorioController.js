@@ -832,6 +832,15 @@ export const relatorioImpressao = async (req, res) => {
         }))
         .sort((a, b) => b.quantidade - a.quantidade);
 
+      // Lucro bruto da máquina (dinheiro + cartaoPix + fichas*valorFicha)
+      const valorFicha = m.maquina.valorFicha
+        ? Number(m.maquina.valorFicha)
+        : 2.5;
+      const lucroBruto =
+        (valoresPorMaquina[m.maquina.id]?.dinheiro || 0) +
+        (valoresPorMaquina[m.maquina.id]?.cartaoPix || 0) +
+        (m.fichas || 0) * valorFicha;
+      const lucroLiquido = lucroBruto - custoProdutosSairam;
       return {
         maquina: m.maquina,
         totais: {
@@ -841,7 +850,8 @@ export const relatorioImpressao = async (req, res) => {
           movimentacoes: m.numMovimentacoes,
           dinheiro: valoresPorMaquina[m.maquina.id]?.dinheiro || 0,
           cartaoPix: valoresPorMaquina[m.maquina.id]?.cartaoPix || 0,
-          custoProdutosSairam, // Novo campo: custo total dos produtos que saíram
+          custoProdutosSairam,
+          lucroLiquido,
         },
         produtosSairam: produtosSairamDetalhados,
         produtosEntraram: produtosEntraramDetalhados,
