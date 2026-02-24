@@ -359,6 +359,29 @@ export function Relatorios() {
                     Lucro Das máquinas <br /> (sem considerar fichas)
                   </div>
                 </div>
+                {/* Custo total de produtos */}
+                <div className="card bg-gradient-to-br from-yellow-100 to-yellow-400 text-yellow-900 border-yellow-400 border-2">
+                  <div className="text-2xl sm:text-3xl mb-2">💸</div>
+                  <div className="text-xl sm:text-2xl font-bold">
+                    R${" "}
+                    {(() => {
+                      let custoTotalProdutos = 0;
+                      if (relatorio.maquinas && relatorio.maquinas.length > 0) {
+                        relatorio.maquinas.forEach((m) => {
+                          custoTotalProdutos += Number(
+                            m.totais?.custoProdutosSairam || 0,
+                          );
+                        });
+                      }
+                      return custoTotalProdutos.toLocaleString("pt-BR", {
+                        minimumFractionDigits: 2,
+                      });
+                    })()}
+                  </div>
+                  <div className="text-xs sm:text-sm opacity-90">
+                    Custo total de produtos
+                  </div>
+                </div>
                 {/* Lucro Bruto da Loja */}
                 <div className="card bg-gradient-to-br from-yellow-500 to-orange-600 text-white">
                   <div className="text-2xl sm:text-3xl mb-2">💰</div>

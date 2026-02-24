@@ -1,4 +1,5 @@
 import MovimentacaoVeiculo from "./MovimentacaoVeiculo.js";
+import GastoVariavel from "./GastoVariavel.js";
 import Usuario from "./Usuario.js";
 import Loja from "./Loja.js";
 import Maquina from "./Maquina.js";
@@ -160,4 +161,5 @@ export {
   Veiculo,
   MovimentacaoVeiculo,
   RegistroDinheiro,
+  GastoVariavel,
 };
