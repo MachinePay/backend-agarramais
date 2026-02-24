@@ -802,9 +802,12 @@ export const relatorioImpressao = async (req, res) => {
       let custoProdutosSairam = 0;
       const produtosSairamDetalhados = Object.values(m.produtosSairam)
         .map((p) => {
-          const custoUnitario = p.produto.custoUnitario
-            ? Number(p.produto.custoUnitario)
-            : 0;
+          let custoUnitario = 0;
+          if (p.produto.custoUnitario && Number(p.produto.custoUnitario) > 0) {
+            custoUnitario = Number(p.produto.custoUnitario);
+          } else if (p.produto.preco && Number(p.produto.preco) > 0) {
+            custoUnitario = Number(p.produto.preco);
+          }
           const custoTotal = custoUnitario * p.quantidade;
           custoProdutosSairam += custoTotal;
           return {
