@@ -1,8 +1,8 @@
 import { DataTypes } from "sequelize";
 import { sequelize } from "../database/connection.js";
 
-const GastoFixoLoja = sequelize.define(
-  "GastoFixoLoja",
+const GastoTotalFixoLoja = sequelize.define(
+  "GastoTotalFixoLoja",
   {
     id: {
       type: DataTypes.INTEGER,
@@ -14,30 +14,36 @@ const GastoFixoLoja = sequelize.define(
       allowNull: false,
       field: "lojaid",
     },
-    nome: {
-      type: DataTypes.STRING(64),
+    ano: {
+      type: DataTypes.INTEGER,
       allowNull: false,
     },
-    valor: {
+    mes: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      validate: {
+        min: 1,
+        max: 12,
+      },
+    },
+    valorTotal: {
       type: DataTypes.DECIMAL(12, 2),
       allowNull: false,
       defaultValue: 0,
-    },
-    observacao: {
-      type: DataTypes.TEXT,
-      allowNull: true,
+      field: "valor_total",
     },
   },
   {
-    tableName: "gasto_fixo_lojas",
+    tableName: "gastos_totais_fixos_loja",
     timestamps: true,
     createdAt: "created_at",
     updatedAt: "updated_at",
     indexes: [
       { fields: ["lojaid"] },
-      { unique: true, fields: ["lojaid", "nome"] },
+      { fields: ["ano", "mes"] },
+      { unique: true, fields: ["lojaid", "ano", "mes"] },
     ],
   },
 );
 
-export default GastoFixoLoja;
+export default GastoTotalFixoLoja;

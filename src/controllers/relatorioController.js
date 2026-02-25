@@ -8,7 +8,139 @@ import {
   Produto,
   AlertaIgnorado,
   RegistroDinheiro,
+  GastoVariavel,
+  GastoFixoLoja,
+  GastoTotalFixoLoja,
 } from "../models/index.js";
+
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
+
+const diasNoMes = (ano, mes) => new Date(ano, mes, 0).getDate();
+
+const inicioDoDia = (data) =>
+  new Date(data.getFullYear(), data.getMonth(), data.getDate(), 0, 0, 0, 0);
+
+const fimDoDia = (data) =>
+  new Date(
+    data.getFullYear(),
+    data.getMonth(),
+    data.getDate(),
+    23,
+    59,
+    59,
+    999,
+  );
+
+const listaMesesNoIntervalo = (inicio, fim) => {
+  const meses = [];
+  const cursor = new Date(inicio.getFullYear(), inicio.getMonth(), 1);
+  const limite = new Date(fim.getFullYear(), fim.getMonth(), 1);
+
+  while (cursor <= limite) {
+    meses.push({ ano: cursor.getFullYear(), mes: cursor.getMonth() + 1 });
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+
+  return meses;
+};
+
+const calcularTotalFixoAtualDaLoja = async (lojaId) => {
+  const gastosFixos = await GastoFixoLoja.findAll({
+    where: { lojaId },
+    attributes: ["valor"],
+    raw: true,
+  });
+
+  return gastosFixos.reduce((acc, item) => acc + Number(item.valor || 0), 0);
+};
+
+const obterTotaisFixosMensais = async (lojaId, mesesIntervalo) => {
+  if (!mesesIntervalo.length) return new Map();
+
+  const totaisMensais = await GastoTotalFixoLoja.findAll({
+    where: {
+      lojaId,
+      [Op.or]: mesesIntervalo.map((m) => ({ ano: m.ano, mes: m.mes })),
+    },
+    raw: true,
+  });
+
+  const mapaTotais = new Map(
+    totaisMensais.map((item) => [
+      `${item.ano}-${String(item.mes).padStart(2, "0")}`,
+      Number(item.valorTotal || 0),
+    ]),
+  );
+
+  const faltantes = mesesIntervalo.filter(
+    (m) => !mapaTotais.has(`${m.ano}-${String(m.mes).padStart(2, "0")}`),
+  );
+
+  if (faltantes.length) {
+    const totalAtual = await calcularTotalFixoAtualDaLoja(lojaId);
+
+    for (const item of faltantes) {
+      await GastoTotalFixoLoja.upsert({
+        lojaId,
+        ano: item.ano,
+        mes: item.mes,
+        valorTotal: totalAtual,
+      });
+
+      mapaTotais.set(
+        `${item.ano}-${String(item.mes).padStart(2, "0")}`,
+        totalAtual,
+      );
+    }
+  }
+
+  return mapaTotais;
+};
+
+const calcularGastoFixoProporcionalPeriodo = async (lojaId, inicio, fim) => {
+  const mesesIntervalo = listaMesesNoIntervalo(inicio, fim);
+  const totaisPorMes = await obterTotaisFixosMensais(lojaId, mesesIntervalo);
+
+  let totalProporcional = 0;
+
+  for (const { ano, mes } of mesesIntervalo) {
+    const chave = `${ano}-${String(mes).padStart(2, "0")}`;
+    const valorMensal = Number(totaisPorMes.get(chave) || 0);
+    if (valorMensal <= 0) continue;
+
+    const inicioMes = inicioDoDia(new Date(ano, mes - 1, 1));
+    const fimMes = fimDoDia(new Date(ano, mes, 0));
+
+    const inicioAplicado = inicio > inicioMes ? inicio : inicioMes;
+    const fimAplicado = fim < fimMes ? fim : fimMes;
+
+    if (inicioAplicado > fimAplicado) continue;
+
+    const diasDoPeriodoNoMes =
+      Math.floor(
+        (inicioDoDia(fimAplicado).getTime() -
+          inicioDoDia(inicioAplicado).getTime()) /
+          DAY_IN_MS,
+      ) + 1;
+
+    totalProporcional +=
+      (valorMensal / diasNoMes(ano, mes)) * diasDoPeriodoNoMes;
+  }
+
+  return Number(totalProporcional.toFixed(2));
+};
+
+const calcularGastoVariavelPeriodo = async (lojaId, inicio, fim) => {
+  const total = await GastoVariavel.sum("valor", {
+    where: {
+      lojaId,
+      dataInicio: { [Op.lte]: fim },
+      dataFim: { [Op.gte]: inicio },
+    },
+  });
+
+  return Number(total || 0);
+};
 
 // --- DASHBOARD GERAL ---
 export const dashboardRelatorio = async (req, res) => {
@@ -686,6 +818,18 @@ export const relatorioImpressao = async (req, res) => {
       }
     });
 
+    const valorTotalLojaBruto = Number(valorTotalLoja.toFixed(2));
+    const gastoFixoTotalPeriodo = await calcularGastoFixoProporcionalPeriodo(
+      lojaId,
+      inicio,
+      fim,
+    );
+    const gastoVariavelTotalPeriodo = await calcularGastoVariavelPeriodo(
+      lojaId,
+      inicio,
+      fim,
+    );
+
     // Consolidar valores por máquina
     const valoresPorMaquina = {};
     registrosDinheiro.forEach((r) => {
@@ -858,6 +1002,24 @@ export const relatorioImpressao = async (req, res) => {
       };
     });
 
+    const gastoProdutosTotalPeriodo = Number(
+      maquinasDetalhadas
+        .reduce((acc, m) => acc + Number(m.totais?.custoProdutosSairam || 0), 0)
+        .toFixed(2),
+    );
+
+    const gastoTotalPeriodo = Number(
+      (
+        gastoFixoTotalPeriodo +
+        gastoVariavelTotalPeriodo +
+        gastoProdutosTotalPeriodo
+      ).toFixed(2),
+    );
+
+    const valorTotalLojaLiquido = Number(
+      (valorTotalLojaBruto - gastoTotalPeriodo).toFixed(2),
+    );
+
     // Alerta: diferença entre valor das fichas (em reais) e valor total da loja
     // Calcular valor médio da ficha das máquinas
     let valorMedioFicha = 2.5;
@@ -870,7 +1032,7 @@ export const relatorioImpressao = async (req, res) => {
       valorMedioFicha = somaValorFicha / Object.values(dadosPorMaquina).length;
     }
     const valorFichasReais = totalFichas * valorMedioFicha;
-    const valorTotal = valorTotalLoja;
+    const valorTotal = valorTotalLojaBruto;
     const diferenca = valorFichasReais - valorTotal;
     let avisoFichas = null;
     if (Math.abs(diferenca) > 0.01) {
@@ -902,7 +1064,13 @@ export const relatorioImpressao = async (req, res) => {
         produtosSairam: totalSairam,
         produtosEntraram: totalAbastecidas,
         movimentacoes: movimentacoes.length,
-        valorTotalLoja,
+        valorTotalLoja: valorTotalLojaLiquido,
+        valorTotalLojaBruto,
+        valorTotalLojaLiquido,
+        gastoFixoTotalPeriodo,
+        gastoVariavelTotalPeriodo,
+        gastoProdutosTotalPeriodo,
+        gastoTotalPeriodo,
         valorDinheiroLoja,
         valorCartaoPixLoja,
       },

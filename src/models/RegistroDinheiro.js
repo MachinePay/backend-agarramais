@@ -37,6 +37,30 @@ const RegistroDinheiro = sequelize.define(
       type: DataTypes.DECIMAL(10, 2),
       defaultValue: 0,
     },
+    gastoFixoPeriodo: {
+      type: DataTypes.DECIMAL(12, 2),
+      allowNull: false,
+      defaultValue: 0,
+      field: "gasto_fixo_periodo",
+    },
+    gastoVariavelPeriodo: {
+      type: DataTypes.DECIMAL(12, 2),
+      allowNull: false,
+      defaultValue: 0,
+      field: "gasto_variavel_periodo",
+    },
+    gastoProdutosPeriodo: {
+      type: DataTypes.DECIMAL(12, 2),
+      allowNull: false,
+      defaultValue: 0,
+      field: "gasto_produtos_periodo",
+    },
+    gastoTotalPeriodo: {
+      type: DataTypes.DECIMAL(12, 2),
+      allowNull: false,
+      defaultValue: 0,
+      field: "gasto_total_periodo",
+    },
     observacoes: {
       type: DataTypes.TEXT,
       allowNull: true,

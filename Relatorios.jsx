@@ -382,6 +382,30 @@ export function Relatorios() {
                     Custo total de produtos
                   </div>
                 </div>
+                <div className="card bg-gradient-to-br from-fuchsia-500 to-purple-700 text-white">
+                  <div className="text-2xl sm:text-3xl mb-2">🧾</div>
+                  <div className="text-xl sm:text-2xl font-bold">
+                    R${" "}
+                    {Number(
+                      relatorio.totais?.gastoVariavelTotalPeriodo || 0,
+                    ).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                  </div>
+                  <div className="text-xs sm:text-sm opacity-90">
+                    Gastos Variáveis
+                  </div>
+                </div>
+                <div className="card bg-gradient-to-br from-rose-500 to-red-700 text-white">
+                  <div className="text-2xl sm:text-3xl mb-2">🧮</div>
+                  <div className="text-xl sm:text-2xl font-bold">
+                    R${" "}
+                    {Number(
+                      relatorio.totais?.gastoTotalPeriodo || 0,
+                    ).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                  </div>
+                  <div className="text-xs sm:text-sm opacity-90">
+                    Gasto Total
+                  </div>
+                </div>
                 {/* Lucro Bruto da Loja */}
                 <div className="card bg-gradient-to-br from-yellow-500 to-orange-600 text-white">
                   <div className="text-2xl sm:text-3xl mb-2">💰</div>
@@ -407,7 +431,37 @@ export function Relatorios() {
                     })()}
                   </div>
                   <div className="text-xs sm:text-sm opacity-90">
-                    Lucro Bruto da Loja
+                    Bruto Consolidado (Loja + Máquinas)
+                  </div>
+                </div>
+                <div className="card bg-gradient-to-br from-emerald-600 to-green-800 text-white">
+                  <div className="text-2xl sm:text-3xl mb-2">📉</div>
+                  <div className="text-xl sm:text-2xl font-bold">
+                    R${" "}
+                    {(() => {
+                      const valorTrocadora = Number(
+                        relatorio.totais?.valorTotalLoja || 0,
+                      );
+                      let dinheiroMaquinas = 0;
+                      let cartaoPixMaquinas = 0;
+                      if (relatorio.maquinas && relatorio.maquinas.length > 0) {
+                        relatorio.maquinas.forEach((m) => {
+                          dinheiroMaquinas += Number(m.totais?.dinheiro || 0);
+                          cartaoPixMaquinas += Number(m.totais?.cartaoPix || 0);
+                        });
+                      }
+                      const lucroBruto =
+                        valorTrocadora + dinheiroMaquinas + cartaoPixMaquinas;
+                      const gastoTotal = Number(
+                        relatorio.totais?.gastoTotalPeriodo || 0,
+                      );
+                      return (lucroBruto - gastoTotal).toLocaleString("pt-BR", {
+                        minimumFractionDigits: 2,
+                      });
+                    })()}
+                  </div>
+                  <div className="text-xs sm:text-sm opacity-90">
+                    Lucro Líquido
                   </div>
                 </div>
               </div>
