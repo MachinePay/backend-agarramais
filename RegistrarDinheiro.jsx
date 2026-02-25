@@ -220,7 +220,6 @@ const RegistrarDinheiro = ({ lojas, maquinas, onSubmit }) => {
             Registrar valor total da loja (não selecionar máquina)
           </label>
         </div>
-      </div>
       <div style={{ marginBottom: 18 }}>
         <label style={{ fontWeight: 600, color: "#a67c52" }}>Máquina:</label>
         <select
@@ -441,6 +440,7 @@ const RegistrarDinheiro = ({ lojas, maquinas, onSubmit }) => {
         Registrar
       </button>
     </form>
+  </>
   );
 };
 

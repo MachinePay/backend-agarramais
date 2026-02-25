@@ -15,6 +15,7 @@ import alertasVeiculosRoutes from "./alertasVeiculos.routes.js";
 import movimentacaoVeiculoRoutes from "./movimentacaoVeiculo.routes.js";
 import registroDinheiroRoutes from "./registroDinheiro.routes.js";
 import gastoVariavelRoutes from "./gastoVariavel.routes.js";
+import gastoFixoLojaRoutes from "./gastoFixoLoja.routes.js";
 const router = express.Router();
 
 router.use("/auth", authRoutes);
@@ -36,5 +37,7 @@ router.use("/movimentacao-veiculos", movimentacaoVeiculoRoutes);
 
 router.use("/registro-dinheiro", registroDinheiroRoutes);
 router.use("/gastos-variaveis", gastoVariavelRoutes);
+
+router.use("/gastos-fixos-loja", gastoFixoLojaRoutes);
 
 export default router;
