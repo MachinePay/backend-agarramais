@@ -10,7 +10,7 @@ const GastoTotalFixoLoja = sequelize.define(
       autoIncrement: true,
     },
     lojaId: {
-      type: DataTypes.STRING,
+      type: DataTypes.UUID,
       allowNull: false,
       field: "lojaid",
     },

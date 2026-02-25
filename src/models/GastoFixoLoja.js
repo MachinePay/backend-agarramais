@@ -10,7 +10,7 @@ const GastoFixoLoja = sequelize.define(
       autoIncrement: true,
     },
     lojaId: {
-      type: DataTypes.STRING,
+      type: DataTypes.UUID,
       allowNull: false,
       field: "lojaid",
     },
@@ -29,7 +29,7 @@ const GastoFixoLoja = sequelize.define(
     },
   },
   {
-    tableName: "gasto_fixo_lojas",
+    tableName: "GastoFixoLoja",
     timestamps: true,
     createdAt: "created_at",
     updatedAt: "updated_at",
