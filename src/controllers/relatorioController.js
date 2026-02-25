@@ -1,5 +1,12 @@
 // src/controllers/relatorioController.js
-import { Sequelize, Op, fn, col } from "sequelize";
+import {
+  Sequelize,
+  Op,
+  fn,
+  col,
+  cast,
+  where as sequelizeWhere,
+} from "sequelize";
 import {
   Movimentacao,
   MovimentacaoProduto,
@@ -133,7 +140,7 @@ const calcularGastoFixoProporcionalPeriodo = async (lojaId, inicio, fim) => {
 const calcularGastoVariavelPeriodo = async (lojaId, inicio, fim) => {
   const total = await GastoVariavel.sum("valor", {
     where: {
-      lojaId,
+      [Op.and]: [sequelizeWhere(cast(col("lojaId"), "text"), String(lojaId))],
       dataInicio: { [Op.lte]: fim },
       dataFim: { [Op.gte]: inicio },
     },
