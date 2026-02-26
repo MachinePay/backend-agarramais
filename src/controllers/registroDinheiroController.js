@@ -43,7 +43,9 @@ const listaMesesNoIntervalo = (inicio, fim) => {
 
 const calcularTotalFixoAtualDaLoja = async (lojaId) => {
   const gastos = await GastoFixoLoja.findAll({
-    where: { lojaId },
+    where: {
+      [Op.and]: [sequelizeWhere(cast(col("lojaid"), "text"), String(lojaId))],
+    },
     attributes: [[fn("SUM", col("valor")), "total"]],
     raw: true,
   });
@@ -56,7 +58,7 @@ const obterTotaisFixosMensais = async (lojaId, mesesIntervalo) => {
 
   const totais = await GastoTotalFixoLoja.findAll({
     where: {
-      lojaId,
+      [Op.and]: [sequelizeWhere(cast(col("lojaid"), "text"), String(lojaId))],
       [Op.or]: mesesIntervalo.map((m) => ({ ano: m.ano, mes: m.mes })),
     },
     raw: true,
@@ -77,12 +79,19 @@ const obterTotaisFixosMensais = async (lojaId, mesesIntervalo) => {
     const totalAtual = await calcularTotalFixoAtualDaLoja(lojaId);
 
     for (const item of faltantes) {
-      await GastoTotalFixoLoja.upsert({
-        lojaId,
-        ano: item.ano,
-        mes: item.mes,
-        valorTotal: totalAtual,
-      });
+      try {
+        await GastoTotalFixoLoja.upsert({
+          lojaId,
+          ano: item.ano,
+          mes: item.mes,
+          valorTotal: totalAtual,
+        });
+      } catch (error) {
+        console.warn(
+          "[RegistroDinheiro] Falha ao persistir total fixo mensal, seguindo com cálculo em memória:",
+          error.message,
+        );
+      }
 
       mapa.set(`${item.ano}-${String(item.mes).padStart(2, "0")}`, totalAtual);
     }

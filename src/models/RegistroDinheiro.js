@@ -10,11 +10,11 @@ const RegistroDinheiro = sequelize.define(
       primaryKey: true,
     },
     lojaId: {
-      type: DataTypes.STRING, // Aceita UUID
+      type: DataTypes.UUID,
       allowNull: false,
     },
     maquinaId: {
-      type: DataTypes.STRING, // Aceita UUID
+      type: DataTypes.UUID,
       allowNull: true,
     },
     registrarTotalLoja: {

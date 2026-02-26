@@ -5,14 +5,14 @@ const GastoVariavel = sequelize.define(
   "GastoVariavel",
   {
     id: {
-      type: DataTypes.INTEGER,
-      autoIncrement: true,
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
       primaryKey: true,
     },
     lojaId: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.UUID,
       allowNull: false,
-      references: { model: "Lojas", key: "id" },
+      references: { model: "lojas", key: "id" },
     },
     nome: {
       type: DataTypes.STRING(100),
@@ -35,9 +35,9 @@ const GastoVariavel = sequelize.define(
       allowNull: false,
     },
     registroDinheiroId: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.UUID,
       allowNull: true,
-      references: { model: "RegistroDinheiros", key: "id" },
+      references: { model: "registro_dinheiro", key: "id" },
     },
   },
   {
