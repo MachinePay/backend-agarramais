@@ -825,12 +825,16 @@ export const relatorioImpressao = async (req, res) => {
     let valorTotalLoja = 0;
     let valorDinheiroLoja = 0;
     let valorCartaoPixLoja = 0;
+    let gastoTotalPeriodoSalvo = 0;
     registrosDinheiro.forEach((r) => {
       if (r.registrarTotalLoja) {
         valorTotalLoja +=
           parseFloat(r.valorDinheiro || 0) + parseFloat(r.valorCartaoPix || 0);
         valorDinheiroLoja += parseFloat(r.valorDinheiro || 0);
         valorCartaoPixLoja += parseFloat(r.valorCartaoPix || 0);
+        gastoTotalPeriodoSalvo += parseFloat(
+          r.gastoTotalPeriodo ?? r.gasto_total_periodo ?? 0,
+        );
       }
     });
 
@@ -1024,13 +1028,7 @@ export const relatorioImpressao = async (req, res) => {
         .toFixed(2),
     );
 
-    const gastoTotalPeriodo = Number(
-      (
-        gastoFixoTotalPeriodo +
-        gastoVariavelTotalPeriodo +
-        gastoProdutosTotalPeriodo
-      ).toFixed(2),
-    );
+    const gastoTotalPeriodo = Number(gastoTotalPeriodoSalvo.toFixed(2));
 
     const valorTotalLojaLiquido = Number(
       (valorTotalLojaBruto - gastoTotalPeriodo).toFixed(2),
