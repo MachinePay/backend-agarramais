@@ -5,8 +5,8 @@ const RegistroDinheiro = sequelize.define(
   "RegistroDinheiro",
   {
     id: {
-      type: DataTypes.UUID,
-      defaultValue: DataTypes.UUIDV4,
+      type: DataTypes.INTEGER,
+      autoIncrement: true,
       primaryKey: true,
     },
     lojaId: {

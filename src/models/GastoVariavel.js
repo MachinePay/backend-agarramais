@@ -35,7 +35,7 @@ const GastoVariavel = sequelize.define(
       allowNull: false,
     },
     registroDinheiroId: {
-      type: DataTypes.UUID,
+      type: DataTypes.INTEGER,
       allowNull: true,
       references: { model: "registro_dinheiro", key: "id" },
     },
