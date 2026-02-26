@@ -254,7 +254,7 @@ const registroDinheiroController = {
         fimDoDia(fimPeriodo),
       );
 
-      const registro = await RegistroDinheiro.create({
+      const dadosRegistro = {
         lojaId: loja,
         maquinaId: registrarTotalLoja ? null : maquina || null,
         registrarTotalLoja: !!registrarTotalLoja,
@@ -267,6 +267,23 @@ const registroDinheiroController = {
         gastoProdutosPeriodo: gastosPeriodo.gastoProdutosPeriodo,
         gastoTotalPeriodo: gastosPeriodo.gastoTotalPeriodo,
         observacoes,
+      };
+
+      const registro = await RegistroDinheiro.create(dadosRegistro, {
+        fields: [
+          "lojaId",
+          "maquinaId",
+          "registrarTotalLoja",
+          "inicio",
+          "fim",
+          "valorDinheiro",
+          "valorCartaoPix",
+          "gastoFixoPeriodo",
+          "gastoVariavelPeriodo",
+          "gastoProdutosPeriodo",
+          "gastoTotalPeriodo",
+          "observacoes",
+        ],
       });
 
       return res.status(201).json(registro);
