@@ -1,5 +1,6 @@
 import RegistroDinheiro from "../models/RegistroDinheiro.js";
 import { Op, fn, col, cast, where as sequelizeWhere } from "sequelize";
+import { sequelize } from "../database/connection.js";
 import {
   GastoVariavel,
   GastoTotalFixoLoja,
@@ -39,6 +40,19 @@ const listaMesesNoIntervalo = (inicio, fim) => {
   }
 
   return meses;
+};
+
+const normalizarValorMonetario = (valor) => {
+  if (valor === null || valor === undefined || valor === "") return 0;
+  if (typeof valor === "number") return Number.isFinite(valor) ? valor : 0;
+
+  const valorNormalizado = String(valor)
+    .replace(/\./g, "")
+    .replace(",", ".")
+    .replace(/[^0-9.-]/g, "");
+
+  const numero = Number(valorNormalizado);
+  return Number.isFinite(numero) ? numero : 0;
 };
 
 const calcularTotalFixoAtualDaLoja = async (lojaId) => {
@@ -221,6 +235,7 @@ const registroDinheiroController = {
         valorDinheiro,
         valorCartaoPix,
         observacoes,
+        gastosVariaveis = [],
       } = req.body;
 
       console.log("[RegistrarDinheiro] Dados recebidos:", req.body);
@@ -248,10 +263,42 @@ const registroDinheiroController = {
           .json({ error: "Data fim não pode ser menor que data início." });
       }
 
+      if (!Array.isArray(gastosVariaveis)) {
+        return res
+          .status(400)
+          .json({ error: "gastosVariaveis deve ser um array." });
+      }
+
+      const gastosVariaveisNormalizados = gastosVariaveis
+        .map((item) => ({
+          nome: String(item?.nome || "").trim(),
+          valor: normalizarValorMonetario(item?.valor),
+          observacao: item?.observacao ? String(item.observacao).trim() : null,
+        }))
+        .filter((item) => item.nome.length > 0);
+
+      const totalGastosVariaveisNovos = gastosVariaveisNormalizados.reduce(
+        (acc, item) => acc + Number(item.valor || 0),
+        0,
+      );
+
       const gastosPeriodo = await calcularGastosPeriodo(
         loja,
         inicioDoDia(inicioPeriodo),
         fimDoDia(fimPeriodo),
+      );
+
+      const gastoVariavelPeriodoFinal = Number(
+        (
+          gastosPeriodo.gastoVariavelPeriodo + totalGastosVariaveisNovos
+        ).toFixed(2),
+      );
+      const gastoTotalPeriodoFinal = Number(
+        (
+          gastosPeriodo.gastoFixoPeriodo +
+          gastoVariavelPeriodoFinal +
+          gastosPeriodo.gastoProdutosPeriodo
+        ).toFixed(2),
       );
 
       const dadosRegistro = {
@@ -263,30 +310,57 @@ const registroDinheiroController = {
         valorDinheiro: valorDinheiro || 0,
         valorCartaoPix: valorCartaoPix || 0,
         gastoFixoPeriodo: gastosPeriodo.gastoFixoPeriodo,
-        gastoVariavelPeriodo: gastosPeriodo.gastoVariavelPeriodo,
+        gastoVariavelPeriodo: gastoVariavelPeriodoFinal,
         gastoProdutosPeriodo: gastosPeriodo.gastoProdutosPeriodo,
-        gastoTotalPeriodo: gastosPeriodo.gastoTotalPeriodo,
+        gastoTotalPeriodo: gastoTotalPeriodoFinal,
         observacoes,
       };
 
-      const registro = await RegistroDinheiro.create(dadosRegistro, {
-        fields: [
-          "lojaId",
-          "maquinaId",
-          "registrarTotalLoja",
-          "inicio",
-          "fim",
-          "valorDinheiro",
-          "valorCartaoPix",
-          "gastoFixoPeriodo",
-          "gastoVariavelPeriodo",
-          "gastoProdutosPeriodo",
-          "gastoTotalPeriodo",
-          "observacoes",
-        ],
-      });
+      const transaction = await sequelize.transaction();
 
-      return res.status(201).json(registro);
+      try {
+        const registro = await RegistroDinheiro.create(dadosRegistro, {
+          fields: [
+            "lojaId",
+            "maquinaId",
+            "registrarTotalLoja",
+            "inicio",
+            "fim",
+            "valorDinheiro",
+            "valorCartaoPix",
+            "gastoFixoPeriodo",
+            "gastoVariavelPeriodo",
+            "gastoProdutosPeriodo",
+            "gastoTotalPeriodo",
+            "observacoes",
+          ],
+          transaction,
+        });
+
+        if (gastosVariaveisNormalizados.length > 0) {
+          const payloadGastosVariaveis = gastosVariaveisNormalizados.map(
+            (item) => ({
+              lojaId: loja,
+              nome: item.nome,
+              valor: item.valor,
+              observacao: item.observacao,
+              dataInicio: inicio,
+              dataFim: fim,
+              registroDinheiroId: registro.id,
+            }),
+          );
+
+          await GastoVariavel.bulkCreate(payloadGastosVariaveis, {
+            transaction,
+          });
+        }
+
+        await transaction.commit();
+        return res.status(201).json(registro);
+      } catch (dbError) {
+        await transaction.rollback();
+        throw dbError;
+      }
     } catch (err) {
       console.error("[RegistrarDinheiro] Erro inesperado:", err);
       return res
