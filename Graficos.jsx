@@ -90,17 +90,17 @@ export function Graficos() {
   );
 
   const recebimentos = useMemo(() => {
-    const dinheiro = Number(
-      totaisImpressao?.valorDinheiroLoja ?? totaisDashboard?.dinheiro ?? 0,
-    );
-    const cartaoPix = Number(totaisImpressao?.valorCartaoPixLoja || 0);
-    const pixSomenteDashboard = Number(
-      totaisDashboard?.pix && !cartaoPix ? totaisDashboard.pix : 0,
-    );
+    const dinheiroImpressao = Number(totaisImpressao?.valorDinheiroLoja || 0);
+    const dinheiroDashboard = Number(totaisDashboard?.dinheiro || 0);
+    const cartaoPixImpressao = Number(totaisImpressao?.valorCartaoPixLoja || 0);
+    const pixDashboard = Number(totaisDashboard?.pix || 0);
+
+    const dinheiro = Math.max(dinheiroImpressao, dinheiroDashboard);
+    const cartaoPix = Math.max(cartaoPixImpressao, pixDashboard);
 
     return [
       { metodo: "Dinheiro", valor: dinheiro },
-      { metodo: "Cartão/Pix", valor: cartaoPix || pixSomenteDashboard },
+      { metodo: "Cartão/Pix", valor: cartaoPix },
     ];
   }, [totaisImpressao, totaisDashboard]);
 

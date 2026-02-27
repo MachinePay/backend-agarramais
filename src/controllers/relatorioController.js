@@ -202,8 +202,50 @@ export const dashboardRelatorio = async (req, res) => {
     const faturamento = parseFloat(totaisDados.faturamentoTotal || 0);
     const saidas = parseInt(totaisDados.totalSairam || 0);
     const fichas = parseInt(totaisDados.totalFichas || 0);
-    const dinheiro = parseFloat(totaisDados.dinheiro || 0);
-    const pix = parseFloat(totaisDados.pix || 0);
+    const dinheiroMovimentacao = parseFloat(totaisDados.dinheiro || 0);
+    const pixMovimentacao = parseFloat(totaisDados.pix || 0);
+
+    let dinheiro = dinheiroMovimentacao;
+    let pix = pixMovimentacao;
+
+    if (lojaId) {
+      const registrosDinheiro = await RegistroDinheiro.findAll({
+        where: {
+          [Op.and]: [
+            sequelizeWhere(cast(col("lojaId"), "text"), String(lojaId)),
+          ],
+          inicio: { [Op.lte]: fim },
+          fim: { [Op.gte]: inicio },
+        },
+        raw: true,
+      });
+
+      const registrosPreferidos = registrosDinheiro.filter(
+        (registro) =>
+          registro.registrarTotalLoja === true ||
+          registro.registrar_total_loja === true,
+      );
+
+      const baseRegistros =
+        registrosPreferidos.length > 0
+          ? registrosPreferidos
+          : registrosDinheiro;
+
+      const dinheiroRegistro = baseRegistros.reduce(
+        (acc, registro) => acc + Number(registro.valorDinheiro || 0),
+        0,
+      );
+
+      const cartaoPixRegistro = baseRegistros.reduce(
+        (acc, registro) => acc + Number(registro.valorCartaoPix || 0),
+        0,
+      );
+
+      if (dinheiroRegistro > 0 || cartaoPixRegistro > 0) {
+        dinheiro = dinheiroRegistro;
+        pix = cartaoPixRegistro;
+      }
+    }
 
     // --- QUERY 2: CUSTO DE PRODUTOS (TOTAL E DIÁRIO) ---
     const itensVendidos = await MovimentacaoProduto.findAll({
