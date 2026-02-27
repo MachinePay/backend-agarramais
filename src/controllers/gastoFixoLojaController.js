@@ -1,15 +1,34 @@
 import { GastoFixoLoja, GastoTotalFixoLoja } from "../models/index.js";
 import { sequelize } from "../database/connection.js";
 
+const GASTO_RATEIO_ANUAL_12X = "Rateio Anual (12x)";
+
+const calcularValorMensalDoGasto = (gasto) => {
+  const nome = String(gasto?.nome || "").trim();
+  const valor = Number(gasto?.valor || 0);
+
+  if (!Number.isFinite(valor) || valor <= 0) return 0;
+  if (nome === GASTO_RATEIO_ANUAL_12X) {
+    return valor / 12;
+  }
+
+  return valor;
+};
+
 const calcularTotalFixoLoja = async (lojaId, transaction) => {
   const gastos = await GastoFixoLoja.findAll({
     where: { lojaId },
-    attributes: ["valor"],
+    attributes: ["nome", "valor"],
     raw: true,
     transaction,
   });
 
-  return gastos.reduce((acc, item) => acc + Number(item.valor || 0), 0);
+  const total = gastos.reduce(
+    (acc, item) => acc + calcularValorMensalDoGasto(item),
+    0,
+  );
+
+  return Number(total.toFixed(2));
 };
 
 export const getGastosFixos = async (req, res) => {

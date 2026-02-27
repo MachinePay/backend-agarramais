@@ -12,6 +12,7 @@ import {
 } from "../models/index.js";
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
+const GASTO_RATEIO_ANUAL_12X = "Rateio Anual (12x)";
 
 const diasNoMes = (ano, mes) => new Date(ano, mes, 0).getDate();
 
@@ -55,16 +56,31 @@ const normalizarValorMonetario = (valor) => {
   return Number.isFinite(numero) ? numero : 0;
 };
 
+const calcularValorMensalDoGastoFixo = (gasto) => {
+  const nome = String(gasto?.nome || "").trim();
+  const valor = Number(gasto?.valor || 0);
+
+  if (!Number.isFinite(valor) || valor <= 0) return 0;
+  if (nome === GASTO_RATEIO_ANUAL_12X) return valor / 12;
+
+  return valor;
+};
+
 const calcularTotalFixoAtualDaLoja = async (lojaId) => {
   const gastos = await GastoFixoLoja.findAll({
     where: {
       [Op.and]: [sequelizeWhere(cast(col("lojaid"), "text"), String(lojaId))],
     },
-    attributes: [[fn("SUM", col("valor")), "total"]],
+    attributes: ["nome", "valor"],
     raw: true,
   });
 
-  return Number(gastos?.[0]?.total || 0);
+  const total = gastos.reduce(
+    (acc, item) => acc + calcularValorMensalDoGastoFixo(item),
+    0,
+  );
+
+  return Number(total.toFixed(2));
 };
 
 const obterTotaisFixosMensais = async (lojaId, mesesIntervalo) => {

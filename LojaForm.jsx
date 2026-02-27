@@ -38,6 +38,10 @@ export function LojaForm() {
     { nome: "Imposto", label: "Imposto" },
     { nome: "Luva", label: "Luva" },
     { nome: "Nota Fiscal", label: "Nota Fiscal" },
+    {
+      nome: "Alugel dobrado último mes (12x)",
+      label: "Alugel dobrado último mes (informe valor total do ano; sistema divide em 12)",
+    },
   ];
 
   const [loading, setLoading] = useState(false);
