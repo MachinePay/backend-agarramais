@@ -4,6 +4,9 @@ import { Navbar } from "../components/Navbar";
 import { Footer } from "../components/Footer";
 import { PageHeader } from "../components/UIComponents";
 import { PageLoader } from "../components/Loading";
+import { RelatorioTodasLojas } from "./RelatorioTodasLojas";
+
+const TODAS_LOJAS_VALUE = "__TODAS_AS_LOJAS__";
 
 export function Relatorios() {
   const [dashboard, setDashboard] = useState(null);
@@ -81,6 +84,33 @@ export function Relatorios() {
       setRelatorio(null); // Limpar relatório anterior
       setDashboard(null);
 
+      if (lojaSelecionada === TODAS_LOJAS_VALUE) {
+        const response = await api.get("/relatorios/todas-lojas", {
+          params: {
+            dataInicio,
+            dataFim,
+          },
+        });
+
+        setRelatorio(response.data);
+
+        return;
+      }
+
+      const intervaloSelecionadoInicio = new Date(`${dataInicio}T00:00:00`);
+      const intervaloSelecionadoFim = new Date(`${dataFim}T23:59:59`);
+
+      const parseDataSegura = (valor) => {
+        if (!valor) return null;
+        const data = new Date(valor);
+        return Number.isNaN(data.getTime()) ? null : data;
+      };
+
+      const temIntersecaoPeriodo = (inicioA, fimA, inicioB, fimB) => {
+        if (!inicioA || !fimA || !inicioB || !fimB) return false;
+        return inicioA <= fimB && fimA >= inicioB;
+      };
+
       // Buscar dashboard para fichas corretas
       await carregarDashboard(lojaSelecionada, dataInicio, dataFim);
 
@@ -93,7 +123,84 @@ export function Relatorios() {
         },
       });
 
-      setRelatorio(response.data);
+      let gastoTotalDoRegistrar = null;
+      try {
+        const registrosResponse = await api.get("/registro-dinheiro");
+        const registros = Array.isArray(registrosResponse.data)
+          ? registrosResponse.data
+          : [];
+
+        const registrosFiltrados = registros.filter((registro) => {
+          const lojaRegistro = String(
+            registro.lojaId ?? registro.lojaid ?? registro.loja ?? "",
+          );
+          if (lojaRegistro !== String(lojaSelecionada)) return false;
+
+          const inicioRegistro = parseDataSegura(
+            registro.inicio ?? registro.dataInicio,
+          );
+          const fimRegistro = parseDataSegura(registro.fim ?? registro.dataFim);
+
+          return temIntersecaoPeriodo(
+            inicioRegistro,
+            fimRegistro,
+            intervaloSelecionadoInicio,
+            intervaloSelecionadoFim,
+          );
+        });
+
+        const registrosPreferidos = registrosFiltrados.filter(
+          (registro) =>
+            registro.registrarTotalLoja === true ||
+            registro.registrar_total_loja === true,
+        );
+
+        const listaBase =
+          registrosPreferidos.length > 0
+            ? registrosPreferidos
+            : registrosFiltrados;
+
+        if (listaBase.length > 0) {
+          const registroMaisRecente = [...listaBase].sort((a, b) => {
+            const dataA =
+              parseDataSegura(
+                a.createdAt ?? a.created_at ?? a.updatedAt,
+              )?.getTime() || 0;
+            const dataB =
+              parseDataSegura(
+                b.createdAt ?? b.created_at ?? b.updatedAt,
+              )?.getTime() || 0;
+            return dataB - dataA;
+          })[0];
+
+          const valorRegistro = Number(
+            registroMaisRecente.gastoTotalPeriodo ??
+              registroMaisRecente.gasto_total_periodo ??
+              0,
+          );
+
+          if (!Number.isNaN(valorRegistro)) {
+            gastoTotalDoRegistrar = valorRegistro;
+          }
+        }
+      } catch (erroRegistro) {
+        console.warn(
+          "Não foi possível buscar gasto total do Registrar Dinheiro:",
+          erroRegistro,
+        );
+      }
+
+      const gastoTotalFinal =
+        gastoTotalDoRegistrar ??
+        Number(response.data?.totais?.gastoTotalPeriodo || 0);
+
+      setRelatorio({
+        ...response.data,
+        totais: {
+          ...(response.data?.totais || {}),
+          gastoTotalPeriodo: gastoTotalFinal,
+        },
+      });
     } catch (error) {
       console.error("Erro ao gerar relatório:", error);
       console.error("Detalhes do erro:", {
@@ -160,6 +267,7 @@ export function Relatorios() {
                 className="input-field w-full"
               >
                 <option value="">Selecione uma loja</option>
+                <option value={TODAS_LOJAS_VALUE}>Todas as lojas</option>
                 {lojas.map((loja) => (
                   <option key={loja.id} value={loja.id}>
                     {loja.nome}
@@ -224,7 +332,11 @@ export function Relatorios() {
         )}
 
         {/* Relatório */}
-        {relatorio && !loading && (
+        {relatorio && !loading && relatorio.tipo === "todas-lojas" && (
+          <RelatorioTodasLojas relatorio={relatorio} />
+        )}
+
+        {relatorio && !loading && relatorio.tipo !== "todas-lojas" && (
           <div className="space-y-6">
             {/* Aviso de diferença de fichas */}
             {relatorio.avisoFichas && (
@@ -278,8 +390,9 @@ export function Relatorios() {
                   <div className="text-2xl sm:text-3xl mb-2">🏪</div>
                   <div className="text-xl sm:text-2xl font-bold">
                     R${" "}
-                    {Number(
-                      relatorio.totais?.valorTotalLoja || 0,
+                    {(
+                      Number(relatorio.totais?.valorDinheiroLoja || 0) +
+                      Number(relatorio.totais?.valorCartaoPixLoja || 0)
                     ).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                   </div>
                   <div className="text-xs sm:text-sm opacity-90">
@@ -412,9 +525,9 @@ export function Relatorios() {
                   <div className="text-xl sm:text-2xl font-bold">
                     R${" "}
                     {(() => {
-                      const valorTrocadora = Number(
-                        relatorio.totais?.valorTotalLoja || 0,
-                      );
+                      const valorTrocadora =
+                        Number(relatorio.totais?.valorDinheiroLoja || 0) +
+                        Number(relatorio.totais?.valorCartaoPixLoja || 0);
                       let dinheiroMaquinas = 0;
                       let cartaoPixMaquinas = 0;
                       if (relatorio.maquinas && relatorio.maquinas.length > 0) {
@@ -423,11 +536,12 @@ export function Relatorios() {
                           cartaoPixMaquinas += Number(m.totais?.cartaoPix || 0);
                         });
                       }
-                      return (
-                        valorTrocadora +
-                        dinheiroMaquinas +
-                        cartaoPixMaquinas
-                      ).toLocaleString("pt-BR", { minimumFractionDigits: 2 });
+                      const lucroMaquinas =
+                        dinheiroMaquinas + cartaoPixMaquinas;
+                      return (valorTrocadora + lucroMaquinas).toLocaleString(
+                        "pt-BR",
+                        { minimumFractionDigits: 2 },
+                      );
                     })()}
                   </div>
                   <div className="text-xs sm:text-sm opacity-90">
@@ -439,9 +553,9 @@ export function Relatorios() {
                   <div className="text-xl sm:text-2xl font-bold">
                     R${" "}
                     {(() => {
-                      const valorTrocadora = Number(
-                        relatorio.totais?.valorTotalLoja || 0,
-                      );
+                      const valorTrocadora =
+                        Number(relatorio.totais?.valorDinheiroLoja || 0) +
+                        Number(relatorio.totais?.valorCartaoPixLoja || 0);
                       let dinheiroMaquinas = 0;
                       let cartaoPixMaquinas = 0;
                       if (relatorio.maquinas && relatorio.maquinas.length > 0) {
@@ -450,8 +564,9 @@ export function Relatorios() {
                           cartaoPixMaquinas += Number(m.totais?.cartaoPix || 0);
                         });
                       }
-                      const lucroBruto =
-                        valorTrocadora + dinheiroMaquinas + cartaoPixMaquinas;
+                      const lucroMaquinas =
+                        dinheiroMaquinas + cartaoPixMaquinas;
+                      const lucroBruto = valorTrocadora + lucroMaquinas;
                       const gastoTotal = Number(
                         relatorio.totais?.gastoTotalPeriodo || 0,
                       );
@@ -1007,7 +1122,8 @@ export function Relatorios() {
           <div className="text-center py-12 card">
             <p className="text-6xl mb-4">📄</p>
             <p className="text-gray-600 text-lg">
-              Selecione uma loja e o período para gerar o relatório
+              Selecione uma loja (ou todas as lojas) e o período para gerar o
+              relatório
             </p>
           </div>
         )}

@@ -759,6 +759,341 @@ export const performanceMaquinas = async (req, res) => {
 };
 
 // --- RELATÓRIO DE IMPRESSÃO (RESTAURADO E CORRIGIDO) ---
+const gerarRelatorioImpressaoPorLoja = async ({
+  lojaId,
+  dataInicio,
+  dataFim,
+}) => {
+  const inicio = new Date(dataInicio);
+  const fim = new Date(dataFim);
+  fim.setHours(23, 59, 59, 999);
+
+  const loja = await Loja.findByPk(lojaId);
+  if (!loja) {
+    const erro = new Error("Loja não encontrada");
+    erro.status = 404;
+    throw erro;
+  }
+
+  const registrosDinheiro = await RegistroDinheiro.findAll({
+    where: {
+      lojaId,
+      inicio: { [Op.lte]: fim },
+      fim: { [Op.gte]: inicio },
+    },
+    raw: true,
+  });
+
+  const movimentacoes = await Movimentacao.findAll({
+    where: {
+      dataColeta: {
+        [Op.between]: [inicio, fim],
+      },
+    },
+    include: [
+      {
+        model: Maquina,
+        as: "maquina",
+        where: { lojaId },
+        attributes: ["id", "codigo", "nome"],
+      },
+      {
+        model: MovimentacaoProduto,
+        as: "detalhesProdutos",
+        include: [
+          {
+            model: Produto,
+            as: "produto",
+            attributes: ["id", "nome", "codigo", "emoji", "custoUnitario"],
+          },
+        ],
+      },
+    ],
+    order: [["dataColeta", "DESC"]],
+  });
+
+  let valorTotalLoja = 0;
+  let valorDinheiroLoja = 0;
+  let valorCartaoPixLoja = 0;
+  let gastoTotalPeriodoSalvo = 0;
+  registrosDinheiro.forEach((r) => {
+    if (r.registrarTotalLoja) {
+      valorTotalLoja +=
+        parseFloat(r.valorDinheiro || 0) + parseFloat(r.valorCartaoPix || 0);
+      valorDinheiroLoja += parseFloat(r.valorDinheiro || 0);
+      valorCartaoPixLoja += parseFloat(r.valorCartaoPix || 0);
+      gastoTotalPeriodoSalvo += parseFloat(
+        r.gastoTotalPeriodo ?? r.gasto_total_periodo ?? 0,
+      );
+    }
+  });
+
+  const valorTotalLojaBruto = Number(valorTotalLoja.toFixed(2));
+  const gastoFixoTotalPeriodo = await calcularGastoFixoProporcionalPeriodo(
+    lojaId,
+    inicio,
+    fim,
+  );
+  const gastoVariavelTotalPeriodo = await calcularGastoVariavelPeriodo(
+    lojaId,
+    inicio,
+    fim,
+  );
+
+  const valoresPorMaquina = {};
+  registrosDinheiro.forEach((r) => {
+    if (!r.registrarTotalLoja && r.maquinaId) {
+      if (!valoresPorMaquina[r.maquinaId]) {
+        valoresPorMaquina[r.maquinaId] = { dinheiro: 0, cartaoPix: 0 };
+      }
+
+      valoresPorMaquina[r.maquinaId].dinheiro += parseFloat(
+        r.valorDinheiro || 0,
+      );
+      valoresPorMaquina[r.maquinaId].cartaoPix += parseFloat(
+        r.valorCartaoPix || 0,
+      );
+    }
+  });
+
+  const totalFichas = movimentacoes.reduce(
+    (sum, m) => sum + (m.fichas || 0),
+    0,
+  );
+  const totalSairam = movimentacoes.reduce(
+    (sum, m) => sum + (m.sairam || 0),
+    0,
+  );
+  const totalAbastecidas = movimentacoes.reduce(
+    (sum, m) => sum + (m.abastecidas || 0),
+    0,
+  );
+
+  const produtosSairamMap = {};
+  const produtosEntraramMap = {};
+  const dadosPorMaquina = {};
+
+  movimentacoes.forEach((mov) => {
+    mov.detalhesProdutos?.forEach((mp) => {
+      if (mp.quantidadeSaiu > 0) {
+        const key = mp.produtoId;
+        if (!produtosSairamMap[key]) {
+          produtosSairamMap[key] = { produto: mp.produto, quantidade: 0 };
+        }
+        produtosSairamMap[key].quantidade += mp.quantidadeSaiu;
+      }
+
+      if (mp.quantidadeAbastecida > 0) {
+        const key = mp.produtoId;
+        if (!produtosEntraramMap[key]) {
+          produtosEntraramMap[key] = { produto: mp.produto, quantidade: 0 };
+        }
+        produtosEntraramMap[key].quantidade += mp.quantidadeAbastecida;
+      }
+    });
+
+    const maquinaId = mov.maquina.id;
+    if (!dadosPorMaquina[maquinaId]) {
+      dadosPorMaquina[maquinaId] = {
+        maquina: {
+          id: mov.maquina.id,
+          codigo: mov.maquina.codigo,
+          nome: mov.maquina.nome,
+        },
+        fichas: 0,
+        totalSairam: 0,
+        totalAbastecidas: 0,
+        numMovimentacoes: 0,
+        produtosSairam: {},
+        produtosEntraram: {},
+      };
+    }
+
+    dadosPorMaquina[maquinaId].fichas += mov.fichas || 0;
+    dadosPorMaquina[maquinaId].totalSairam += mov.sairam || 0;
+    dadosPorMaquina[maquinaId].totalAbastecidas += mov.abastecidas || 0;
+    dadosPorMaquina[maquinaId].numMovimentacoes += 1;
+
+    mov.detalhesProdutos?.forEach((mp) => {
+      if (mp.quantidadeSaiu > 0) {
+        const key = mp.produtoId;
+        if (!dadosPorMaquina[maquinaId].produtosSairam[key]) {
+          dadosPorMaquina[maquinaId].produtosSairam[key] = {
+            produto: mp.produto,
+            quantidade: 0,
+          };
+        }
+        dadosPorMaquina[maquinaId].produtosSairam[key].quantidade +=
+          mp.quantidadeSaiu;
+      }
+
+      if (mp.quantidadeAbastecida > 0) {
+        const key = mp.produtoId;
+        if (!dadosPorMaquina[maquinaId].produtosEntraram[key]) {
+          dadosPorMaquina[maquinaId].produtosEntraram[key] = {
+            produto: mp.produto,
+            quantidade: 0,
+          };
+        }
+        dadosPorMaquina[maquinaId].produtosEntraram[key].quantidade +=
+          mp.quantidadeAbastecida;
+      }
+    });
+  });
+
+  const produtosSairam = Object.values(produtosSairamMap).sort(
+    (a, b) => b.quantidade - a.quantidade,
+  );
+
+  const produtosEntraram = Object.values(produtosEntraramMap).sort(
+    (a, b) => b.quantidade - a.quantidade,
+  );
+
+  const maquinasDetalhadas = Object.values(dadosPorMaquina).map((m) => {
+    let custoProdutosSairam = 0;
+    const produtosSairamDetalhados = Object.values(m.produtosSairam)
+      .map((p) => {
+        let custoUnitario = 0;
+        if (p.produto.custoUnitario && Number(p.produto.custoUnitario) > 0) {
+          custoUnitario = Number(p.produto.custoUnitario);
+        } else if (p.produto.preco && Number(p.produto.preco) > 0) {
+          custoUnitario = Number(p.produto.preco);
+        }
+        const custoTotal = custoUnitario * p.quantidade;
+        custoProdutosSairam += custoTotal;
+        return {
+          id: p.produto.id,
+          nome: p.produto.nome,
+          codigo: p.produto.codigo,
+          emoji: p.produto.emoji,
+          quantidade: p.quantidade,
+          custoUnitario,
+          custoTotal,
+        };
+      })
+      .sort((a, b) => b.quantidade - a.quantidade);
+
+    const produtosEntraramDetalhados = Object.values(m.produtosEntraram)
+      .map((p) => ({
+        id: p.produto.id,
+        nome: p.produto.nome,
+        codigo: p.produto.codigo,
+        emoji: p.produto.emoji,
+        quantidade: p.quantidade,
+      }))
+      .sort((a, b) => b.quantidade - a.quantidade);
+
+    const valorFicha = m.maquina.valorFicha
+      ? Number(m.maquina.valorFicha)
+      : 2.5;
+    const lucroBruto =
+      (valoresPorMaquina[m.maquina.id]?.dinheiro || 0) +
+      (valoresPorMaquina[m.maquina.id]?.cartaoPix || 0) +
+      (m.fichas || 0) * valorFicha;
+    const lucroLiquido = lucroBruto - custoProdutosSairam;
+
+    return {
+      maquina: m.maquina,
+      totais: {
+        fichas: m.fichas,
+        produtosSairam: m.totalSairam,
+        produtosEntraram: m.totalAbastecidas,
+        movimentacoes: m.numMovimentacoes,
+        dinheiro: valoresPorMaquina[m.maquina.id]?.dinheiro || 0,
+        cartaoPix: valoresPorMaquina[m.maquina.id]?.cartaoPix || 0,
+        custoProdutosSairam,
+        lucroLiquido,
+      },
+      produtosSairam: produtosSairamDetalhados,
+      produtosEntraram: produtosEntraramDetalhados,
+    };
+  });
+
+  const gastoProdutosTotalPeriodo = Number(
+    maquinasDetalhadas
+      .reduce((acc, m) => acc + Number(m.totais?.custoProdutosSairam || 0), 0)
+      .toFixed(2),
+  );
+
+  const gastoTotalPeriodo = Number(gastoTotalPeriodoSalvo.toFixed(2));
+  const valorTotalLojaLiquido = Number(
+    (valorTotalLojaBruto - gastoTotalPeriodo).toFixed(2),
+  );
+
+  let valorMedioFicha = 2.5;
+  if (Object.values(dadosPorMaquina).length > 0) {
+    const somaValorFicha = Object.values(dadosPorMaquina).reduce((acc, m) => {
+      const v = m.maquina.valorFicha ? Number(m.maquina.valorFicha) : 2.5;
+      return acc + v;
+    }, 0);
+    valorMedioFicha = somaValorFicha / Object.values(dadosPorMaquina).length;
+  }
+
+  const valorFichasReais = totalFichas * valorMedioFicha;
+  const valorTotal = valorTotalLojaBruto;
+  const diferenca = valorFichasReais - valorTotal;
+  let avisoFichas = null;
+
+  if (Math.abs(diferenca) > 0.01) {
+    avisoFichas = `Atenção: diferença entre valor das fichas em reais (R$ ${valorFichasReais.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}) e valor total da loja (R$ ${valorTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}). Diferença: R$ ${diferenca.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
+  }
+
+  const graficoSaidaPorMaquina = maquinasDetalhadas.map((m) => ({
+    maquina: m.maquina.nome,
+    produtosSairam: m.totais.produtosSairam,
+  }));
+
+  const graficoSaidaPorProduto = produtosSairam.map((p) => ({
+    produto: p.produto.nome,
+    quantidade: p.quantidade,
+  }));
+
+  return {
+    loja: {
+      id: loja.id,
+      nome: loja.nome,
+      endereco: loja.endereco,
+    },
+    periodo: {
+      inicio: inicio.toISOString(),
+      fim: fim.toISOString(),
+    },
+    totais: {
+      fichas: totalFichas,
+      produtosSairam: totalSairam,
+      produtosEntraram: totalAbastecidas,
+      movimentacoes: movimentacoes.length,
+      valorTotalLoja: valorTotalLojaLiquido,
+      valorTotalLojaBruto,
+      valorTotalLojaLiquido,
+      gastoFixoTotalPeriodo,
+      gastoVariavelTotalPeriodo,
+      gastoProdutosTotalPeriodo,
+      gastoTotalPeriodo,
+      valorDinheiroLoja,
+      valorCartaoPixLoja,
+    },
+    produtosSairam: produtosSairam.map((p) => ({
+      id: p.produto.id,
+      nome: p.produto.nome,
+      codigo: p.produto.codigo,
+      emoji: p.produto.emoji,
+      quantidade: p.quantidade,
+    })),
+    produtosEntraram: produtosEntraram.map((p) => ({
+      id: p.produto.id,
+      nome: p.produto.nome,
+      codigo: p.produto.codigo,
+      emoji: p.produto.emoji,
+      quantidade: p.quantidade,
+    })),
+    maquinas: maquinasDetalhadas,
+    graficoSaidaPorMaquina,
+    graficoSaidaPorProduto,
+    avisoFichas,
+  };
+};
+
 export const relatorioImpressao = async (req, res) => {
   try {
     const { lojaId, dataInicio, dataFim } = req.query;
@@ -773,344 +1108,217 @@ export const relatorioImpressao = async (req, res) => {
         .json({ error: "dataInicio e dataFim são obrigatórios" });
     }
 
-    const inicio = new Date(dataInicio);
-    const fim = new Date(dataFim);
-    fim.setHours(23, 59, 59, 999);
+    const relatorio = await gerarRelatorioImpressaoPorLoja({
+      lojaId,
+      dataInicio,
+      dataFim,
+    });
 
-    const loja = await Loja.findByPk(lojaId);
-    if (!loja) {
-      return res.status(404).json({ error: "Loja não encontrada" });
+    return res.json(relatorio);
+  } catch (error) {
+    if (error.status) {
+      return res.status(error.status).json({ error: error.message });
     }
 
-    // Buscar registros de dinheiro da loja e máquinas
-    const registrosDinheiro = await RegistroDinheiro.findAll({
-      where: {
-        lojaId,
-        inicio: { [Op.lte]: fim },
-        fim: { [Op.gte]: inicio },
-      },
-      raw: true,
+    console.error("Erro ao gerar relatório de impressão:", error);
+    return res.status(500).json({
+      error: "Erro ao gerar relatório de impressão",
+      message:
+        process.env.NODE_ENV === "development" ? error.message : undefined,
     });
+  }
+};
 
-    // Buscar movimentações normalmente
-    const movimentacoes = await Movimentacao.findAll({
-      where: {
-        dataColeta: {
-          [Op.between]: [inicio, fim],
-        },
-      },
-      include: [
-        {
-          model: Maquina,
-          as: "maquina",
-          where: { lojaId },
-          attributes: ["id", "codigo", "nome"],
-        },
-        {
-          model: MovimentacaoProduto,
-          as: "detalhesProdutos",
-          include: [
-            {
-              model: Produto,
-              as: "produto",
-              attributes: ["id", "nome", "codigo", "emoji", "custoUnitario"],
-            },
-          ],
-        },
-      ],
-      order: [["dataColeta", "DESC"]],
-    });
+export const relatorioTodasLojas = async (req, res) => {
+  try {
+    const { dataInicio, dataFim } = req.query;
 
-    // Consolidar valores de RegistroDinheiro
-    let valorTotalLoja = 0;
-    let valorDinheiroLoja = 0;
-    let valorCartaoPixLoja = 0;
-    let gastoTotalPeriodoSalvo = 0;
-    registrosDinheiro.forEach((r) => {
-      if (r.registrarTotalLoja) {
-        valorTotalLoja +=
-          parseFloat(r.valorDinheiro || 0) + parseFloat(r.valorCartaoPix || 0);
-        valorDinheiroLoja += parseFloat(r.valorDinheiro || 0);
-        valorCartaoPixLoja += parseFloat(r.valorCartaoPix || 0);
-        gastoTotalPeriodoSalvo += parseFloat(
-          r.gastoTotalPeriodo ?? r.gasto_total_periodo ?? 0,
-        );
-      }
-    });
+    if (!dataInicio || !dataFim) {
+      return res
+        .status(400)
+        .json({ error: "dataInicio e dataFim são obrigatórios" });
+    }
 
-    const valorTotalLojaBruto = Number(valorTotalLoja.toFixed(2));
-    const gastoFixoTotalPeriodo = await calcularGastoFixoProporcionalPeriodo(
-      lojaId,
-      inicio,
-      fim,
-    );
-    const gastoVariavelTotalPeriodo = await calcularGastoVariavelPeriodo(
-      lojaId,
-      inicio,
-      fim,
+    const lojas = await Loja.findAll({ where: { ativo: true }, raw: true });
+
+    const respostas = await Promise.allSettled(
+      lojas.map((loja) =>
+        gerarRelatorioImpressaoPorLoja({
+          lojaId: loja.id,
+          dataInicio,
+          dataFim,
+        }),
+      ),
     );
 
-    // Consolidar valores por máquina
-    const valoresPorMaquina = {};
-    registrosDinheiro.forEach((r) => {
-      if (!r.registrarTotalLoja && r.maquinaId) {
-        if (!valoresPorMaquina[r.maquinaId])
-          valoresPorMaquina[r.maquinaId] = { dinheiro: 0, cartaoPix: 0 };
-        valoresPorMaquina[r.maquinaId].dinheiro += parseFloat(
-          r.valorDinheiro || 0,
-        );
-        valoresPorMaquina[r.maquinaId].cartaoPix += parseFloat(
-          r.valorCartaoPix || 0,
-        );
-      }
-    });
-
-    // Calcular totais
-    const totalFichas = movimentacoes.reduce(
-      (sum, m) => sum + (m.fichas || 0),
-      0,
-    );
-    const totalSairam = movimentacoes.reduce(
-      (sum, m) => sum + (m.sairam || 0),
-      0,
-    );
-    const totalAbastecidas = movimentacoes.reduce(
-      (sum, m) => sum + (m.abastecidas || 0),
-      0,
-    );
-
-    // Consolidar produtos
-    const produtosSairamMap = {};
-    const produtosEntraramMap = {};
-    const dadosPorMaquina = {};
-
-    movimentacoes.forEach((mov) => {
-      // Agregação Global Produtos
-      mov.detalhesProdutos?.forEach((mp) => {
-        if (mp.quantidadeSaiu > 0) {
-          const key = mp.produtoId;
-          if (!produtosSairamMap[key]) {
-            produtosSairamMap[key] = { produto: mp.produto, quantidade: 0 };
-          }
-          produtosSairamMap[key].quantidade += mp.quantidadeSaiu;
-        }
-        if (mp.quantidadeAbastecida > 0) {
-          const key = mp.produtoId;
-          if (!produtosEntraramMap[key]) {
-            produtosEntraramMap[key] = { produto: mp.produto, quantidade: 0 };
-          }
-          produtosEntraramMap[key].quantidade += mp.quantidadeAbastecida;
-        }
-      });
-
-      // Agregação Por Máquina
-      const maquinaId = mov.maquina.id;
-      if (!dadosPorMaquina[maquinaId]) {
-        dadosPorMaquina[maquinaId] = {
-          maquina: {
-            id: mov.maquina.id,
-            codigo: mov.maquina.codigo,
-            nome: mov.maquina.nome,
-          },
-          fichas: 0,
-          totalSairam: 0,
-          totalAbastecidas: 0,
-          numMovimentacoes: 0,
-          produtosSairam: {},
-          produtosEntraram: {},
+    const relatoriosPorLoja = respostas
+      .map((resposta, index) => {
+        if (resposta.status !== "fulfilled") return null;
+        return {
+          loja: lojas[index],
+          dados: resposta.value,
         };
-      }
+      })
+      .filter(Boolean);
 
-      dadosPorMaquina[maquinaId].fichas += mov.fichas || 0;
-      dadosPorMaquina[maquinaId].totalSairam += mov.sairam || 0;
-      dadosPorMaquina[maquinaId].totalAbastecidas += mov.abastecidas || 0;
-      dadosPorMaquina[maquinaId].numMovimentacoes++;
-
-      mov.detalhesProdutos?.forEach((mp) => {
-        if (mp.quantidadeSaiu > 0) {
-          const key = mp.produtoId;
-          if (!dadosPorMaquina[maquinaId].produtosSairam[key]) {
-            dadosPorMaquina[maquinaId].produtosSairam[key] = {
-              produto: mp.produto,
-              quantidade: 0,
-            };
-          }
-          dadosPorMaquina[maquinaId].produtosSairam[key].quantidade +=
-            mp.quantidadeSaiu;
-        }
-        if (mp.quantidadeAbastecida > 0) {
-          const key = mp.produtoId;
-          if (!dadosPorMaquina[maquinaId].produtosEntraram[key]) {
-            dadosPorMaquina[maquinaId].produtosEntraram[key] = {
-              produto: mp.produto,
-              quantidade: 0,
-            };
-          }
-          dadosPorMaquina[maquinaId].produtosEntraram[key].quantidade +=
-            mp.quantidadeAbastecida;
-        }
+    if (!relatoriosPorLoja.length) {
+      return res.status(404).json({
+        error:
+          "Não foi possível gerar o relatório consolidado para o período selecionado.",
       });
-    });
+    }
 
-    const produtosSairam = Object.values(produtosSairamMap).sort(
-      (a, b) => b.quantidade - a.quantidade,
-    );
+    const lojasSemDados = respostas
+      .map((resposta, index) => {
+        if (resposta.status === "fulfilled") return null;
+        return lojas[index]?.nome || `Loja ${index + 1}`;
+      })
+      .filter(Boolean);
 
-    const produtosEntraram = Object.values(produtosEntraramMap).sort(
-      (a, b) => b.quantidade - a.quantidade,
-    );
+    const produtosMap = new Map();
 
-    // Formatar dados por máquina, incluindo valores de dinheiro/cartão/pix
-    const maquinasDetalhadas = Object.values(dadosPorMaquina).map((m) => {
-      // Calcular custo total dos produtos que saíram nesta máquina
-      let custoProdutosSairam = 0;
-      const produtosSairamDetalhados = Object.values(m.produtosSairam)
-        .map((p) => {
-          let custoUnitario = 0;
-          if (p.produto.custoUnitario && Number(p.produto.custoUnitario) > 0) {
-            custoUnitario = Number(p.produto.custoUnitario);
-          } else if (p.produto.preco && Number(p.produto.preco) > 0) {
-            custoUnitario = Number(p.produto.preco);
-          }
-          const custoTotal = custoUnitario * p.quantidade;
-          custoProdutosSairam += custoTotal;
-          return {
-            id: p.produto.id,
-            nome: p.produto.nome,
-            codigo: p.produto.codigo,
-            emoji: p.produto.emoji,
-            quantidade: p.quantidade,
-            custoUnitario,
-            custoTotal,
-          };
-        })
-        .sort((a, b) => b.quantidade - a.quantidade);
+    const rankingLojas = relatoriosPorLoja.map(({ loja, dados }) => {
+      const totais = dados?.totais || {};
+      const lucroBruto = Number(
+        totais.valorTotalLojaBruto ??
+          Number(totais.valorDinheiroLoja || 0) +
+            Number(totais.valorCartaoPixLoja || 0),
+      );
+      const custoTotal = Number(totais.gastoTotalPeriodo || 0);
+      const custoVariavel = Number(totais.gastoVariavelTotalPeriodo || 0);
+      const custoProdutos = Number(totais.gastoProdutosTotalPeriodo || 0);
+      const custoFixo = Number(totais.gastoFixoTotalPeriodo || 0);
+      const dinheiro = Number(totais.valorDinheiroLoja || 0);
+      const cartaoPix = Number(totais.valorCartaoPixLoja || 0);
+      const lucroLiquido = lucroBruto - custoTotal;
 
-      const produtosEntraramDetalhados = Object.values(m.produtosEntraram)
-        .map((p) => ({
-          id: p.produto.id,
-          nome: p.produto.nome,
-          codigo: p.produto.codigo,
-          emoji: p.produto.emoji,
-          quantidade: p.quantidade,
-        }))
-        .sort((a, b) => b.quantidade - a.quantidade);
+      (dados?.produtosSairam || []).forEach((produto) => {
+        const id = String(produto.id ?? produto.codigo ?? produto.nome);
+        const existente = produtosMap.get(id);
+        const quantidade = Number(produto.quantidade || 0);
 
-      // Lucro bruto da máquina (dinheiro + cartaoPix + fichas*valorFicha)
-      const valorFicha = m.maquina.valorFicha
-        ? Number(m.maquina.valorFicha)
-        : 2.5;
-      const lucroBruto =
-        (valoresPorMaquina[m.maquina.id]?.dinheiro || 0) +
-        (valoresPorMaquina[m.maquina.id]?.cartaoPix || 0) +
-        (m.fichas || 0) * valorFicha;
-      const lucroLiquido = lucroBruto - custoProdutosSairam;
+        if (!existente) {
+          produtosMap.set(id, {
+            id,
+            nome: produto.nome || "Produto",
+            codigo: produto.codigo || "S/C",
+            emoji: produto.emoji || "📦",
+            quantidade,
+          });
+          return;
+        }
+
+        existente.quantidade += quantidade;
+      });
+
       return {
-        maquina: m.maquina,
-        totais: {
-          fichas: m.fichas,
-          produtosSairam: m.totalSairam,
-          produtosEntraram: m.totalAbastecidas,
-          movimentacoes: m.numMovimentacoes,
-          dinheiro: valoresPorMaquina[m.maquina.id]?.dinheiro || 0,
-          cartaoPix: valoresPorMaquina[m.maquina.id]?.cartaoPix || 0,
-          custoProdutosSairam,
-          lucroLiquido,
-        },
-        produtosSairam: produtosSairamDetalhados,
-        produtosEntraram: produtosEntraramDetalhados,
+        lojaId: loja?.id,
+        lojaNome: dados?.loja?.nome || loja?.nome || "Loja",
+        lucroBruto,
+        custoTotal,
+        custoVariavel,
+        custoProdutos,
+        custoFixo,
+        lucroLiquido,
+        dinheiro,
+        cartaoPix,
       };
     });
 
-    const gastoProdutosTotalPeriodo = Number(
-      maquinasDetalhadas
-        .reduce((acc, m) => acc + Number(m.totais?.custoProdutosSairam || 0), 0)
-        .toFixed(2),
-    );
-
-    const gastoTotalPeriodo = Number(gastoTotalPeriodoSalvo.toFixed(2));
-
-    const valorTotalLojaLiquido = Number(
-      (valorTotalLojaBruto - gastoTotalPeriodo).toFixed(2),
-    );
-
-    // Alerta: diferença entre valor das fichas (em reais) e valor total da loja
-    // Calcular valor médio da ficha das máquinas
-    let valorMedioFicha = 2.5;
-    if (Object.values(dadosPorMaquina).length > 0) {
-      const somaValorFicha = Object.values(dadosPorMaquina).reduce((acc, m) => {
-        // Se houver valorFicha na máquina, use, senão 2.5
-        const v = m.maquina.valorFicha ? Number(m.maquina.valorFicha) : 2.5;
-        return acc + v;
-      }, 0);
-      valorMedioFicha = somaValorFicha / Object.values(dadosPorMaquina).length;
-    }
-    const valorFichasReais = totalFichas * valorMedioFicha;
-    const valorTotal = valorTotalLojaBruto;
-    const diferenca = valorFichasReais - valorTotal;
-    let avisoFichas = null;
-    if (Math.abs(diferenca) > 0.01) {
-      avisoFichas = `Atenção: diferença entre valor das fichas em reais (R$ ${valorFichasReais.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}) e valor total da loja (R$ ${valorTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}). Diferença: R$ ${diferenca.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
-    }
-
-    // Dados para gráficos
-    const graficoSaidaPorMaquina = maquinasDetalhadas.map((m) => ({
-      maquina: m.maquina.nome,
-      produtosSairam: m.totais.produtosSairam,
-    }));
-    const graficoSaidaPorProduto = produtosSairam.map((p) => ({
-      produto: p.produto.nome,
-      quantidade: p.quantidade,
-    }));
-
-    res.json({
-      loja: {
-        id: loja.id,
-        nome: loja.nome,
-        endereco: loja.endereco,
+    const totais = rankingLojas.reduce(
+      (acc, loja) => {
+        acc.lucroBrutoTotal += loja.lucroBruto;
+        acc.lucroLiquidoTotal += loja.lucroLiquido;
+        acc.custoTotal += loja.custoTotal;
+        acc.custoVariavelTotal += loja.custoVariavel;
+        acc.custoProdutosTotal += loja.custoProdutos;
+        acc.custoFixoTotal += loja.custoFixo;
+        acc.dinheiroTotal += loja.dinheiro;
+        acc.cartaoPixTotal += loja.cartaoPix;
+        return acc;
       },
+      {
+        lucroBrutoTotal: 0,
+        lucroLiquidoTotal: 0,
+        custoTotal: 0,
+        custoVariavelTotal: 0,
+        custoProdutosTotal: 0,
+        custoFixoTotal: 0,
+        dinheiroTotal: 0,
+        cartaoPixTotal: 0,
+      },
+    );
+
+    const totalRecebimentos = totais.dinheiroTotal + totais.cartaoPixTotal;
+
+    const rankingLojasComParticipacao = rankingLojas.map((loja) => ({
+      ...loja,
+      participacaoLucroBruto:
+        totais.lucroBrutoTotal > 0
+          ? (loja.lucroBruto / totais.lucroBrutoTotal) * 100
+          : 0,
+    }));
+
+    const rankingProdutos = Array.from(produtosMap.values())
+      .sort((a, b) => b.quantidade - a.quantidade)
+      .slice(0, 15);
+
+    const rankingLucroLojas = [...rankingLojasComParticipacao]
+      .sort((a, b) => b.lucroBruto - a.lucroBruto)
+      .slice(0, 10);
+
+    const rankingGastoLojas = [...rankingLojasComParticipacao]
+      .sort((a, b) => b.custoTotal - a.custoTotal)
+      .slice(0, 10);
+
+    const participacaoLojas = [...rankingLojasComParticipacao]
+      .sort((a, b) => b.participacaoLucroBruto - a.participacaoLucroBruto)
+      .slice(0, 10);
+
+    return res.json({
+      tipo: "todas-lojas",
       periodo: {
-        inicio: inicio.toISOString(),
-        fim: fim.toISOString(),
+        inicio: dataInicio,
+        fim: dataFim,
       },
-      totais: {
-        fichas: totalFichas,
-        produtosSairam: totalSairam,
-        produtosEntraram: totalAbastecidas,
-        movimentacoes: movimentacoes.length,
-        valorTotalLoja: valorTotalLojaLiquido,
-        valorTotalLojaBruto,
-        valorTotalLojaLiquido,
-        gastoFixoTotalPeriodo,
-        gastoVariavelTotalPeriodo,
-        gastoProdutosTotalPeriodo,
-        gastoTotalPeriodo,
-        valorDinheiroLoja,
-        valorCartaoPixLoja,
+      totais,
+      destaques: {
+        lojaMaiorLucro: rankingLucroLojas[0] || null,
+        lojaMaiorGasto: rankingGastoLojas[0] || null,
+        lojaMaiorParticipacao: participacaoLojas[0] || null,
+        produtoMaisSaiu: rankingProdutos[0] || null,
       },
-      produtosSairam: produtosSairam.map((p) => ({
-        id: p.produto.id,
-        nome: p.produto.nome,
-        codigo: p.produto.codigo,
-        emoji: p.produto.emoji,
-        quantidade: p.quantidade,
-      })),
-      produtosEntraram: produtosEntraram.map((p) => ({
-        id: p.produto.id,
-        nome: p.produto.nome,
-        codigo: p.produto.codigo,
-        emoji: p.produto.emoji,
-        quantidade: p.quantidade,
-      })),
-      maquinas: maquinasDetalhadas,
-      graficoSaidaPorMaquina,
-      graficoSaidaPorProduto,
-      avisoFichas,
+      graficos: {
+        rankingLucroLojas,
+        rankingGastoLojas,
+        participacaoLojas,
+        rankingProdutos,
+        pagamento: [
+          {
+            metodo: "Dinheiro",
+            valor: totais.dinheiroTotal,
+            percentual:
+              totalRecebimentos > 0
+                ? (totais.dinheiroTotal / totalRecebimentos) * 100
+                : 0,
+          },
+          {
+            metodo: "Cartão / Pix",
+            valor: totais.cartaoPixTotal,
+            percentual:
+              totalRecebimentos > 0
+                ? (totais.cartaoPixTotal / totalRecebimentos) * 100
+                : 0,
+          },
+        ],
+      },
+      lojasSemDados,
+      lojasComDados: relatoriosPorLoja.length,
     });
   } catch (error) {
-    console.error("Erro ao gerar relatório de impressão:", error);
-    res.status(500).json({
-      error: "Erro ao gerar relatório de impressão",
+    console.error("Erro ao gerar relatório consolidado de lojas:", error);
+    return res.status(500).json({
+      error: "Erro ao gerar relatório consolidado de lojas",
       message:
         process.env.NODE_ENV === "development" ? error.message : undefined,
     });

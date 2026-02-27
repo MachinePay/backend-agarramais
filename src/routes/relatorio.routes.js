@@ -4,6 +4,7 @@ import {
   alertasEstoque,
   performanceMaquinas,
   relatorioImpressao,
+  relatorioTodasLojas,
   buscarAlertasDeInconsistencia,
   ignorarAlertaMovimentacao,
   dashboardRelatorio,
@@ -65,6 +66,12 @@ router.get(
   autenticar,
   autorizarRole("ADMIN"),
   relatorioImpressao,
+);
+router.get(
+  "/todas-lojas",
+  autenticar,
+  autorizarRole("ADMIN"),
+  relatorioTodasLojas,
 );
 router.get(
   "/dashboard",
