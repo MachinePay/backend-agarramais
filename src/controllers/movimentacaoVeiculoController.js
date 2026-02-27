@@ -62,6 +62,34 @@ export const registrarMovimentacaoVeiculo = async (req, res) => {
     if (!veiculoId || !tipo || !usuarioId) {
       return res.status(400).json({ error: "Dados obrigatórios ausentes." });
     }
+
+    const kmNumerico = Number(km);
+    const kmInvalido =
+      km === undefined ||
+      km === null ||
+      String(km).trim() === "" ||
+      !Number.isFinite(kmNumerico) ||
+      kmNumerico < 0;
+
+    if (kmInvalido) {
+      return res.status(400).json({
+        error:
+          "Quilometragem é obrigatória para retirada e devolução. Informe um valor válido de km.",
+      });
+    }
+
+    const veiculo = await Veiculo.findByPk(veiculoId);
+    if (!veiculo) {
+      return res.status(404).json({ error: "Veículo não encontrado." });
+    }
+
+    const kmAtualVeiculo = Number(veiculo.km || 0);
+    if (kmNumerico < kmAtualVeiculo) {
+      return res.status(400).json({
+        error: `A quilometragem informada (${kmNumerico}) não pode ser menor que a quilometragem atual do veículo (${kmAtualVeiculo}).`,
+      });
+    }
+
     const movimentacao = await MovimentacaoVeiculo.create({
       veiculoId,
       usuarioId,
@@ -72,8 +100,11 @@ export const registrarMovimentacaoVeiculo = async (req, res) => {
       estado,
       modo,
       obs,
-      km,
+      km: kmNumerico,
     });
+
+    await veiculo.update({ km: kmNumerico });
+
     res.status(201).json(movimentacao);
   } catch (error) {
     console.error("Erro ao registrar movimentação de veículo:", error);
