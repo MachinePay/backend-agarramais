@@ -1,4 +1,4 @@
-  import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import api from "../services/api";
 import { Navbar } from "../components/Navbar";
 import { Footer } from "../components/Footer";
@@ -579,6 +579,28 @@ export function Relatorios() {
                     Lucro Líquido
                   </div>
                 </div>
+                <div className="card bg-gradient-to-br from-indigo-500 to-indigo-700 text-white">
+                  <div className="text-2xl sm:text-3xl mb-2">🎯</div>
+                  <div className="text-xl sm:text-2xl font-bold">
+                    R${" "}
+                    {Number(
+                      relatorio.totais?.ticketPorPremioTotal || 0,
+                    ).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                  </div>
+                  <div className="text-xs sm:text-sm opacity-90">
+                    Ticket por Prêmio (Total)
+                  </div>
+                  <div className="text-[10px] sm:text-xs opacity-80 mt-1">
+                    Fórmula: Faturamento Bruto ÷ Produtos Saíram
+                  </div>
+                  <div className="text-[10px] sm:text-xs opacity-80 mt-1">
+                    {`R$ ${Number(
+                      relatorio.totais?.valorTotalLojaBruto || 0,
+                    ).toLocaleString("pt-BR", {
+                      minimumFractionDigits: 2,
+                    })} / ${(relatorio.totais?.produtosSairam || 0).toLocaleString("pt-BR")} saídas`}
+                  </div>
+                </div>
               </div>
             </div>
             {/* Detalhamento por máquina */}
@@ -637,7 +659,7 @@ export function Relatorios() {
                           Resumo de Movimentações desta Máquina
                         </span>
                       </h4>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2 sm:gap-4">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-9 gap-2 sm:gap-4">
                         {/* Fichas */}
                         <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-3 sm:p-5 rounded-xl shadow-lg">
                           <div className="text-2xl sm:text-4xl mb-1 sm:mb-2 text-center">
@@ -780,6 +802,34 @@ export function Relatorios() {
                           </div>
                           <div className="text-xs sm:text-sm text-center mt-1 sm:mt-2 opacity-90">
                             Lucro Líquido da Máquina
+                          </div>
+                        </div>
+                        <div className="bg-gradient-to-br from-indigo-600 to-blue-700 text-white p-3 sm:p-5 rounded-xl shadow-lg">
+                          <div className="text-2xl sm:text-4xl mb-1 sm:mb-2 text-center">
+                            🎯
+                          </div>
+                          <div className="text-xl sm:text-3xl font-bold text-center">
+                            R${" "}
+                            {Number(
+                              maquina.totais.ticketPorPremio || 0,
+                            ).toLocaleString("pt-BR", {
+                              minimumFractionDigits: 2,
+                            })}
+                          </div>
+                          <div className="text-xs sm:text-sm text-center mt-1 sm:mt-2 opacity-90">
+                            Ticket por Prêmio
+                          </div>
+                          <div className="text-[10px] sm:text-xs text-center mt-1 opacity-80">
+                            Faturamento Bruto ÷ Produtos Saíram
+                          </div>
+                          <div className="text-[10px] sm:text-xs text-center mt-1 opacity-80">
+                            {`R$ ${Number(
+                              maquina.totais.faturamentoBruto || 0,
+                            ).toLocaleString("pt-BR", {
+                              minimumFractionDigits: 2,
+                            })} / ${Number(
+                              maquina.totais.produtosSairam || 0,
+                            ).toLocaleString("pt-BR")} saídas`}
                           </div>
                         </div>
                       </div>

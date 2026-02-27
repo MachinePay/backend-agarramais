@@ -1133,6 +1133,10 @@ const gerarRelatorioImpressaoPorLoja = async ({
       (valoresPorMaquina[m.maquina.id]?.cartaoPix || 0) +
       (m.fichas || 0) * valorFicha;
     const lucroLiquido = lucroBruto - custoProdutosSairam;
+    const ticketPorPremio =
+      Number(m.totalSairam || 0) > 0
+        ? lucroBruto / Number(m.totalSairam || 0)
+        : 0;
 
     return {
       maquina: m.maquina,
@@ -1143,8 +1147,10 @@ const gerarRelatorioImpressaoPorLoja = async ({
         movimentacoes: m.numMovimentacoes,
         dinheiro: valoresPorMaquina[m.maquina.id]?.dinheiro || 0,
         cartaoPix: valoresPorMaquina[m.maquina.id]?.cartaoPix || 0,
+        faturamentoBruto: Number(lucroBruto.toFixed(2)),
         custoProdutosSairam,
         lucroLiquido,
+        ticketPorPremio: Number(ticketPorPremio.toFixed(2)),
       },
       produtosSairam: produtosSairamDetalhados,
       produtosEntraram: produtosEntraramDetalhados,
@@ -1161,6 +1167,10 @@ const gerarRelatorioImpressaoPorLoja = async ({
   const valorTotalLojaLiquido = Number(
     (valorTotalLojaBruto - gastoTotalPeriodo).toFixed(2),
   );
+  const ticketPorPremioTotal =
+    Number(totalSairam || 0) > 0
+      ? Number((valorTotalLojaBruto / Number(totalSairam || 0)).toFixed(2))
+      : 0;
 
   let valorMedioFicha = 2.5;
   if (Object.values(dadosPorMaquina).length > 0) {
@@ -1214,6 +1224,7 @@ const gerarRelatorioImpressaoPorLoja = async ({
       gastoTotalPeriodo,
       valorDinheiroLoja,
       valorCartaoPixLoja,
+      ticketPorPremioTotal,
     },
     produtosSairam: produtosSairam.map((p) => ({
       id: p.produto.id,
