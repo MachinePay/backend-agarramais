@@ -205,7 +205,7 @@ export const dashboardRelatorio = async (req, res) => {
     const dinheiro = parseFloat(totaisDados.dinheiro || 0);
     const pix = parseFloat(totaisDados.pix || 0);
 
-    // --- QUERY 2: CUSTO TOTAL ---
+    // --- QUERY 2: CUSTO DE PRODUTOS (TOTAL E DIÁRIO) ---
     const itensVendidos = await MovimentacaoProduto.findAll({
       attributes: ["quantidadeSaiu"],
       include: [
@@ -232,12 +232,84 @@ export const dashboardRelatorio = async (req, res) => {
       nest: true,
     });
 
-    const custoTotal = itensVendidos.reduce((acc, item) => {
+    const custoProdutosTotal = itensVendidos.reduce((acc, item) => {
       const qtd = item.quantidadeSaiu || 0;
       const custo = parseFloat(item.produto?.custoUnitario || 0);
       return acc + qtd * custo;
     }, 0);
 
+    const itensVendidosPorDia = await MovimentacaoProduto.findAll({
+      attributes: ["quantidadeSaiu"],
+      include: [
+        {
+          model: Produto,
+          as: "produto",
+          attributes: ["custoUnitario"],
+        },
+        {
+          model: Movimentacao,
+          attributes: ["dataColeta"],
+          where: whereMovimentacao,
+          include: [
+            {
+              model: Maquina,
+              as: "maquina",
+              where: whereMaquina,
+              attributes: [],
+            },
+          ],
+        },
+      ],
+      raw: true,
+      nest: true,
+    });
+
+    const custoProdutosPorDia = new Map();
+    itensVendidosPorDia.forEach((item) => {
+      const dataColeta = item.Movimentacao?.dataColeta;
+      if (!dataColeta) return;
+
+      const chaveData = new Date(dataColeta).toISOString().slice(0, 10);
+      const qtd = Number(item.quantidadeSaiu || 0);
+      const custoUnitario = Number(item.produto?.custoUnitario || 0);
+      const custoItem = qtd * custoUnitario;
+
+      custoProdutosPorDia.set(
+        chaveData,
+        Number(custoProdutosPorDia.get(chaveData) || 0) + custoItem,
+      );
+    });
+
+    let custoFixoPeriodo = 0;
+    let custoVariavelPeriodo = 0;
+    if (lojaId) {
+      custoFixoPeriodo = await calcularGastoFixoProporcionalPeriodo(
+        lojaId,
+        inicio,
+        fim,
+      );
+      custoVariavelPeriodo = await calcularGastoVariavelPeriodo(
+        lojaId,
+        inicio,
+        fim,
+      );
+    }
+
+    const diasNoPeriodo =
+      Math.floor(
+        (inicioDoDia(fim).getTime() - inicioDoDia(inicio).getTime()) /
+          DAY_IN_MS,
+      ) + 1;
+    const custoRateadoDiario =
+      diasNoPeriodo > 0
+        ? (Number(custoFixoPeriodo || 0) + Number(custoVariavelPeriodo || 0)) /
+          diasNoPeriodo
+        : 0;
+
+    const custoTotal =
+      Number(custoProdutosTotal || 0) +
+      Number(custoFixoPeriodo || 0) +
+      Number(custoVariavelPeriodo || 0);
     const lucro = faturamento - custoTotal;
 
     // --- QUERY 3: GRÁFICO FINANCEIRO ---
@@ -332,21 +404,49 @@ export const dashboardRelatorio = async (req, res) => {
       quantidade: parseInt(r.quantidade || 0),
     }));
 
+    const faturamentoPorDia = new Map(
+      timelineRaw.map((t) => [
+        String(t.data).slice(0, 10),
+        Number(parseFloat(t.faturamento || 0)),
+      ]),
+    );
+
+    const cursor = inicioDoDia(new Date(inicio));
+    const fimDia = inicioDoDia(new Date(fim));
+    const graficoFinanceiro = [];
+
+    while (cursor <= fimDia) {
+      const chaveData = cursor.toISOString().slice(0, 10);
+      const faturamentoDia = Number(faturamentoPorDia.get(chaveData) || 0);
+      const custoProdutosDia = Number(custoProdutosPorDia.get(chaveData) || 0);
+      const custoDia = Number(custoProdutosDia + custoRateadoDiario);
+      const lucroDia = Number(faturamentoDia - custoDia);
+
+      graficoFinanceiro.push({
+        data: chaveData,
+        faturamento: Number(faturamentoDia.toFixed(2)),
+        custo: Number(custoDia.toFixed(2)),
+        lucro: Number(lucroDia.toFixed(2)),
+      });
+
+      cursor.setDate(cursor.getDate() + 1);
+    }
+
     // --- RESPOSTA FINAL ---
     res.json({
       totais: {
         faturamento,
         lucro,
+        custoTotal,
+        custoProdutosTotal,
+        custoFixoPeriodo,
+        custoVariavelPeriodo,
         saidas,
         fichas,
         dinheiro,
         pix,
       },
-      graficoFinanceiro: timelineRaw.map((t) => ({
-        data: t.data,
-        faturamento: parseFloat(t.faturamento || 0),
-        custo: 0,
-      })),
+      graficoFinanceiro,
       performanceMaquinas,
       rankingProdutos,
     });
