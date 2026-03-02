@@ -16,6 +16,8 @@ import Veiculo from "./Veiculo.js";
 import RegistroDinheiro from "./RegistroDinheiro.js";
 import GastoFixoLoja from "./GastoFixoLoja.js";
 import GastoTotalFixoLoja from "./GastoTotalFixoLoja.js";
+import Manutencao from "./Manutencao.js";
+import ManutencaoUsuario from "./ManutencaoUsuario.js";
 // Movimentação de Veículo -> Veículo e Usuário
 MovimentacaoVeiculo.belongsTo(Veiculo, {
   as: "veiculo",
@@ -169,6 +171,48 @@ GastoTotalFixoLoja.belongsTo(Loja, {
   as: "loja",
 });
 
+Usuario.hasMany(Manutencao, {
+  foreignKey: "criadoPorId",
+  as: "manutencoesCriadas",
+});
+Manutencao.belongsTo(Usuario, {
+  foreignKey: "criadoPorId",
+  as: "criadoPor",
+});
+
+Usuario.hasMany(Manutencao, {
+  foreignKey: "resolvidoPorId",
+  as: "manutencoesResolvidas",
+});
+Manutencao.belongsTo(Usuario, {
+  foreignKey: "resolvidoPorId",
+  as: "resolvidoPor",
+});
+
+Manutencao.belongsToMany(Usuario, {
+  through: ManutencaoUsuario,
+  foreignKey: "manutencaoId",
+  otherKey: "usuarioId",
+  as: "funcionariosPermitidos",
+});
+
+Usuario.belongsToMany(Manutencao, {
+  through: ManutencaoUsuario,
+  foreignKey: "usuarioId",
+  otherKey: "manutencaoId",
+  as: "manutencoesPermitidas",
+});
+
+Manutencao.hasMany(ManutencaoUsuario, {
+  foreignKey: "manutencaoId",
+  as: "vinculosUsuarios",
+});
+ManutencaoUsuario.belongsTo(Manutencao, { foreignKey: "manutencaoId" });
+ManutencaoUsuario.belongsTo(Usuario, {
+  foreignKey: "usuarioId",
+  as: "usuario",
+});
+
 export {
   Usuario,
   Loja,
@@ -188,4 +232,6 @@ export {
   GastoVariavel,
   GastoFixoLoja,
   GastoTotalFixoLoja,
+  Manutencao,
+  ManutencaoUsuario,
 };
