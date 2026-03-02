@@ -223,6 +223,7 @@ export const dashboardRelatorio = async (req, res) => {
 
     let dinheiro = dinheiroMovimentacao;
     let pix = pixMovimentacao;
+    let taxaDeCartao = 0;
 
     if (lojaId) {
       const registrosDinheiro = await RegistroDinheiro.findAll({
@@ -257,10 +258,27 @@ export const dashboardRelatorio = async (req, res) => {
         0,
       );
 
+      const taxaRegistro = baseRegistros.reduce(
+        (acc, registro) =>
+          acc +
+          Number(
+            registro.taxaDeCartao ??
+              registro.taxa_de_cartao ??
+              Math.max(
+                Number(registro.valorCartaoPix || 0) -
+                  Number(registro.valorCartaoPixLiquido || 0),
+                0,
+              ),
+          ),
+        0,
+      );
+
       if (dinheiroRegistro > 0 || cartaoPixRegistro > 0) {
         dinheiro = dinheiroRegistro;
         pix = cartaoPixRegistro;
       }
+
+      taxaDeCartao = Number(taxaRegistro.toFixed(2));
     }
 
     // --- QUERY 2: CUSTO DE PRODUTOS (TOTAL E DIÁRIO) ---
@@ -367,7 +385,8 @@ export const dashboardRelatorio = async (req, res) => {
     const custoTotal =
       Number(custoProdutosTotal || 0) +
       Number(custoFixoPeriodo || 0) +
-      Number(custoVariavelPeriodo || 0);
+      Number(custoVariavelPeriodo || 0) +
+      Number(taxaDeCartao || 0);
     const lucro = faturamento - custoTotal;
 
     // --- QUERY 3: GRÁFICO FINANCEIRO ---
@@ -499,6 +518,7 @@ export const dashboardRelatorio = async (req, res) => {
         custoProdutosTotal,
         custoFixoPeriodo,
         custoVariavelPeriodo,
+        taxaDeCartao,
         saidas,
         fichas,
         dinheiro,
@@ -973,6 +993,7 @@ const gerarRelatorioImpressaoPorLoja = async ({
   let valorTotalLoja = 0;
   let valorDinheiroLoja = 0;
   let valorCartaoPixLoja = 0;
+  let taxaDeCartaoTotal = 0;
   let gastoTotalPeriodoSalvo = 0;
   registrosDinheiro.forEach((r) => {
     if (r.registrarTotalLoja) {
@@ -980,6 +1001,15 @@ const gerarRelatorioImpressaoPorLoja = async ({
         parseFloat(r.valorDinheiro || 0) + parseFloat(r.valorCartaoPix || 0);
       valorDinheiroLoja += parseFloat(r.valorDinheiro || 0);
       valorCartaoPixLoja += parseFloat(r.valorCartaoPix || 0);
+      taxaDeCartaoTotal += parseFloat(
+        r.taxaDeCartao ??
+          r.taxa_de_cartao ??
+          Math.max(
+            parseFloat(r.valorCartaoPix || 0) -
+              parseFloat(r.valorCartaoPixLiquido || 0),
+            0,
+          ),
+      );
       gastoTotalPeriodoSalvo += parseFloat(
         r.gastoTotalPeriodo ?? r.gasto_total_periodo ?? 0,
       );
@@ -1180,8 +1210,9 @@ const gerarRelatorioImpressaoPorLoja = async ({
   );
 
   const gastoTotalPeriodo = Number(gastoTotalPeriodoSalvo.toFixed(2));
+  const taxaDeCartaoPeriodo = Number(taxaDeCartaoTotal.toFixed(2));
   const valorTotalLojaLiquido = Number(
-    (valorTotalLojaBruto - gastoTotalPeriodo).toFixed(2),
+    (valorTotalLojaBruto - gastoTotalPeriodo - taxaDeCartaoPeriodo).toFixed(2),
   );
   const ticketPorPremioTotal =
     Number(totalSairam || 0) > 0
@@ -1238,6 +1269,7 @@ const gerarRelatorioImpressaoPorLoja = async ({
       gastoVariavelTotalPeriodo,
       gastoProdutosTotalPeriodo,
       gastoTotalPeriodo,
+      taxaDeCartao: taxaDeCartaoPeriodo,
       valorDinheiroLoja,
       valorCartaoPixLoja,
       ticketPorPremioTotal,
@@ -1354,12 +1386,13 @@ export const relatorioTodasLojas = async (req, res) => {
             Number(totais.valorCartaoPixLoja || 0),
       );
       const custoTotal = Number(totais.gastoTotalPeriodo || 0);
+      const taxaDeCartao = Number(totais.taxaDeCartao || 0);
       const custoVariavel = Number(totais.gastoVariavelTotalPeriodo || 0);
       const custoProdutos = Number(totais.gastoProdutosTotalPeriodo || 0);
       const custoFixo = Number(totais.gastoFixoTotalPeriodo || 0);
       const dinheiro = Number(totais.valorDinheiroLoja || 0);
       const cartaoPix = Number(totais.valorCartaoPixLoja || 0);
-      const lucroLiquido = lucroBruto - custoTotal;
+      const lucroLiquido = lucroBruto - custoTotal - taxaDeCartao;
 
       (dados?.produtosSairam || []).forEach((produto) => {
         const id = String(produto.id ?? produto.codigo ?? produto.nome);
@@ -1388,6 +1421,7 @@ export const relatorioTodasLojas = async (req, res) => {
         custoVariavel,
         custoProdutos,
         custoFixo,
+        taxaDeCartao,
         lucroLiquido,
         dinheiro,
         cartaoPix,
@@ -1402,6 +1436,7 @@ export const relatorioTodasLojas = async (req, res) => {
         acc.custoVariavelTotal += loja.custoVariavel;
         acc.custoProdutosTotal += loja.custoProdutos;
         acc.custoFixoTotal += loja.custoFixo;
+        acc.taxaDeCartaoTotal += loja.taxaDeCartao;
         acc.dinheiroTotal += loja.dinheiro;
         acc.cartaoPixTotal += loja.cartaoPix;
         return acc;
@@ -1413,6 +1448,7 @@ export const relatorioTodasLojas = async (req, res) => {
         custoVariavelTotal: 0,
         custoProdutosTotal: 0,
         custoFixoTotal: 0,
+        taxaDeCartaoTotal: 0,
         dinheiroTotal: 0,
         cartaoPixTotal: 0,
       },

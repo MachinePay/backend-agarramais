@@ -250,6 +250,7 @@ const registroDinheiroController = {
         fim,
         valorDinheiro,
         valorCartaoPix,
+        valorCartaoPixLiquido,
         observacoes,
         gastosVariaveis = [],
       } = req.body;
@@ -317,6 +318,16 @@ const registroDinheiroController = {
         ).toFixed(2),
       );
 
+      const valorCartaoPixNumero = normalizarValorMonetario(valorCartaoPix);
+      const valorCartaoPixLiquidoNumero = normalizarValorMonetario(
+        valorCartaoPixLiquido,
+      );
+      const taxaDeCartao = Number(
+        Math.max(valorCartaoPixNumero - valorCartaoPixLiquidoNumero, 0).toFixed(
+          2,
+        ),
+      );
+
       const dadosRegistro = {
         lojaId: loja,
         maquinaId: registrarTotalLoja ? null : maquina || null,
@@ -325,6 +336,8 @@ const registroDinheiroController = {
         fim,
         valorDinheiro: valorDinheiro || 0,
         valorCartaoPix: valorCartaoPix || 0,
+        valorCartaoPixLiquido: valorCartaoPixLiquido || 0,
+        taxaDeCartao,
         gastoFixoPeriodo: gastosPeriodo.gastoFixoPeriodo,
         gastoVariavelPeriodo: gastoVariavelPeriodoFinal,
         gastoProdutosPeriodo: gastosPeriodo.gastoProdutosPeriodo,
@@ -344,6 +357,8 @@ const registroDinheiroController = {
             "fim",
             "valorDinheiro",
             "valorCartaoPix",
+            "valorCartaoPixLiquido",
+            "taxaDeCartao",
             "gastoFixoPeriodo",
             "gastoVariavelPeriodo",
             "gastoProdutosPeriodo",

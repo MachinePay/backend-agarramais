@@ -37,6 +37,14 @@ const RegistroDinheiro = sequelize.define(
       type: DataTypes.DECIMAL(10, 2),
       defaultValue: 0,
     },
+    valorCartaoPixLiquido: {
+      type: DataTypes.DECIMAL(10, 2),
+      defaultValue: 0,
+    },
+    taxaDeCartao: {
+      type: DataTypes.DECIMAL(10, 2),
+      defaultValue: 0,
+    },
     gastoFixoPeriodo: {
       type: DataTypes.DECIMAL(12, 2),
       allowNull: false,
