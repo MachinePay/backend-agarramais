@@ -173,9 +173,12 @@ export const criarManutencao = async (req, res) => {
 
 export const listarManutencoes = async (req, res) => {
   try {
-    let include = includeAdmin;
+    const { status, dataInicio, dataFim, lojaId, usuarioId } = req.query;
+    let include = [...includeAdmin];
+    const where = {};
 
     if (req.usuario.role !== "ADMIN") {
+      where.status = "PENDENTE";
       include = [
         {
           model: Usuario,
@@ -201,9 +204,41 @@ export const listarManutencoes = async (req, res) => {
           attributes: ["id", "nome"],
         },
       ];
+    } else {
+      if (status && ["PENDENTE", "RESOLVIDA"].includes(status)) {
+        where.status = status;
+      }
+
+      if (lojaId) {
+        where.lojaId = lojaId;
+      }
+
+      if (dataInicio || dataFim) {
+        where.createdAt = {};
+
+        if (dataInicio) {
+          where.createdAt[Op.gte] = new Date(`${dataInicio}T00:00:00.000Z`);
+        }
+
+        if (dataFim) {
+          where.createdAt[Op.lte] = new Date(`${dataFim}T23:59:59.999Z`);
+        }
+      }
+
+      if (usuarioId) {
+        include = include.map((item) => {
+          if (item.as !== "funcionariosPermitidos") return item;
+          return {
+            ...item,
+            where: { id: usuarioId },
+            required: true,
+          };
+        });
+      }
     }
 
     const manutencoes = await Manutencao.findAll({
+      where,
       include,
       order: [["createdAt", "DESC"]],
     });

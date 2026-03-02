@@ -10,6 +10,7 @@ export default function ManutencaoPage() {
   const { usuario, loading: authLoading } = useAuth();
   const [manutencoes, setManutencoes] = useState([]);
   const [funcionarios, setFuncionarios] = useState([]);
+  const [usuariosFiltro, setUsuariosFiltro] = useState([]);
   const [lojas, setLojas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -23,6 +24,14 @@ export default function ManutencaoPage() {
     lojaId: "",
   });
 
+  const [filtros, setFiltros] = useState({
+    status: "TODAS",
+    dataInicio: "",
+    dataFim: "",
+    lojaId: "",
+    usuarioId: "",
+  });
+
   const isAdmin = usuario?.role === "ADMIN";
 
   const manutencoesOrdenadas = useMemo(
@@ -33,34 +42,54 @@ export default function ManutencaoPage() {
     [manutencoes],
   );
 
+  const manutencoesVisiveis = useMemo(() => {
+    if (isAdmin) return manutencoesOrdenadas;
+    return manutencoesOrdenadas.filter((item) => item.status !== "RESOLVIDA");
+  }, [isAdmin, manutencoesOrdenadas]);
+
   const carregarDados = useCallback(async () => {
     try {
       setError("");
-      const manutencoesResponse = await api.get("/manutencoes");
+
+      const params = {};
+      if (usuario?.role === "ADMIN") {
+        if (filtros.status !== "TODAS") params.status = filtros.status;
+        if (filtros.dataInicio) params.dataInicio = filtros.dataInicio;
+        if (filtros.dataFim) params.dataFim = filtros.dataFim;
+        if (filtros.lojaId) params.lojaId = filtros.lojaId;
+        if (filtros.usuarioId) params.usuarioId = filtros.usuarioId;
+      }
+
+      const manutencoesResponse = await api.get("/manutencoes", { params });
       const manutencoesData = manutencoesResponse.data;
       setManutencoes(Array.isArray(manutencoesData) ? manutencoesData : []);
 
       if (usuario?.role === "ADMIN") {
-        const [funcionariosResponse, lojasResponse] = await Promise.all([
-          api.get("/manutencoes/funcionarios"),
-          api.get("/lojas"),
-        ]);
+        const [funcionariosResponse, lojasResponse, usuariosResponse] =
+          await Promise.all([
+            api.get("/manutencoes/funcionarios"),
+            api.get("/lojas"),
+            api.get("/usuarios"),
+          ]);
         const funcionariosData = funcionariosResponse.data;
         const lojasData = lojasResponse.data;
+        const usuariosData = usuariosResponse.data;
         setFuncionarios(
           Array.isArray(funcionariosData) ? funcionariosData : [],
         );
         setLojas(Array.isArray(lojasData) ? lojasData : []);
+        setUsuariosFiltro(Array.isArray(usuariosData) ? usuariosData : []);
       } else {
         setFuncionarios([]);
         setLojas([]);
+        setUsuariosFiltro([]);
       }
     } catch (err) {
       setError(err.response?.data?.error || "Erro ao carregar dados");
     } finally {
       setLoading(false);
     }
-  }, [usuario?.role]);
+  }, [filtros, usuario?.role]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -145,6 +174,23 @@ export default function ManutencaoPage() {
   if (loading || authLoading) {
     return <PageLoader />;
   }
+
+  const limparFiltros = () => {
+    setFiltros({
+      status: "TODAS",
+      dataInicio: "",
+      dataFim: "",
+      lojaId: "",
+      usuarioId: "",
+    });
+  };
+
+  const formatarDataHora = (dataIso) => {
+    if (!dataIso) return "-";
+    const data = new Date(dataIso);
+    if (Number.isNaN(data.getTime())) return "-";
+    return data.toLocaleString("pt-BR");
+  };
 
   return (
     <div className="min-h-screen bg-background-light bg-pattern teddy-pattern">
@@ -267,6 +313,125 @@ export default function ManutencaoPage() {
           </form>
         )}
 
+        {isAdmin && (
+          <div className="card">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900">
+                Filtros (Admin)
+              </h2>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={carregarDados}
+                  className="btn-secondary"
+                >
+                  Aplicar filtros
+                </button>
+                <button
+                  type="button"
+                  onClick={limparFiltros}
+                  className="btn-secondary"
+                >
+                  Limpar
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Status
+                </label>
+                <select
+                  value={filtros.status}
+                  onChange={(e) =>
+                    setFiltros((prev) => ({ ...prev, status: e.target.value }))
+                  }
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-blue-500"
+                >
+                  <option value="TODAS">Todas</option>
+                  <option value="PENDENTE">Pendentes</option>
+                  <option value="RESOLVIDA">Resolvidas</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Data início
+                </label>
+                <input
+                  type="date"
+                  value={filtros.dataInicio}
+                  onChange={(e) =>
+                    setFiltros((prev) => ({
+                      ...prev,
+                      dataInicio: e.target.value,
+                    }))
+                  }
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Data fim
+                </label>
+                <input
+                  type="date"
+                  value={filtros.dataFim}
+                  onChange={(e) =>
+                    setFiltros((prev) => ({ ...prev, dataFim: e.target.value }))
+                  }
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Loja
+                </label>
+                <select
+                  value={filtros.lojaId}
+                  onChange={(e) =>
+                    setFiltros((prev) => ({ ...prev, lojaId: e.target.value }))
+                  }
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-blue-500"
+                >
+                  <option value="">Todas</option>
+                  {lojas.map((loja) => (
+                    <option key={loja.id} value={loja.id}>
+                      {loja.nome}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Usuário
+                </label>
+                <select
+                  value={filtros.usuarioId}
+                  onChange={(e) =>
+                    setFiltros((prev) => ({
+                      ...prev,
+                      usuarioId: e.target.value,
+                    }))
+                  }
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-blue-500"
+                >
+                  <option value="">Todos</option>
+                  {usuariosFiltro.map((user) => (
+                    <option key={user.id} value={user.id}>
+                      {user.nome} ({user.role})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="card">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900">Manutenções</h2>
@@ -279,13 +444,13 @@ export default function ManutencaoPage() {
             </button>
           </div>
 
-          {manutencoesOrdenadas.length === 0 ? (
+          {manutencoesVisiveis.length === 0 ? (
             <p className="text-sm text-gray-600">
               Nenhuma manutenção encontrada.
             </p>
           ) : (
             <div className="space-y-3">
-              {manutencoesOrdenadas.map((item) => {
+              {manutencoesVisiveis.map((item) => {
                 const podeResolver =
                   item.status === "PENDENTE" &&
                   (isAdmin ||
@@ -331,7 +496,14 @@ export default function ManutencaoPage() {
                           .map((f) => f.nome)
                           .join(", ") || "-"}
                       </p>
-                      <p>Resolvido por: {item.resolvidoPor?.nome || "-"}</p>
+                      {isAdmin && item.status === "RESOLVIDA" && (
+                        <>
+                          <p>Resolvido por: {item.resolvidoPor?.nome || "-"}</p>
+                          <p>
+                            Resolvido em: {formatarDataHora(item.resolvidoEm)}
+                          </p>
+                        </>
+                      )}
                     </div>
 
                     {podeResolver && (
