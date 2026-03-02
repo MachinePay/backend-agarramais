@@ -213,6 +213,15 @@ ManutencaoUsuario.belongsTo(Usuario, {
   as: "usuario",
 });
 
+Loja.hasMany(Manutencao, {
+  foreignKey: "lojaId",
+  as: "manutencoes",
+});
+Manutencao.belongsTo(Loja, {
+  foreignKey: "lojaId",
+  as: "loja",
+});
+
 export {
   Usuario,
   Loja,

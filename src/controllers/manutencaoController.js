@@ -1,6 +1,12 @@
 import { Op } from "sequelize";
 import { sequelize } from "../database/connection.js";
-import { Manutencao, ManutencaoUsuario, Usuario } from "../models/index.js";
+import {
+  GastoVariavel,
+  Loja,
+  Manutencao,
+  ManutencaoUsuario,
+  Usuario,
+} from "../models/index.js";
 
 const includeAdmin = [
   {
@@ -18,6 +24,11 @@ const includeAdmin = [
     as: "funcionariosPermitidos",
     attributes: ["id", "nome", "email"],
     through: { attributes: [] },
+  },
+  {
+    model: Loja,
+    as: "loja",
+    attributes: ["id", "nome"],
   },
 ];
 
@@ -43,7 +54,7 @@ export const criarManutencao = async (req, res) => {
   const transaction = await sequelize.transaction();
 
   try {
-    const { titulo, descricao, funcionariosIds } = req.body;
+    const { titulo, descricao, funcionariosIds, custo, lojaId } = req.body;
 
     if (!titulo || !descricao) {
       await transaction.rollback();
@@ -60,6 +71,31 @@ export const criarManutencao = async (req, res) => {
     }
 
     const idsUnicos = [...new Set(funcionariosIds.filter(Boolean))];
+
+    const custoInformado =
+      custo !== undefined && custo !== null && custo !== "";
+    const custoNumerico = custoInformado
+      ? Number(String(custo).replace(",", "."))
+      : null;
+
+    if (
+      custoInformado &&
+      (!Number.isFinite(custoNumerico) || custoNumerico < 0)
+    ) {
+      await transaction.rollback();
+      return res.status(400).json({
+        error:
+          "Custo inválido. Informe um valor numérico maior ou igual a zero.",
+      });
+    }
+
+    if (custoInformado && custoNumerico > 0 && !lojaId) {
+      await transaction.rollback();
+      return res.status(400).json({
+        error:
+          "Selecione uma loja para registrar o gasto variável da manutenção.",
+      });
+    }
 
     const funcionarios = await Usuario.findAll({
       where: {
@@ -78,10 +114,20 @@ export const criarManutencao = async (req, res) => {
       });
     }
 
+    if (lojaId) {
+      const loja = await Loja.findByPk(lojaId, { transaction });
+      if (!loja) {
+        await transaction.rollback();
+        return res.status(400).json({ error: "Loja informada não encontrada" });
+      }
+    }
+
     const manutencao = await Manutencao.create(
       {
         titulo,
         descricao,
+        custo: custoInformado ? custoNumerico : null,
+        lojaId: lojaId || null,
         criadoPorId: req.usuario.id,
       },
       { transaction },
@@ -94,6 +140,21 @@ export const criarManutencao = async (req, res) => {
       })),
       { transaction },
     );
+
+    if (custoInformado && custoNumerico > 0 && lojaId) {
+      const agora = new Date();
+      await GastoVariavel.create(
+        {
+          lojaId,
+          nome: `Manutenção - ${titulo}`,
+          valor: custoNumerico,
+          observacao: `Gerado automaticamente pela manutenção ${manutencao.id}${descricao ? ` | ${descricao}` : ""}`,
+          dataInicio: agora,
+          dataFim: agora,
+        },
+        { transaction },
+      );
+    }
 
     await transaction.commit();
 
@@ -133,6 +194,11 @@ export const listarManutencoes = async (req, res) => {
           through: { attributes: [] },
           where: { id: req.usuario.id },
           required: true,
+        },
+        {
+          model: Loja,
+          as: "loja",
+          attributes: ["id", "nome"],
         },
       ];
     }

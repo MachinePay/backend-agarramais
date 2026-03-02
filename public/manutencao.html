@@ -124,6 +124,18 @@
         <select id="funcionarios" multiple></select>
         <p class="muted">Segure Ctrl para selecionar mais de um funcionário.</p>
 
+        <label for="custo">Custo da manutenção (R$)</label>
+        <input
+          id="custo"
+          type="number"
+          min="0"
+          step="0.01"
+          placeholder="Ex: 150.00"
+        />
+
+        <label for="lojaId">Loja do gasto variável</label>
+        <select id="lojaId"></select>
+
         <div class="actions">
           <button id="btnCriar">Lançar manutenção</button>
         </div>
@@ -145,6 +157,7 @@
       const adminCard = document.getElementById("adminCard");
       const funcionariosSelect = document.getElementById("funcionarios");
       const lista = document.getElementById("lista");
+      let lojas = [];
 
       let perfilAtual = null;
 
@@ -214,6 +227,14 @@
                 <p class="muted" style="margin: 6px 0;">Criado por: ${
                   item.criadoPor?.nome || "-"
                 }</p>
+                <p class="muted" style="margin: 6px 0;">Custo: ${
+                  item.custo !== null && item.custo !== undefined
+                    ? `R$ ${item.custo}`
+                    : "-"
+                }</p>
+                <p class="muted" style="margin: 6px 0;">Loja: ${
+                  item.loja?.nome || "-"
+                }</p>
                 <p class="muted" style="margin: 6px 0;">Funcionários permitidos: ${
                   funcionarios || "-"
                 }</p>
@@ -251,6 +272,17 @@
           .join("");
       }
 
+      async function carregarLojas() {
+        lojas = await apiFetch("/lojas");
+        const selectLoja = document.getElementById("lojaId");
+        selectLoja.innerHTML = [
+          '<option value="">Selecione...</option>',
+          ...lojas.map(
+            (loja) => `<option value="${loja.id}">${loja.nome}</option>`,
+          ),
+        ].join("");
+      }
+
       async function carregarManutencoes() {
         const manutencoes = await apiFetch("/manutencoes");
         renderLista(manutencoes);
@@ -272,6 +304,7 @@
 
           if (perfilAtual.role === "ADMIN") {
             await carregarFuncionarios();
+            await carregarLojas();
           }
 
           await carregarManutencoes();
@@ -321,23 +354,51 @@
 
           const titulo = document.getElementById("titulo").value.trim();
           const descricao = document.getElementById("descricao").value.trim();
+          const custo = document.getElementById("custo").value;
+          const lojaId = document.getElementById("lojaId").value;
           const funcionariosIds = Array.from(
             funcionariosSelect.selectedOptions,
           ).map((opt) => opt.value);
+
+          const custoInformado = custo !== "";
+          const custoNumerico = custoInformado
+            ? Number(String(custo).replace(",", "."))
+            : null;
 
           if (!titulo || !descricao || funcionariosIds.length === 0) {
             alert("Preencha título, descrição e selecione funcionários");
             return;
           }
 
+          if (
+            custoInformado &&
+            (!Number.isFinite(custoNumerico) || custoNumerico < 0)
+          ) {
+            alert("Informe um custo válido (maior ou igual a zero)");
+            return;
+          }
+
+          if (custoInformado && custoNumerico > 0 && !lojaId) {
+            alert("Selecione a loja para lançar o gasto variável");
+            return;
+          }
+
           try {
             await apiFetch("/manutencoes", {
               method: "POST",
-              body: JSON.stringify({ titulo, descricao, funcionariosIds }),
+              body: JSON.stringify({
+                titulo,
+                descricao,
+                funcionariosIds,
+                custo: custoInformado ? custoNumerico : null,
+                lojaId: lojaId || null,
+              }),
             });
 
             document.getElementById("titulo").value = "";
             document.getElementById("descricao").value = "";
+            document.getElementById("custo").value = "";
+            document.getElementById("lojaId").value = "";
             Array.from(funcionariosSelect.options).forEach((opt) => {
               opt.selected = false;
             });

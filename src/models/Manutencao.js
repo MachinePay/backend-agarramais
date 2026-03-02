@@ -17,6 +17,19 @@ const Manutencao = sequelize.define(
       type: DataTypes.TEXT,
       allowNull: false,
     },
+    custo: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+      defaultValue: null,
+    },
+    lojaId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: "lojas",
+        key: "id",
+      },
+    },
     status: {
       type: DataTypes.ENUM("PENDENTE", "RESOLVIDA"),
       allowNull: false,

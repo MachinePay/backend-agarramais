@@ -1,36 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
-
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3001/api";
-
-function getToken() {
-  return localStorage.getItem("token") || "";
-}
-
-async function request(path, options = {}) {
-  const token = getToken();
-
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-  });
-
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({}));
-    throw new Error(body.error || "Erro na requisição");
-  }
-
-  if (response.status === 204) return null;
-  return response.json();
-}
+import { useCallback, useEffect, useMemo, useState } from "react";
+import api from "../services/api";
+import { useAuth } from "../contexts/AuthContext";
+import { Navbar } from "../components/Navbar";
+import { Footer } from "../components/Footer";
+import { PageLoader } from "../components/Loading";
+import { AlertBox, Badge, PageHeader } from "../components/UIComponents";
 
 export default function ManutencaoPage() {
-  const [perfil, setPerfil] = useState(null);
+  const { usuario, loading: authLoading } = useAuth();
   const [manutencoes, setManutencoes] = useState([]);
   const [funcionarios, setFuncionarios] = useState([]);
+  const [lojas, setLojas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -39,9 +19,11 @@ export default function ManutencaoPage() {
     titulo: "",
     descricao: "",
     funcionariosIds: [],
+    custo: "",
+    lojaId: "",
   });
 
-  const isAdmin = perfil?.role === "ADMIN";
+  const isAdmin = usuario?.role === "ADMIN";
 
   const manutencoesOrdenadas = useMemo(
     () =>
@@ -51,35 +33,39 @@ export default function ManutencaoPage() {
     [manutencoes],
   );
 
-  const carregarDados = async () => {
+  const carregarDados = useCallback(async () => {
     try {
       setError("");
-      const [perfilData, manutencoesData] = await Promise.all([
-        request("/auth/perfil"),
-        request("/manutencoes"),
-      ]);
-
-      setPerfil(perfilData);
+      const manutencoesResponse = await api.get("/manutencoes");
+      const manutencoesData = manutencoesResponse.data;
       setManutencoes(Array.isArray(manutencoesData) ? manutencoesData : []);
 
-      if (perfilData.role === "ADMIN") {
-        const funcionariosData = await request("/manutencoes/funcionarios");
+      if (usuario?.role === "ADMIN") {
+        const [funcionariosResponse, lojasResponse] = await Promise.all([
+          api.get("/manutencoes/funcionarios"),
+          api.get("/lojas"),
+        ]);
+        const funcionariosData = funcionariosResponse.data;
+        const lojasData = lojasResponse.data;
         setFuncionarios(
           Array.isArray(funcionariosData) ? funcionariosData : [],
         );
+        setLojas(Array.isArray(lojasData) ? lojasData : []);
       } else {
         setFuncionarios([]);
+        setLojas([]);
       }
     } catch (err) {
-      setError(err.message || "Erro ao carregar dados");
+      setError(err.response?.data?.error || "Erro ao carregar dados");
     } finally {
       setLoading(false);
     }
-  };
+  }, [usuario?.role]);
 
   useEffect(() => {
+    if (authLoading) return;
     carregarDados();
-  }, []);
+  }, [authLoading, carregarDados]);
 
   const handleSelectFuncionarios = (event) => {
     const ids = Array.from(event.target.selectedOptions).map(
@@ -101,23 +87,46 @@ export default function ManutencaoPage() {
       return;
     }
 
+    const custoInformado = form.custo !== "";
+    const custoNumerico = custoInformado
+      ? Number(String(form.custo).replace(",", "."))
+      : null;
+
+    if (
+      custoInformado &&
+      (!Number.isFinite(custoNumerico) || custoNumerico < 0)
+    ) {
+      setError("Informe um custo válido (maior ou igual a zero).");
+      return;
+    }
+
+    if (custoInformado && custoNumerico > 0 && !form.lojaId) {
+      setError("Selecione a loja para lançar o gasto variável.");
+      return;
+    }
+
     try {
       setSubmitting(true);
       setError("");
 
-      await request("/manutencoes", {
-        method: "POST",
-        body: JSON.stringify({
-          titulo: form.titulo.trim(),
-          descricao: form.descricao.trim(),
-          funcionariosIds: form.funcionariosIds,
-        }),
+      await api.post("/manutencoes", {
+        titulo: form.titulo.trim(),
+        descricao: form.descricao.trim(),
+        funcionariosIds: form.funcionariosIds,
+        custo: custoInformado ? custoNumerico : null,
+        lojaId: form.lojaId || null,
       });
 
-      setForm({ titulo: "", descricao: "", funcionariosIds: [] });
+      setForm({
+        titulo: "",
+        descricao: "",
+        funcionariosIds: [],
+        custo: "",
+        lojaId: "",
+      });
       await carregarDados();
     } catch (err) {
-      setError(err.message || "Erro ao criar manutenção");
+      setError(err.response?.data?.error || "Erro ao criar manutenção");
     } finally {
       setSubmitting(false);
     }
@@ -126,43 +135,34 @@ export default function ManutencaoPage() {
   const handleResolver = async (id) => {
     try {
       setError("");
-      await request(`/manutencoes/${id}/resolver`, { method: "PATCH" });
+      await api.patch(`/manutencoes/${id}/resolver`);
       await carregarDados();
     } catch (err) {
-      setError(err.message || "Erro ao resolver manutenção");
+      setError(err.response?.data?.error || "Erro ao resolver manutenção");
     }
   };
 
-  if (loading) {
-    return (
-      <div className="p-6">
-        <p className="text-gray-600">Carregando manutenções...</p>
-      </div>
-    );
+  if (loading || authLoading) {
+    return <PageLoader />;
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-6">
-      <div className="mx-auto max-w-5xl space-y-4">
-        <div className="rounded-xl border bg-white p-4">
-          <h1 className="text-2xl font-bold text-gray-900">Manutenção</h1>
-          <p className="mt-1 text-sm text-gray-600">
-            Usuário: <span className="font-medium">{perfil?.nome}</span> (
-            {perfil?.role})
-          </p>
-        </div>
+    <div className="min-h-screen bg-background-light bg-pattern teddy-pattern">
+      <Navbar />
+
+      <div className="mx-auto max-w-5xl space-y-4 px-4 py-8 sm:px-6 lg:px-8">
+        <PageHeader
+          title="Manutenção"
+          subtitle={`Usuário: ${usuario?.nome || "-"} (${usuario?.role || "-"})`}
+          icon="🛠️"
+        />
 
         {error && (
-          <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-            {error}
-          </div>
+          <AlertBox type="error" message={error} onClose={() => setError("")} />
         )}
 
         {isAdmin && (
-          <form
-            onSubmit={handleCriar}
-            className="rounded-xl border bg-white p-4"
-          >
+          <form onSubmit={handleCriar} className="card">
             <h2 className="mb-3 text-lg font-semibold text-gray-900">
               Lançar manutenção
             </h2>
@@ -216,13 +216,50 @@ export default function ManutencaoPage() {
                   Use Ctrl para selecionar múltiplos.
                 </p>
               </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Custo da manutenção (R$)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.custo}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, custo: e.target.value }))
+                  }
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-blue-500"
+                  placeholder="Ex: 150.00"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Loja do gasto variável
+                </label>
+                <select
+                  value={form.lojaId}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, lojaId: e.target.value }))
+                  }
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-blue-500"
+                >
+                  <option value="">Selecione...</option>
+                  {lojas.map((loja) => (
+                    <option key={loja.id} value={loja.id}>
+                      {loja.nome}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div className="mt-4 flex justify-end">
               <button
                 type="submit"
                 disabled={submitting}
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+                className="btn-primary disabled:opacity-60"
               >
                 {submitting ? "Salvando..." : "Lançar manutenção"}
               </button>
@@ -230,13 +267,13 @@ export default function ManutencaoPage() {
           </form>
         )}
 
-        <div className="rounded-xl border bg-white p-4">
+        <div className="card">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900">Manutenções</h2>
             <button
               type="button"
               onClick={carregarDados}
-              className="rounded-lg border px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              className="btn-secondary"
             >
               Atualizar
             </button>
@@ -253,7 +290,7 @@ export default function ManutencaoPage() {
                   item.status === "PENDENTE" &&
                   (isAdmin ||
                     (item.funcionariosPermitidos || []).some(
-                      (f) => f.id === perfil?.id,
+                      (f) => f.id === usuario?.id,
                     ));
 
                 return (
@@ -265,15 +302,14 @@ export default function ManutencaoPage() {
                       <h3 className="text-base font-semibold text-gray-900">
                         {item.titulo}
                       </h3>
-                      <span
-                        className={`rounded-full px-2.5 py-1 text-xs font-bold ${
-                          item.status === "RESOLVIDA"
-                            ? "bg-green-100 text-green-700"
-                            : "bg-amber-100 text-amber-700"
-                        }`}
+                      <Badge
+                        variant={
+                          item.status === "RESOLVIDA" ? "success" : "warning"
+                        }
+                        size="sm"
                       >
                         {item.status}
-                      </span>
+                      </Badge>
                     </div>
 
                     <p className="mt-2 text-sm text-gray-700">
@@ -282,6 +318,13 @@ export default function ManutencaoPage() {
 
                     <div className="mt-2 space-y-1 text-xs text-gray-600">
                       <p>Criado por: {item.criadoPor?.nome || "-"}</p>
+                      <p>
+                        Custo:{" "}
+                        {item.custo !== null && item.custo !== undefined
+                          ? `R$ ${item.custo}`
+                          : "-"}
+                      </p>
+                      <p>Loja: {item.loja?.nome || "-"}</p>
                       <p>
                         Funcionários permitidos:{" "}
                         {(item.funcionariosPermitidos || [])
@@ -296,7 +339,7 @@ export default function ManutencaoPage() {
                         <button
                           type="button"
                           onClick={() => handleResolver(item.id)}
-                          className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700"
+                          className="btn-primary"
                         >
                           Marcar como resolvido
                         </button>
@@ -309,6 +352,8 @@ export default function ManutencaoPage() {
           )}
         </div>
       </div>
+
+      <Footer />
     </div>
   );
 }
