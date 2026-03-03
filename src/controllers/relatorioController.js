@@ -22,6 +22,26 @@ import {
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 
+const normalizarNomeGasto = (nomeOriginal) =>
+  String(nomeOriginal || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+
+const consolidarGastosFixosPorNome = (gastos) => {
+  const mapa = new Map();
+
+  for (const gasto of gastos) {
+    const chave = normalizarNomeGasto(gasto?.nome);
+    if (!chave) continue;
+    mapa.set(chave, gasto);
+  }
+
+  return Array.from(mapa.values());
+};
+
 const calcularValorMensalDoGastoFixo = (gasto) => {
   const valor = Number(gasto?.valor || 0);
 
@@ -63,11 +83,17 @@ const calcularTotalFixoAtualDaLoja = async (lojaId) => {
     where: {
       [Op.and]: [sequelizeWhere(cast(col("lojaid"), "text"), String(lojaId))],
     },
-    attributes: ["nome", "valor"],
+    attributes: ["id", "nome", "valor"],
+    order: [
+      ["updatedAt", "ASC"],
+      ["id", "ASC"],
+    ],
     raw: true,
   });
 
-  const total = gastosFixos.reduce(
+  const gastosConsolidados = consolidarGastosFixosPorNome(gastosFixos);
+
+  const total = gastosConsolidados.reduce(
     (acc, item) => acc + calcularValorMensalDoGastoFixo(item),
     0,
   );
