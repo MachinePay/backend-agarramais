@@ -49,10 +49,7 @@ const calcularTotalFixoLoja = async (lojaId, transaction) => {
   const gastos = await GastoFixoLoja.findAll({
     where: { lojaId },
     attributes: ["id", "nome", "valor"],
-    order: [
-      ["updatedAt", "ASC"],
-      ["id", "ASC"],
-    ],
+    order: [["id", "ASC"]],
     raw: true,
     transaction,
   });
@@ -126,10 +123,7 @@ export const saveGastosFixos = async (req, res) => {
     const gastosAtuais = await GastoFixoLoja.findAll({
       where: { lojaId },
       attributes: ["id", "nome"],
-      order: [
-        ["updatedAt", "DESC"],
-        ["id", "DESC"],
-      ],
+      order: [["id", "DESC"]],
       raw: true,
       transaction,
     });

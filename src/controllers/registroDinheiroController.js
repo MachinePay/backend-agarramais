@@ -88,10 +88,7 @@ const calcularTotalFixoAtualDaLoja = async (lojaId) => {
       [Op.and]: [sequelizeWhere(cast(col("lojaid"), "text"), String(lojaId))],
     },
     attributes: ["id", "nome", "valor"],
-    order: [
-      ["updatedAt", "ASC"],
-      ["id", "ASC"],
-    ],
+    order: [["id", "ASC"]],
     raw: true,
   });
 
