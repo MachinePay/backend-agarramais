@@ -1116,8 +1116,11 @@ const gerarRelatorioImpressaoPorLoja = async ({
   const dadosPorMaquina = {};
 
   movimentacoes.forEach((mov) => {
+    const ehRetiradaEstoque =
+      mov.retiradaEstoque === true || mov.retirada_estoque === true;
+
     mov.detalhesProdutos?.forEach((mp) => {
-      if (mp.quantidadeSaiu > 0) {
+      if (!ehRetiradaEstoque && mp.quantidadeSaiu > 0) {
         const key = mp.produtoId;
         if (!produtosSairamMap[key]) {
           produtosSairamMap[key] = { produto: mp.produto, quantidade: 0 };
@@ -1157,7 +1160,7 @@ const gerarRelatorioImpressaoPorLoja = async ({
     dadosPorMaquina[maquinaId].numMovimentacoes += 1;
 
     mov.detalhesProdutos?.forEach((mp) => {
-      if (mp.quantidadeSaiu > 0) {
+      if (!ehRetiradaEstoque && mp.quantidadeSaiu > 0) {
         const key = mp.produtoId;
         if (!dadosPorMaquina[maquinaId].produtosSairam[key]) {
           dadosPorMaquina[maquinaId].produtosSairam[key] = {
