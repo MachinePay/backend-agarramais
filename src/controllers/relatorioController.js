@@ -1048,15 +1048,36 @@ const gerarRelatorioImpressaoPorLoja = async ({
   registrosDinheiro.forEach((r) => {
     if (!r.registrarTotalLoja && r.maquinaId) {
       if (!valoresPorMaquina[r.maquinaId]) {
-        valoresPorMaquina[r.maquinaId] = { dinheiro: 0, cartaoPix: 0 };
+        valoresPorMaquina[r.maquinaId] = {
+          dinheiro: 0,
+          cartaoPix: 0,
+          cartaoPixLiquido: 0,
+          taxaDeCartao: 0,
+        };
       }
+
+      const valorCartaoPixRegistro = parseFloat(r.valorCartaoPix || 0);
+      const taxaRegistro = parseFloat(
+        r.taxaDeCartao ??
+          r.taxa_de_cartao ??
+          Math.max(
+            parseFloat(r.valorCartaoPix || 0) -
+              parseFloat(r.valorCartaoPixLiquido || 0),
+            0,
+          ),
+      );
+      const valorCartaoPixLiquidoRegistro = parseFloat(
+        r.valorCartaoPixLiquido ??
+          Math.max(valorCartaoPixRegistro - taxaRegistro, 0),
+      );
 
       valoresPorMaquina[r.maquinaId].dinheiro += parseFloat(
         r.valorDinheiro || 0,
       );
-      valoresPorMaquina[r.maquinaId].cartaoPix += parseFloat(
-        r.valorCartaoPix || 0,
-      );
+      valoresPorMaquina[r.maquinaId].cartaoPix += valorCartaoPixRegistro;
+      valoresPorMaquina[r.maquinaId].cartaoPixLiquido +=
+        valorCartaoPixLiquidoRegistro;
+      valoresPorMaquina[r.maquinaId].taxaDeCartao += taxaRegistro;
     }
   });
 
@@ -1190,14 +1211,14 @@ const gerarRelatorioImpressaoPorLoja = async ({
     const valorFicha = m.maquina.valorFicha
       ? Number(m.maquina.valorFicha)
       : 2.5;
-    const lucroBruto =
+    const faturamentoMaquina =
       (valoresPorMaquina[m.maquina.id]?.dinheiro || 0) +
-      (valoresPorMaquina[m.maquina.id]?.cartaoPix || 0) +
+      (valoresPorMaquina[m.maquina.id]?.cartaoPixLiquido || 0) +
       (m.fichas || 0) * valorFicha;
-    const lucroLiquido = lucroBruto - custoProdutosSairam;
+    const lucroLiquido = faturamentoMaquina - custoProdutosSairam;
     const ticketPorPremio =
       Number(m.totalSairam || 0) > 0
-        ? lucroBruto / Number(m.totalSairam || 0)
+        ? faturamentoMaquina / Number(m.totalSairam || 0)
         : 0;
 
     return {
@@ -1209,7 +1230,10 @@ const gerarRelatorioImpressaoPorLoja = async ({
         movimentacoes: m.numMovimentacoes,
         dinheiro: valoresPorMaquina[m.maquina.id]?.dinheiro || 0,
         cartaoPix: valoresPorMaquina[m.maquina.id]?.cartaoPix || 0,
-        faturamentoBruto: Number(lucroBruto.toFixed(2)),
+        cartaoPixLiquido:
+          valoresPorMaquina[m.maquina.id]?.cartaoPixLiquido || 0,
+        taxaDeCartao: valoresPorMaquina[m.maquina.id]?.taxaDeCartao || 0,
+        faturamentoBruto: Number(faturamentoMaquina.toFixed(2)),
         custoProdutosSairam,
         lucroLiquido,
         ticketPorPremio: Number(ticketPorPremio.toFixed(2)),
@@ -1509,7 +1533,8 @@ export const relatorioTodasLojas = async (req, res) => {
     delete totais.somaPercentualTaxaPonderado;
     delete totais.somaBasePercentualTaxa;
 
-    const totalRecebimentos = totais.dinheiroTotal + totais.cartaoPixTotal;
+    const totalRecebimentos =
+      totais.dinheiroTotal + totais.cartaoPixLiquidoTotal;
 
     const rankingLojasComParticipacao = rankingLojas.map((loja) => ({
       ...loja,
@@ -1563,11 +1588,11 @@ export const relatorioTodasLojas = async (req, res) => {
                 : 0,
           },
           {
-            metodo: "Cartão / Pix",
-            valor: totais.cartaoPixTotal,
+            metodo: "Cartão / Pix (Líquido)",
+            valor: totais.cartaoPixLiquidoTotal,
             percentual:
               totalRecebimentos > 0
-                ? (totais.cartaoPixTotal / totalRecebimentos) * 100
+                ? (totais.cartaoPixLiquidoTotal / totalRecebimentos) * 100
                 : 0,
           },
         ],
