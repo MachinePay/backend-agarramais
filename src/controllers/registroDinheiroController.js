@@ -269,6 +269,8 @@ const registroDinheiroController = {
         gastosVariaveis = [],
       } = req.body;
 
+      const ehRegistroTotalLoja = !!registrarTotalLoja;
+
       console.log("[RegistrarDinheiro] Dados recebidos:", req.body);
 
       if (!loja || !inicio || !fim) {
@@ -308,16 +310,25 @@ const registroDinheiroController = {
         }))
         .filter((item) => item.nome.length > 0);
 
-      const totalGastosVariaveisNovos = gastosVariaveisNormalizados.reduce(
-        (acc, item) => acc + Number(item.valor || 0),
-        0,
-      );
+      const totalGastosVariaveisNovos = ehRegistroTotalLoja
+        ? gastosVariaveisNormalizados.reduce(
+            (acc, item) => acc + Number(item.valor || 0),
+            0,
+          )
+        : 0;
 
-      const gastosPeriodo = await calcularGastosPeriodo(
-        loja,
-        inicioDoDia(inicioPeriodo),
-        fimDoDia(fimPeriodo),
-      );
+      const gastosPeriodo = ehRegistroTotalLoja
+        ? await calcularGastosPeriodo(
+            loja,
+            inicioDoDia(inicioPeriodo),
+            fimDoDia(fimPeriodo),
+          )
+        : {
+            gastoFixoPeriodo: 0,
+            gastoVariavelPeriodo: 0,
+            gastoProdutosPeriodo: 0,
+            gastoTotalPeriodo: 0,
+          };
 
       const gastoVariavelPeriodoFinal = Number(
         (
@@ -349,8 +360,8 @@ const registroDinheiroController = {
 
       const dadosRegistro = {
         lojaId: loja,
-        maquinaId: registrarTotalLoja ? null : maquina || null,
-        registrarTotalLoja: !!registrarTotalLoja,
+        maquinaId: ehRegistroTotalLoja ? null : maquina || null,
+        registrarTotalLoja: ehRegistroTotalLoja,
         inicio,
         fim,
         valorDinheiro: normalizarValorMonetario(valorDinheiro),
@@ -358,10 +369,16 @@ const registroDinheiroController = {
         valorCartaoPixLiquido: valorCartaoPixLiquidoNumero,
         taxaDeCartao,
         percentualTaxaCartaoMedia: percentualTaxaCartaoMediaNumero,
-        gastoFixoPeriodo: gastosPeriodo.gastoFixoPeriodo,
-        gastoVariavelPeriodo: gastoVariavelPeriodoFinal,
-        gastoProdutosPeriodo: gastosPeriodo.gastoProdutosPeriodo,
-        gastoTotalPeriodo: gastoTotalPeriodoFinal,
+        gastoFixoPeriodo: ehRegistroTotalLoja
+          ? gastosPeriodo.gastoFixoPeriodo
+          : 0,
+        gastoVariavelPeriodo: ehRegistroTotalLoja
+          ? gastoVariavelPeriodoFinal
+          : 0,
+        gastoProdutosPeriodo: ehRegistroTotalLoja
+          ? gastosPeriodo.gastoProdutosPeriodo
+          : 0,
+        gastoTotalPeriodo: ehRegistroTotalLoja ? gastoTotalPeriodoFinal : 0,
         observacoes,
       };
 
@@ -389,7 +406,7 @@ const registroDinheiroController = {
           transaction,
         });
 
-        if (gastosVariaveisNormalizados.length > 0) {
+        if (ehRegistroTotalLoja && gastosVariaveisNormalizados.length > 0) {
           const payloadGastosVariaveis = gastosVariaveisNormalizados.map(
             (item) => ({
               lojaId: loja,
