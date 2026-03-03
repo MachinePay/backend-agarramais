@@ -97,14 +97,15 @@ const obterTotaisFixosMensais = async (lojaId, mesesIntervalo) => {
     ]),
   );
 
-  const faltantes = mesesIntervalo.filter(
-    (m) => !mapaTotais.has(`${m.ano}-${String(m.mes).padStart(2, "0")}`),
-  );
+  const totalAtual = await calcularTotalFixoAtualDaLoja(lojaId);
 
-  if (faltantes.length) {
-    const totalAtual = await calcularTotalFixoAtualDaLoja(lojaId);
+  for (const item of mesesIntervalo) {
+    const chave = `${item.ano}-${String(item.mes).padStart(2, "0")}`;
+    const valorSalvo = Number(mapaTotais.get(chave) || 0);
+    const mudou =
+      !mapaTotais.has(chave) || Math.abs(valorSalvo - totalAtual) > 0.009;
 
-    for (const item of faltantes) {
+    if (mudou) {
       try {
         await GastoTotalFixoLoja.upsert({
           lojaId,
@@ -118,12 +119,9 @@ const obterTotaisFixosMensais = async (lojaId, mesesIntervalo) => {
           error.message,
         );
       }
-
-      mapaTotais.set(
-        `${item.ano}-${String(item.mes).padStart(2, "0")}`,
-        totalAtual,
-      );
     }
+
+    mapaTotais.set(chave, totalAtual);
   }
 
   return mapaTotais;
@@ -1249,7 +1247,14 @@ const gerarRelatorioImpressaoPorLoja = async ({
       .toFixed(2),
   );
 
-  const gastoTotalPeriodo = Number(gastoTotalPeriodoSalvo.toFixed(2));
+  const gastoTotalPeriodoCalculado = Number(
+    (
+      Number(gastoFixoTotalPeriodo || 0) +
+      Number(gastoVariavelTotalPeriodo || 0) +
+      Number(gastoProdutosTotalPeriodo || 0)
+    ).toFixed(2),
+  );
+  const gastoTotalPeriodo = gastoTotalPeriodoCalculado;
   const taxaDeCartaoPeriodo = Number(taxaDeCartaoTotal.toFixed(2));
   const percentualTaxaCartaoMediaPeriodo = Number(
     (somaBasePercentualTaxa > 0

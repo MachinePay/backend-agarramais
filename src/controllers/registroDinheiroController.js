@@ -101,14 +101,14 @@ const obterTotaisFixosMensais = async (lojaId, mesesIntervalo) => {
     ]),
   );
 
-  const faltantes = mesesIntervalo.filter(
-    (item) => !mapa.has(`${item.ano}-${String(item.mes).padStart(2, "0")}`),
-  );
+  const totalAtual = await calcularTotalFixoAtualDaLoja(lojaId);
 
-  if (faltantes.length) {
-    const totalAtual = await calcularTotalFixoAtualDaLoja(lojaId);
+  for (const item of mesesIntervalo) {
+    const chave = `${item.ano}-${String(item.mes).padStart(2, "0")}`;
+    const valorSalvo = Number(mapa.get(chave) || 0);
+    const mudou = !mapa.has(chave) || Math.abs(valorSalvo - totalAtual) > 0.009;
 
-    for (const item of faltantes) {
+    if (mudou) {
       try {
         await GastoTotalFixoLoja.upsert({
           lojaId,
@@ -122,9 +122,9 @@ const obterTotaisFixosMensais = async (lojaId, mesesIntervalo) => {
           error.message,
         );
       }
-
-      mapa.set(`${item.ano}-${String(item.mes).padStart(2, "0")}`, totalAtual);
     }
+
+    mapa.set(chave, totalAtual);
   }
 
   return mapa;
