@@ -45,6 +45,10 @@ const RegistroDinheiro = sequelize.define(
       type: DataTypes.DECIMAL(10, 2),
       defaultValue: 0,
     },
+    percentualTaxaCartaoMedia: {
+      type: DataTypes.DECIMAL(5, 2),
+      defaultValue: 0,
+    },
     gastoFixoPeriodo: {
       type: DataTypes.DECIMAL(12, 2),
       allowNull: false,

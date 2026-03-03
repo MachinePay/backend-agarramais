@@ -250,7 +250,7 @@ const registroDinheiroController = {
         fim,
         valorDinheiro,
         valorCartaoPix,
-        valorCartaoPixLiquido,
+        percentualTaxaCartaoMedia,
         observacoes,
         gastosVariaveis = [],
       } = req.body;
@@ -319,13 +319,18 @@ const registroDinheiroController = {
       );
 
       const valorCartaoPixNumero = normalizarValorMonetario(valorCartaoPix);
-      const valorCartaoPixLiquidoNumero = normalizarValorMonetario(
-        valorCartaoPixLiquido,
+      const percentualTaxaCartaoMediaNumero = Math.max(
+        normalizarValorMonetario(percentualTaxaCartaoMedia),
+        0,
       );
       const taxaDeCartao = Number(
-        Math.max(valorCartaoPixNumero - valorCartaoPixLiquidoNumero, 0).toFixed(
-          2,
-        ),
+        (
+          valorCartaoPixNumero *
+          (Math.min(percentualTaxaCartaoMediaNumero, 100) / 100)
+        ).toFixed(2),
+      );
+      const valorCartaoPixLiquidoNumero = Number(
+        Math.max(valorCartaoPixNumero - taxaDeCartao, 0).toFixed(2),
       );
 
       const dadosRegistro = {
@@ -334,10 +339,11 @@ const registroDinheiroController = {
         registrarTotalLoja: !!registrarTotalLoja,
         inicio,
         fim,
-        valorDinheiro: valorDinheiro || 0,
-        valorCartaoPix: valorCartaoPix || 0,
-        valorCartaoPixLiquido: valorCartaoPixLiquido || 0,
+        valorDinheiro: normalizarValorMonetario(valorDinheiro),
+        valorCartaoPix: valorCartaoPixNumero,
+        valorCartaoPixLiquido: valorCartaoPixLiquidoNumero,
         taxaDeCartao,
+        percentualTaxaCartaoMedia: percentualTaxaCartaoMediaNumero,
         gastoFixoPeriodo: gastosPeriodo.gastoFixoPeriodo,
         gastoVariavelPeriodo: gastoVariavelPeriodoFinal,
         gastoProdutosPeriodo: gastosPeriodo.gastoProdutosPeriodo,
@@ -359,6 +365,7 @@ const registroDinheiroController = {
             "valorCartaoPix",
             "valorCartaoPixLiquido",
             "taxaDeCartao",
+            "percentualTaxaCartaoMedia",
             "gastoFixoPeriodo",
             "gastoVariavelPeriodo",
             "gastoProdutosPeriodo",

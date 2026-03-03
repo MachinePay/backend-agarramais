@@ -994,14 +994,13 @@ const gerarRelatorioImpressaoPorLoja = async ({
   let valorDinheiroLoja = 0;
   let valorCartaoPixLoja = 0;
   let taxaDeCartaoTotal = 0;
+  let somaPercentualTaxaPonderado = 0;
+  let somaBasePercentualTaxa = 0;
   let gastoTotalPeriodoSalvo = 0;
   registrosDinheiro.forEach((r) => {
     if (r.registrarTotalLoja) {
-      valorTotalLoja +=
-        parseFloat(r.valorDinheiro || 0) + parseFloat(r.valorCartaoPix || 0);
-      valorDinheiroLoja += parseFloat(r.valorDinheiro || 0);
-      valorCartaoPixLoja += parseFloat(r.valorCartaoPix || 0);
-      taxaDeCartaoTotal += parseFloat(
+      const valorCartaoPixRegistro = parseFloat(r.valorCartaoPix || 0);
+      const taxaRegistro = parseFloat(
         r.taxaDeCartao ??
           r.taxa_de_cartao ??
           Math.max(
@@ -1010,6 +1009,23 @@ const gerarRelatorioImpressaoPorLoja = async ({
             0,
           ),
       );
+      const percentualRegistroInformado =
+        r.percentualTaxaCartaoMedia ?? r.percentual_taxa_cartao_media;
+      const percentualRegistro = Number(
+        percentualRegistroInformado ??
+          (valorCartaoPixRegistro > 0
+            ? (taxaRegistro / valorCartaoPixRegistro) * 100
+            : 0),
+      );
+
+      valorTotalLoja +=
+        parseFloat(r.valorDinheiro || 0) + valorCartaoPixRegistro;
+      valorDinheiroLoja += parseFloat(r.valorDinheiro || 0);
+      valorCartaoPixLoja += valorCartaoPixRegistro;
+      taxaDeCartaoTotal += taxaRegistro;
+      somaPercentualTaxaPonderado +=
+        percentualRegistro * valorCartaoPixRegistro;
+      somaBasePercentualTaxa += valorCartaoPixRegistro;
       gastoTotalPeriodoSalvo += parseFloat(
         r.gastoTotalPeriodo ?? r.gasto_total_periodo ?? 0,
       );
@@ -1211,8 +1227,19 @@ const gerarRelatorioImpressaoPorLoja = async ({
 
   const gastoTotalPeriodo = Number(gastoTotalPeriodoSalvo.toFixed(2));
   const taxaDeCartaoPeriodo = Number(taxaDeCartaoTotal.toFixed(2));
+  const percentualTaxaCartaoMediaPeriodo = Number(
+    (somaBasePercentualTaxa > 0
+      ? somaPercentualTaxaPonderado / somaBasePercentualTaxa
+      : 0
+    ).toFixed(2),
+  );
+  const valorCartaoPixLiquidoLoja = Number(
+    Math.max(valorCartaoPixLoja - taxaDeCartaoPeriodo, 0).toFixed(2),
+  );
   const valorTotalLojaLiquido = Number(
-    (valorTotalLojaBruto - gastoTotalPeriodo - taxaDeCartaoPeriodo).toFixed(2),
+    (valorDinheiroLoja + valorCartaoPixLiquidoLoja - gastoTotalPeriodo).toFixed(
+      2,
+    ),
   );
   const ticketPorPremioTotal =
     Number(totalSairam || 0) > 0
@@ -1270,8 +1297,10 @@ const gerarRelatorioImpressaoPorLoja = async ({
       gastoProdutosTotalPeriodo,
       gastoTotalPeriodo,
       taxaDeCartao: taxaDeCartaoPeriodo,
+      percentualTaxaCartaoMedia: percentualTaxaCartaoMediaPeriodo,
       valorDinheiroLoja,
       valorCartaoPixLoja,
+      valorCartaoPixLiquidoLoja,
       ticketPorPremioTotal,
     },
     produtosSairam: produtosSairam.map((p) => ({
@@ -1392,7 +1421,15 @@ export const relatorioTodasLojas = async (req, res) => {
       const custoFixo = Number(totais.gastoFixoTotalPeriodo || 0);
       const dinheiro = Number(totais.valorDinheiroLoja || 0);
       const cartaoPix = Number(totais.valorCartaoPixLoja || 0);
-      const lucroLiquido = lucroBruto - custoTotal - taxaDeCartao;
+      const cartaoPixLiquido = Number(
+        totais.valorCartaoPixLiquidoLoja ?? cartaoPix - taxaDeCartao,
+      );
+      const percentualTaxaCartaoMedia = Number(
+        totais.percentualTaxaCartaoMedia || 0,
+      );
+      const lucroLiquido = Number(
+        totais.valorTotalLoja ?? dinheiro + cartaoPixLiquido - custoTotal,
+      );
 
       (dados?.produtosSairam || []).forEach((produto) => {
         const id = String(produto.id ?? produto.codigo ?? produto.nome);
@@ -1425,6 +1462,8 @@ export const relatorioTodasLojas = async (req, res) => {
         lucroLiquido,
         dinheiro,
         cartaoPix,
+        cartaoPixLiquido,
+        percentualTaxaCartaoMedia,
       };
     });
 
@@ -1439,6 +1478,10 @@ export const relatorioTodasLojas = async (req, res) => {
         acc.taxaDeCartaoTotal += loja.taxaDeCartao;
         acc.dinheiroTotal += loja.dinheiro;
         acc.cartaoPixTotal += loja.cartaoPix;
+        acc.cartaoPixLiquidoTotal += loja.cartaoPixLiquido;
+        acc.somaPercentualTaxaPonderado +=
+          loja.percentualTaxaCartaoMedia * loja.cartaoPix;
+        acc.somaBasePercentualTaxa += loja.cartaoPix;
         return acc;
       },
       {
@@ -1451,8 +1494,20 @@ export const relatorioTodasLojas = async (req, res) => {
         taxaDeCartaoTotal: 0,
         dinheiroTotal: 0,
         cartaoPixTotal: 0,
+        cartaoPixLiquidoTotal: 0,
+        somaPercentualTaxaPonderado: 0,
+        somaBasePercentualTaxa: 0,
       },
     );
+
+    totais.percentualTaxaCartaoMediaTotal = Number(
+      (totais.somaBasePercentualTaxa > 0
+        ? totais.somaPercentualTaxaPonderado / totais.somaBasePercentualTaxa
+        : 0
+      ).toFixed(2),
+    );
+    delete totais.somaPercentualTaxaPonderado;
+    delete totais.somaBasePercentualTaxa;
 
     const totalRecebimentos = totais.dinheiroTotal + totais.cartaoPixTotal;
 
