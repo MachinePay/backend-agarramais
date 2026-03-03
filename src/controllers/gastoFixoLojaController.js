@@ -1,32 +1,11 @@
 import { GastoFixoLoja, GastoTotalFixoLoja } from "../models/index.js";
 import { sequelize } from "../database/connection.js";
-
-const GASTO_RATEIO_ANUAL_12X = "Rateio Anual (12x)";
-
-const ehGastoRateioAnual12x = (nomeOriginal) => {
-  const nome = String(nomeOriginal || "")
-    .trim()
-    .toLowerCase();
-
-  if (!nome.includes("12x")) return false;
-
-  return (
-    nome.includes("rateio anual") ||
-    nome.includes("alugel dobrado") ||
-    nome.includes("aluguel dobrado") ||
-    nome === GASTO_RATEIO_ANUAL_12X.toLowerCase()
-  );
-};
+import { Op } from "sequelize";
 
 const calcularValorMensalDoGasto = (gasto) => {
-  const nome = String(gasto?.nome || "").trim();
   const valor = Number(gasto?.valor || 0);
 
   if (!Number.isFinite(valor) || valor <= 0) return 0;
-  if (ehGastoRateioAnual12x(nome)) {
-    return valor / 12;
-  }
-
   return valor;
 };
 
@@ -73,9 +52,13 @@ export const saveGastosFixos = async (req, res) => {
       return res.status(400).json({ error: "Gastos inválidos" });
     }
 
+    const nomesRecebidos = [];
+
     for (const gasto of gastos) {
       const nome = String(gasto.nome || "").trim();
       if (!nome) continue;
+
+      nomesRecebidos.push(nome);
 
       await GastoFixoLoja.upsert(
         {
@@ -86,6 +69,16 @@ export const saveGastosFixos = async (req, res) => {
         },
         { transaction },
       );
+    }
+
+    if (nomesRecebidos.length > 0) {
+      await GastoFixoLoja.destroy({
+        where: {
+          lojaId,
+          nome: { [Op.notIn]: nomesRecebidos },
+        },
+        transaction,
+      });
     }
 
     const agora = new Date();

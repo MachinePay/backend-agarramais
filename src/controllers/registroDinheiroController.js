@@ -12,21 +12,6 @@ import {
 } from "../models/index.js";
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
-const GASTO_RATEIO_ANUAL_12X = "Rateio Anual (12x)";
-
-const ehGastoRateioAnual12x = (nomeOriginal) => {
-  const nome = String(nomeOriginal || "")
-    .trim()
-    .toLowerCase();
-  if (!nome.includes("12x")) return false;
-
-  return (
-    nome.includes("rateio anual") ||
-    nome.includes("alugel dobrado") ||
-    nome.includes("aluguel dobrado") ||
-    nome === GASTO_RATEIO_ANUAL_12X.toLowerCase()
-  );
-};
 
 const diasNoMes = (ano, mes) => new Date(ano, mes, 0).getDate();
 
@@ -71,12 +56,9 @@ const normalizarValorMonetario = (valor) => {
 };
 
 const calcularValorMensalDoGastoFixo = (gasto) => {
-  const nome = String(gasto?.nome || "").trim();
   const valor = Number(gasto?.valor || 0);
 
   if (!Number.isFinite(valor) || valor <= 0) return 0;
-  if (ehGastoRateioAnual12x(nome)) return valor / 12;
-
   return valor;
 };
 
