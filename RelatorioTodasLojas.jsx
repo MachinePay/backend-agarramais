@@ -65,8 +65,10 @@ export function RelatorioTodasLojas({ relatorio }) {
     Number(totais.cartaoPixTotal || 0) - Number(totais.taxaDeCartaoTotal || 0);
   const totalRecebimentosLiquidos =
     Number(totais.dinheiroTotal || 0) + Number(cartaoPixLiquidoTotal || 0);
-  const brutoConsolidado =
-    Number(totais.dinheiroTotal || 0) + Number(totais.cartaoPixTotal || 0);
+  const brutoConsolidado = Number(
+    totais.lucroBrutoTotal ??
+      Number(totais.dinheiroTotal || 0) + Number(totais.cartaoPixTotal || 0),
+  );
   const gastosFixosPorLoja = (graficos.gastosFixosPorLoja || []).filter(
     (item) => Number(item.custoFixo || 0) > 0,
   );
@@ -162,7 +164,9 @@ export function RelatorioTodasLojas({ relatorio }) {
           <div className="text-2xl font-bold">
             {formatarMoeda(brutoConsolidado)}
           </div>
-          <div className="text-sm opacity-90">Bruto Consolidado (Lojas)</div>
+          <div className="text-sm opacity-90">
+            Bruto Consolidado (Lojas + Máquinas)
+          </div>
         </div>
         <div className="card bg-gradient-to-br from-red-500 to-rose-700 text-white">
           <div className="text-2xl mb-1">📤</div>

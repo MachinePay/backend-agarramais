@@ -1558,30 +1558,45 @@ export const relatorioTodasLojas = async (req, res) => {
 
     const rankingLojas = relatoriosPorLoja.map(({ loja, dados }) => {
       const totais = dados?.totais || {};
-      const lucroBruto = Number(
-        totais.valorTotalLojaBruto ??
-          Number(totais.valorDinheiroLoja || 0) +
-            Number(totais.valorCartaoPixLoja || 0),
-      );
       const custoTotal = Number(totais.gastoTotalPeriodo || 0);
-      const taxaDeCartao = Number(totais.taxaDeCartao || 0);
       const custoVariavel = Number(totais.gastoVariavelTotalPeriodo || 0);
       const custoProdutos = Number(totais.gastoProdutosTotalPeriodo || 0);
       const custoFixo = Number(totais.gastoFixoTotalPeriodo || 0);
-      const dinheiro = Number(totais.valorDinheiroLoja || 0);
-      const cartaoPix = Number(totais.valorCartaoPixLoja || 0);
-      const cartaoPixLiquido = Number(
-        totais.valorCartaoPixLiquidoLoja ?? cartaoPix - taxaDeCartao,
+      const dinheiroLoja = Number(totais.valorDinheiroLoja || 0);
+      const cartaoPixLojaBruto = Number(totais.valorCartaoPixLoja || 0);
+      const taxaDeCartaoLoja = Number(totais.taxaDeCartao || 0);
+      const cartaoPixLojaLiquido = Number(
+        totais.valorCartaoPixLiquidoLoja ??
+          Math.max(cartaoPixLojaBruto - taxaDeCartaoLoja, 0),
+      );
+      const dinheiroMaquinas = Number(totais.valorDinheiroMaquinas || 0);
+      const cartaoPixMaquinasBruto = Number(
+        totais.valorCartaoPixMaquinasBruto || 0,
+      );
+      const cartaoPixMaquinasLiquido = Number(
+        totais.valorCartaoPixMaquinasLiquido ?? cartaoPixMaquinasBruto,
+      );
+      const taxaDeCartaoMaquinas = Math.max(
+        cartaoPixMaquinasBruto - cartaoPixMaquinasLiquido,
+        0,
+      );
+      const dinheiro = dinheiroLoja + dinheiroMaquinas;
+      const cartaoPix = cartaoPixLojaBruto + cartaoPixMaquinasBruto;
+      const cartaoPixLiquido = cartaoPixLojaLiquido + cartaoPixMaquinasLiquido;
+      const taxaDeCartao = taxaDeCartaoLoja + taxaDeCartaoMaquinas;
+      const lucroBruto = Number(
+        totais.valorBrutoConsolidadoLojaMaquinas ?? dinheiro + cartaoPix,
+      );
+      const lucroLiquido = Number(
+        totais.valorLiquidoConsolidadoLojaMaquinas ??
+          dinheiro + cartaoPixLiquido - custoTotal,
       );
       const percentualTaxaCartaoMedia = Number(
-        totais.percentualTaxaCartaoMedia || 0,
+        cartaoPix > 0 ? (taxaDeCartao / cartaoPix) * 100 : 0,
       );
       const fichas = Number(totais.fichas || 0);
       const produtosSairam = Number(totais.produtosSairam || 0);
       const produtosEntraram = Number(totais.produtosEntraram || 0);
-      const lucroLiquido = Number(
-        totais.valorTotalLoja ?? dinheiro + cartaoPixLiquido - custoTotal,
-      );
 
       (dados?.produtosSairam || []).forEach((produto) => {
         const id = String(produto.id ?? produto.codigo ?? produto.nome);
