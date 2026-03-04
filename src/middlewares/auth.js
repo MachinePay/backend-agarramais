@@ -39,6 +39,9 @@ export const autorizarRole = (...rolesPermitidas) => {
   };
 };
 
+// US03 - Middleware de autorização ADMIN
+export const requireAdmin = autorizarRole("ADMIN");
+
 // US02 - Middleware de Verificação de Permissão em Loja
 export const verificarPermissaoLoja = (acao = "visualizar") => {
   return async (req, res, next) => {
