@@ -1701,7 +1701,7 @@ export const relatorioTodasLojas = async (req, res) => {
       .slice(0, 15);
 
     const rankingLucroLojas = [...rankingLojasComParticipacao]
-      .sort((a, b) => b.lucroBruto - a.lucroBruto)
+      .sort((a, b) => b.lucroLiquido - a.lucroLiquido)
       .slice(0, 10);
 
     const rankingGastoLojas = [...rankingLojasComParticipacao]

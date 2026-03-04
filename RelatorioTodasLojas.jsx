@@ -221,7 +221,7 @@ export function RelatorioTodasLojas({ relatorio }) {
             {destaques.lojaMaiorLucro?.lojaNome || "-"}
           </div>
           <div className="text-sm mt-1">
-            {formatarMoeda(destaques.lojaMaiorLucro?.lucroBruto || 0)}
+            {formatarMoeda(destaques.lojaMaiorLucro?.lucroLiquido || 0)}
           </div>
         </div>
         <div className="card border border-red-200 bg-red-50">
@@ -279,10 +279,10 @@ export function RelatorioTodasLojas({ relatorio }) {
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <GraficoBarras
-          titulo="📊 Ranking: lojas que mais lucraram"
+          titulo="📊 Ranking: lojas com maior lucro líquido"
           itens={graficos.rankingLucroLojas || []}
           chaveNome="lojaNome"
-          chaveValor="lucroBruto"
+          chaveValor="lucroLiquido"
           classeBarra="bg-gradient-to-r from-green-500 to-emerald-700"
           formatter={formatarMoeda}
           vazio="Sem dados para ranking de lucro."
