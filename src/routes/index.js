@@ -1,4 +1,5 @@
 import express from "express";
+import graficosRoutes from "./graficos.routes.js";
 import authRoutes from "./auth.routes.js";
 import usuarioRoutes from "./usuario.routes.js";
 import lojaRoutes from "./loja.routes.js";
@@ -38,6 +39,7 @@ router.use("/movimentacao-veiculos", movimentacaoVeiculoRoutes);
 
 router.use("/registro-dinheiro", registroDinheiroRoutes);
 router.use("/gastos-variaveis", gastoVariavelRoutes);
+router.use("/graficos", graficosRoutes);
 
 router.use("/gastos-fixos-loja", gastoFixoLojaRoutes);
 router.use("/manutencoes", manutencaoRoutes);
