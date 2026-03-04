@@ -659,7 +659,7 @@ export const ignorarAlertaMovimentacao = async (req, res) => {
   }
 };
 
-// --- BALANÇO SEMANAL ---
+// --- BALANÇO MENSAL ---
 export const balançoSemanal = async (req, res) => {
   try {
     const { lojaId, dataInicio, dataFim } = req.query;
@@ -667,7 +667,7 @@ export const balançoSemanal = async (req, res) => {
     const fim = dataFim ? new Date(dataFim) : new Date();
     const inicio = dataInicio
       ? new Date(dataInicio)
-      : new Date(fim.getTime() - 7 * 24 * 60 * 60 * 1000);
+      : new Date(new Date(fim).setMonth(fim.getMonth() - 1));
 
     const whereMovimentacao = {
       dataColeta: {
