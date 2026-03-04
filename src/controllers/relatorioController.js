@@ -1102,10 +1102,11 @@ const gerarRelatorioImpressaoPorLoja = async ({
     (sum, m) => sum + (m.fichas || 0),
     0,
   );
-  const totalSairam = movimentacoes.reduce(
-    (sum, m) => sum + (m.sairam || 0),
-    0,
-  );
+  const totalSairam = movimentacoes.reduce((sum, m) => {
+    const ehRetiradaEstoque =
+      m.retiradaEstoque === true || m.retirada_estoque === true;
+    return sum + (ehRetiradaEstoque ? 0 : m.sairam || 0);
+  }, 0);
   const totalAbastecidas = movimentacoes.reduce(
     (sum, m) => sum + (m.abastecidas || 0),
     0,
@@ -1155,7 +1156,9 @@ const gerarRelatorioImpressaoPorLoja = async ({
     }
 
     dadosPorMaquina[maquinaId].fichas += mov.fichas || 0;
-    dadosPorMaquina[maquinaId].totalSairam += mov.sairam || 0;
+    dadosPorMaquina[maquinaId].totalSairam += ehRetiradaEstoque
+      ? 0
+      : mov.sairam || 0;
     dadosPorMaquina[maquinaId].totalAbastecidas += mov.abastecidas || 0;
     dadosPorMaquina[maquinaId].numMovimentacoes += 1;
 
