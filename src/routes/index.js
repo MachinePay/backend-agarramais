@@ -1,5 +1,5 @@
-const express = require("express");
-const graficosRoutes = require("./graficos.routes.js");
+import express from "express";
+import graficosRoutes from "./graficos.routes.js";
 import authRoutes from "./auth.routes.js";
 import usuarioRoutes from "./usuario.routes.js";
 import lojaRoutes from "./loja.routes.js";

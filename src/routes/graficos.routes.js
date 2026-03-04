@@ -1,9 +1,9 @@
-const express = require("express");
+import express from "express";
+import { getDashboardGraficos } from "../controllers/graficosController.js";
+import { requireAdmin } from "../middlewares/auth.js";
 const router = express.Router();
-const { getDashboardGraficos } = require("../controllers/graficosController");
-const { requireAdmin } = require("../middlewares/auth");
 
 // Rota exclusiva para gráficos do dashboard
 router.get("/dashboard", requireAdmin, getDashboardGraficos);
 
-module.exports = router;
+export default router;
