@@ -1014,15 +1014,45 @@ const gerarRelatorioImpressaoPorLoja = async ({
   let somaPercentualTaxaPonderado = 0;
   let somaBasePercentualTaxa = 0;
   let gastoTotalPeriodoSalvo = 0;
+
+  const obterNumeroRegistro = (registro, ...chaves) => {
+    for (const chave of chaves) {
+      const valor = registro?.[chave];
+      if (valor !== undefined && valor !== null && valor !== "") {
+        const numero = Number(valor);
+        return Number.isFinite(numero) ? numero : 0;
+      }
+    }
+
+    return 0;
+  };
+
+  const ehRegistroTotalLoja = (registro) =>
+    registro?.registrarTotalLoja === true ||
+    registro?.registrar_total_loja === true ||
+    registro?.registrarTotalLoja === 1 ||
+    registro?.registrar_total_loja === 1;
+
+  const obterMaquinaIdRegistro = (registro) =>
+    registro?.maquinaId ?? registro?.maquinaid ?? null;
+
   registrosDinheiro.forEach((r) => {
-    if (r.registrarTotalLoja) {
-      const valorCartaoPixRegistro = parseFloat(r.valorCartaoPix || 0);
+    if (ehRegistroTotalLoja(r)) {
+      const valorCartaoPixRegistro = obterNumeroRegistro(
+        r,
+        "valorCartaoPix",
+        "valor_cartao_pix",
+      );
       const taxaRegistro = parseFloat(
         r.taxaDeCartao ??
           r.taxa_de_cartao ??
           Math.max(
-            parseFloat(r.valorCartaoPix || 0) -
-              parseFloat(r.valorCartaoPixLiquido || 0),
+            obterNumeroRegistro(r, "valorCartaoPix", "valor_cartao_pix") -
+              obterNumeroRegistro(
+                r,
+                "valorCartaoPixLiquido",
+                "valor_cartao_pix_liquido",
+              ),
             0,
           ),
       );
@@ -1036,8 +1066,13 @@ const gerarRelatorioImpressaoPorLoja = async ({
       );
 
       valorTotalLoja +=
-        parseFloat(r.valorDinheiro || 0) + valorCartaoPixRegistro;
-      valorDinheiroLoja += parseFloat(r.valorDinheiro || 0);
+        obterNumeroRegistro(r, "valorDinheiro", "valor_dinheiro") +
+        valorCartaoPixRegistro;
+      valorDinheiroLoja += obterNumeroRegistro(
+        r,
+        "valorDinheiro",
+        "valor_dinheiro",
+      );
       valorCartaoPixLoja += valorCartaoPixRegistro;
       taxaDeCartaoTotal += taxaRegistro;
       somaPercentualTaxaPonderado +=
@@ -1063,9 +1098,11 @@ const gerarRelatorioImpressaoPorLoja = async ({
 
   const valoresPorMaquina = {};
   registrosDinheiro.forEach((r) => {
-    if (!r.registrarTotalLoja && r.maquinaId) {
-      if (!valoresPorMaquina[r.maquinaId]) {
-        valoresPorMaquina[r.maquinaId] = {
+    const maquinaIdRegistro = obterMaquinaIdRegistro(r);
+
+    if (!ehRegistroTotalLoja(r) && maquinaIdRegistro) {
+      if (!valoresPorMaquina[maquinaIdRegistro]) {
+        valoresPorMaquina[maquinaIdRegistro] = {
           dinheiro: 0,
           cartaoPix: 0,
           cartaoPixLiquido: 0,
@@ -1073,30 +1110,66 @@ const gerarRelatorioImpressaoPorLoja = async ({
         };
       }
 
-      const valorCartaoPixRegistro = parseFloat(r.valorCartaoPix || 0);
+      const valorCartaoPixRegistro = obterNumeroRegistro(
+        r,
+        "valorCartaoPix",
+        "valor_cartao_pix",
+      );
       const taxaRegistro = parseFloat(
         r.taxaDeCartao ??
           r.taxa_de_cartao ??
           Math.max(
-            parseFloat(r.valorCartaoPix || 0) -
-              parseFloat(r.valorCartaoPixLiquido || 0),
+            obterNumeroRegistro(r, "valorCartaoPix", "valor_cartao_pix") -
+              obterNumeroRegistro(
+                r,
+                "valorCartaoPixLiquido",
+                "valor_cartao_pix_liquido",
+              ),
             0,
           ),
       );
-      const valorCartaoPixLiquidoRegistro = parseFloat(
-        r.valorCartaoPixLiquido ??
-          Math.max(valorCartaoPixRegistro - taxaRegistro, 0),
+      const valorCartaoPixLiquidoRegistro = obterNumeroRegistro(
+        r,
+        "valorCartaoPixLiquido",
+        "valor_cartao_pix_liquido",
       );
+      const valorCartaoPixLiquidoNormalizado =
+        valorCartaoPixLiquidoRegistro > 0
+          ? valorCartaoPixLiquidoRegistro
+          : Math.max(valorCartaoPixRegistro - taxaRegistro, 0);
 
-      valoresPorMaquina[r.maquinaId].dinheiro += parseFloat(
-        r.valorDinheiro || 0,
+      valoresPorMaquina[maquinaIdRegistro].dinheiro += obterNumeroRegistro(
+        r,
+        "valorDinheiro",
+        "valor_dinheiro",
       );
-      valoresPorMaquina[r.maquinaId].cartaoPix += valorCartaoPixRegistro;
-      valoresPorMaquina[r.maquinaId].cartaoPixLiquido +=
-        valorCartaoPixLiquidoRegistro;
-      valoresPorMaquina[r.maquinaId].taxaDeCartao += taxaRegistro;
+      valoresPorMaquina[maquinaIdRegistro].cartaoPix += valorCartaoPixRegistro;
+      valoresPorMaquina[maquinaIdRegistro].cartaoPixLiquido +=
+        valorCartaoPixLiquidoNormalizado;
+      valoresPorMaquina[maquinaIdRegistro].taxaDeCartao += taxaRegistro;
     }
   });
+
+  const totaisMaquinasRegistro = Object.values(valoresPorMaquina).reduce(
+    (acc, item) => {
+      acc.dinheiro += Number(item.dinheiro || 0);
+      acc.cartaoPix += Number(item.cartaoPix || 0);
+      acc.cartaoPixLiquido += Number(item.cartaoPixLiquido || 0);
+      return acc;
+    },
+    { dinheiro: 0, cartaoPix: 0, cartaoPixLiquido: 0 },
+  );
+
+  const valorBrutoMaquinas = Number(
+    (
+      totaisMaquinasRegistro.dinheiro + totaisMaquinasRegistro.cartaoPix
+    ).toFixed(2),
+  );
+  const valorLiquidoMaquinas = Number(
+    (
+      totaisMaquinasRegistro.dinheiro + totaisMaquinasRegistro.cartaoPixLiquido
+    ).toFixed(2),
+  );
 
   const totalFichas = movimentacoes.reduce(
     (sum, m) => sum + (m.fichas || 0),
@@ -1290,6 +1363,17 @@ const gerarRelatorioImpressaoPorLoja = async ({
   const valorCartaoPixLiquidoLoja = Number(
     Math.max(valorCartaoPixLoja - taxaDeCartaoPeriodo, 0).toFixed(2),
   );
+  const valorBrutoConsolidadoLojaMaquinas = Number(
+    (valorTotalLojaBruto + valorBrutoMaquinas).toFixed(2),
+  );
+  const valorLiquidoConsolidadoLojaMaquinas = Number(
+    (
+      valorDinheiroLoja +
+      valorCartaoPixLiquidoLoja +
+      valorLiquidoMaquinas -
+      gastoTotalPeriodo
+    ).toFixed(2),
+  );
   const valorTotalLojaLiquido = Number(
     (valorDinheiroLoja + valorCartaoPixLiquidoLoja - gastoTotalPeriodo).toFixed(
       2,
@@ -1355,6 +1439,17 @@ const gerarRelatorioImpressaoPorLoja = async ({
       valorDinheiroLoja,
       valorCartaoPixLoja,
       valorCartaoPixLiquidoLoja,
+      valorDinheiroMaquinas: Number(totaisMaquinasRegistro.dinheiro.toFixed(2)),
+      valorCartaoPixMaquinasBruto: Number(
+        totaisMaquinasRegistro.cartaoPix.toFixed(2),
+      ),
+      valorCartaoPixMaquinasLiquido: Number(
+        totaisMaquinasRegistro.cartaoPixLiquido.toFixed(2),
+      ),
+      valorBrutoMaquinas,
+      valorLiquidoMaquinas,
+      valorBrutoConsolidadoLojaMaquinas,
+      valorLiquidoConsolidadoLojaMaquinas,
       ticketPorPremioTotal,
     },
     produtosSairam: produtosSairam.map((p) => ({
