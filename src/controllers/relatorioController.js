@@ -1478,6 +1478,9 @@ export const relatorioTodasLojas = async (req, res) => {
       const percentualTaxaCartaoMedia = Number(
         totais.percentualTaxaCartaoMedia || 0,
       );
+      const fichas = Number(totais.fichas || 0);
+      const produtosSairam = Number(totais.produtosSairam || 0);
+      const produtosEntraram = Number(totais.produtosEntraram || 0);
       const lucroLiquido = Number(
         totais.valorTotalLoja ?? dinheiro + cartaoPixLiquido - custoTotal,
       );
@@ -1515,6 +1518,9 @@ export const relatorioTodasLojas = async (req, res) => {
         cartaoPix,
         cartaoPixLiquido,
         percentualTaxaCartaoMedia,
+        fichas,
+        produtosSairam,
+        produtosEntraram,
       };
     });
 
@@ -1530,6 +1536,9 @@ export const relatorioTodasLojas = async (req, res) => {
         acc.dinheiroTotal += loja.dinheiro;
         acc.cartaoPixTotal += loja.cartaoPix;
         acc.cartaoPixLiquidoTotal += loja.cartaoPixLiquido;
+        acc.fichasTotal += loja.fichas;
+        acc.produtosSairamTotal += loja.produtosSairam;
+        acc.produtosEntraramTotal += loja.produtosEntraram;
         acc.somaPercentualTaxaPonderado +=
           loja.percentualTaxaCartaoMedia * loja.cartaoPix;
         acc.somaBasePercentualTaxa += loja.cartaoPix;
@@ -1546,6 +1555,9 @@ export const relatorioTodasLojas = async (req, res) => {
         dinheiroTotal: 0,
         cartaoPixTotal: 0,
         cartaoPixLiquidoTotal: 0,
+        fichasTotal: 0,
+        produtosSairamTotal: 0,
+        produtosEntraramTotal: 0,
         somaPercentualTaxaPonderado: 0,
         somaBasePercentualTaxa: 0,
       },
@@ -1587,6 +1599,14 @@ export const relatorioTodasLojas = async (req, res) => {
       .sort((a, b) => b.participacaoLucroBruto - a.participacaoLucroBruto)
       .slice(0, 10);
 
+    const gastosFixosPorLoja = [...rankingLojasComParticipacao]
+      .map((loja) => ({
+        lojaNome: loja.lojaNome,
+        custoFixo: Number(loja.custoFixo || 0),
+      }))
+      .filter((item) => item.custoFixo > 0)
+      .sort((a, b) => b.custoFixo - a.custoFixo);
+
     return res.json({
       tipo: "todas-lojas",
       periodo: {
@@ -1623,6 +1643,7 @@ export const relatorioTodasLojas = async (req, res) => {
                 : 0,
           },
         ],
+        gastosFixosPorLoja,
       },
       lojasSemDados,
       lojasComDados: relatoriosPorLoja.length,
