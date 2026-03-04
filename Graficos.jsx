@@ -29,10 +29,14 @@ export function Graficos() {
   const [dataInicio, setDataInicio] = useState("");
   const [dataFim, setDataFim] = useState("");
   const [dadosGraficos, setDadosGraficos] = useState(null);
+  const [dadosDashboard, setDadosDashboard] = useState(null);
+  const [dadosImpressao, setDadosImpressao] = useState(null);
   const [erro, setErro] = useState("");
 
-  const totaisGerais = dadosGraficos?.totaisGerais || {};
-  const totaisPorLoja = dadosGraficos?.totaisPorLoja || {};
+  const totaisGerais = useMemo(
+    () => dadosGraficos?.totaisGerais || {},
+    [dadosGraficos],
+  );
 
   const faturamentoTotal = useMemo(() => {
     return (
@@ -201,40 +205,26 @@ export function Graficos() {
     }
 
     return serieDiaria;
-  }, [
-    dadosDashboard,
-    faturamentoTotal,
-    custoTotalPeriodo,
-    dataInicio,
-    dataFim,
-  ]);
+  }, [dadosDashboard, dataInicio, dataFim]);
 
   useEffect(() => {
     setLoading(true);
+    const token = localStorage.getItem("token");
     api
-      .get("/graficos/dashboard")
+      .get("/graficos/dashboard", {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
       .then((res) => {
         setDadosGraficos(res.data);
         setErro("");
       })
-      .catch((err) => {
+      .catch(() => {
         setErro("Erro ao carregar dados dos gráficos");
       })
       .finally(() => setLoading(false));
   }, []);
 
-  const carregarLojas = async () => {
-    try {
-      const response = await api.get("/lojas");
-      setLojas(response.data || []);
-      if (response.data && response.data.length > 0) {
-        setLojaSelecionada(response.data[0].id);
-      }
-    } catch (error) {
-      console.error("Erro ao carregar lojas:", error);
-      setErro("Erro ao carregar lista de lojas.");
-    }
-  };
+  // Removido: carregarLojas não é utilizado
 
   const carregarDados = useCallback(async () => {
     if (!lojaSelecionada || !dataInicio || !dataFim) return;
@@ -442,7 +432,7 @@ export function Graficos() {
                       Prêmios Entregues
                     </p>
                     <h3 className="text-2xl font-bold text-gray-900 mt-1">
-                      {Number(totaisDashboard?.saidas || 0)}
+                      {Number(totaisGerais?.saidas || 0)}
                     </h3>
                   </div>
                   <span className="p-2 bg-orange-100 text-orange-600 rounded-lg text-xl">
@@ -458,7 +448,7 @@ export function Graficos() {
                       Total Fichas
                     </p>
                     <h3 className="text-2xl font-bold text-gray-900 mt-1">
-                      {Number(totaisDashboard?.fichas || 0)}
+                      {Number(totaisGerais?.fichas || 0)}
                     </h3>
                   </div>
                   <span className="p-2 bg-purple-100 text-purple-600 rounded-lg text-xl">
@@ -467,10 +457,10 @@ export function Graficos() {
                 </div>
                 <div className="mt-3 text-xs text-gray-500">
                   Média:{" "}
-                  {Number(totaisDashboard?.saidas || 0) > 0
+                  {Number(totaisGerais?.saidas || 0) > 0
                     ? (
-                        Number(totaisDashboard?.fichas || 0) /
-                        Number(totaisDashboard?.saidas || 0)
+                        Number(totaisGerais?.fichas || 0) /
+                        Number(totaisGerais?.saidas || 0)
                       ).toFixed(1)
                     : "0.0"}{" "}
                   fichas/prêmio

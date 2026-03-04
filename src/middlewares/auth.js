@@ -40,7 +40,19 @@ export const autorizarRole = (...rolesPermitidas) => {
 };
 
 // US03 - Middleware de autorização ADMIN
-export const requireAdmin = autorizarRole("ADMIN");
+export const requireAdmin = (req, res, next) => {
+  if (!req.usuario || !req.usuario.role) {
+    return res
+      .status(401)
+      .json({ error: "Usuário não autenticado ou token inválido" });
+  }
+  if (req.usuario.role !== "ADMIN") {
+    return res
+      .status(403)
+      .json({ error: "Acesso negado. Você não tem permissão para esta ação." });
+  }
+  next();
+};
 
 // US02 - Middleware de Verificação de Permissão em Loja
 export const verificarPermissaoLoja = (acao = "visualizar") => {
