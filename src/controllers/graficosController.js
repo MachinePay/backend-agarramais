@@ -1,5 +1,5 @@
 // Controller exclusivo para gráficos
-const RegistroDinheiro = require("../models/RegistroDinheiro.js").default;
+import RegistroDinheiro from "../models/RegistroDinheiro.js";
 
 // Exemplo de agregação simples, pode ser expandido conforme necessidade dos gráficos
 async function getDashboardGraficos(req, res) {
@@ -70,13 +70,11 @@ async function getDashboardGraficos(req, res) {
     );
     res.json({ totaisPorLoja, totaisGerais });
   } catch (err) {
-    res
-      .status(500)
-      .json({
-        error: "Erro ao gerar dados dos gráficos",
-        details: err.message,
-      });
+    res.status(500).json({
+      error: "Erro ao gerar dados dos gráficos",
+      details: err.message,
+    });
   }
 }
 
-module.exports = { getDashboardGraficos };
+export { getDashboardGraficos };
