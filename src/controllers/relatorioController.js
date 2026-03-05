@@ -667,7 +667,7 @@ export const balançoSemanal = async (req, res) => {
     const fim = dataFim ? new Date(dataFim) : new Date();
     const inicio = dataInicio
       ? new Date(dataInicio)
-      : new Date(new Date(fim).setMonth(fim.getMonth() - 1));
+      : new Date(fim.getFullYear(), fim.getMonth(), 1);
 
     const whereMovimentacao = {
       dataColeta: {
