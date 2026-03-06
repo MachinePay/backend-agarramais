@@ -25,8 +25,9 @@ import {
 export function Graficos() {
   const [loading, setLoading] = useState(false);
   const [lojas, setLojas] = useState([]);
+  const NENHUMA_LOJA_VALUE = "";
   const TODAS_LOJAS_VALUE = "__TODAS_AS_LOJAS__";
-  const [lojaSelecionada, setLojaSelecionada] = useState("");
+  const [lojaSelecionada, setLojaSelecionada] = useState(NENHUMA_LOJA_VALUE);
   const [dataInicio, setDataInicio] = useState("");
   const [dataFim, setDataFim] = useState("");
   const [dadosGraficos, setDadosGraficos] = useState(null);
@@ -38,7 +39,57 @@ export function Graficos() {
   // ==========================================
   // HOOKS MOVIDOS PARA DENTRO DO COMPONENTE
   // ==========================================
-  
+  // Funções utilitárias copiadas de Relatorios.jsx
+const toNumber = (valor) => Number(valor || 0);
+const calcularValorFichasRelatorio = (dadosRelatorio) => {
+  const totalFichas = toNumber(dadosRelatorio?.totais?.fichas);
+  const valorFicha = toNumber(dadosRelatorio?.loja?.valorFichaPadrao || 2.5);
+  return totalFichas * valorFicha;
+};
+const calcularValorConsolidadoRelatorio = (dadosRelatorio) => {
+  if (
+    dadosRelatorio?.totais?.valorBrutoConsolidadoLojaMaquinas !== undefined &&
+    dadosRelatorio?.totais?.valorBrutoConsolidadoLojaMaquinas !== null
+  ) {
+    return toNumber(dadosRelatorio.totais.valorBrutoConsolidadoLojaMaquinas);
+  }
+  const valorTrocadora =
+    toNumber(dadosRelatorio?.totais?.valorDinheiroLoja) +
+    toNumber(dadosRelatorio?.totais?.valorCartaoPixLoja);
+  const valorBrutoMaquinas = Array.isArray(dadosRelatorio?.maquinas)
+    ? dadosRelatorio.maquinas.reduce(
+        (acc, maquina) =>
+          acc +
+          toNumber(maquina?.totais?.dinheiro) +
+          toNumber(maquina?.totais?.cartaoPix),
+        0,
+      )
+    : 0;
+  return valorTrocadora + valorBrutoMaquinas;
+};
+const calcularLucroLiquidoRelatorio = (dadosRelatorio) => {
+  if (
+    dadosRelatorio?.totais?.valorLiquidoConsolidadoLojaMaquinas !== undefined &&
+    dadosRelatorio?.totais?.valorLiquidoConsolidadoLojaMaquinas !== null
+  ) {
+    return toNumber(dadosRelatorio.totais.valorLiquidoConsolidadoLojaMaquinas);
+  }
+  const valorTrocadoraLiquido =
+    toNumber(dadosRelatorio?.totais?.valorDinheiroLoja) +
+    toNumber(dadosRelatorio?.totais?.valorCartaoPixLiquidoLoja);
+  const valorLiquidoMaquinas = Array.isArray(dadosRelatorio?.maquinas)
+    ? dadosRelatorio.maquinas.reduce(
+        (acc, maquina) =>
+          acc +
+          toNumber(maquina?.totais?.dinheiro) +
+          toNumber(maquina?.totais?.cartaoPixLiquido),
+        0,
+      )
+    : 0;
+  const gastoTotal = toNumber(dadosRelatorio?.totais?.gastoTotalPeriodo);
+  return valorTrocadoraLiquido + valorLiquidoMaquinas - gastoTotal;
+};
+
   // Agrupa dados mensais para os três gráficos
   const dadosMensais = useMemo(() => {
     if (!dadosDashboard?.graficoFinanceiro) return [];
@@ -97,10 +148,12 @@ export function Graficos() {
     return dadosMensais.map((mes) => ({
       mes: mes.mes,
       margem:
-        mes.brutoConsolidado > 0 ? (mes.liquido / mes.brutoConsolidado) * 100 : 0,
+        mes.brutoConsolidado > 0
+          ? (mes.liquido / mes.brutoConsolidado) * 100
+          : 0,
     }));
   }, [dadosMensais]);
-  
+
   // ==========================================
 
   const totaisGerais = useMemo(
@@ -278,12 +331,12 @@ export function Graficos() {
   }, [dadosDashboard, dataInicio, dataFim]);
 
   useEffect(() => {
-    // Inicializa datas padrão (últimos 30 dias)
+    // Inicializa datas padrão (últimos 7 dias igual Relatorios.jsx)
     const hoje = new Date();
-    const trintaDiasAtras = new Date();
-    trintaDiasAtras.setDate(hoje.getDate() - 30);
+    const seteDiasAtras = new Date();
+    seteDiasAtras.setDate(hoje.getDate() - 7);
     setDataFim(hoje.toISOString().split("T")[0]);
-    setDataInicio(trintaDiasAtras.toISOString().split("T")[0]);
+    setDataInicio(seteDiasAtras.toISOString().split("T")[0]);
 
     // Carregar lojas
     setLoading(true);
@@ -291,13 +344,14 @@ export function Graficos() {
       .get("/lojas")
       .then((res) => {
         const lojasApi = res.data || [];
-        // Adiciona opção Todas as lojas
-        const lojasComTodas = [
+        // Adiciona opção Nenhum e Todas as lojas
+        const lojasComOpcoes = [
+          { id: NENHUMA_LOJA_VALUE, nome: "Nenhum" },
           { id: TODAS_LOJAS_VALUE, nome: "Todas as lojas" },
           ...lojasApi,
         ];
-        setLojas(lojasComTodas);
-        setLojaSelecionada(TODAS_LOJAS_VALUE);
+        setLojas(lojasComOpcoes);
+        setLojaSelecionada(NENHUMA_LOJA_VALUE);
       })
       .catch(() => {
         setErro("Erro ao carregar lista de lojas.");
@@ -306,36 +360,55 @@ export function Graficos() {
   }, []);
 
   const carregarDados = useCallback(async () => {
-    if (!lojaSelecionada || !dataInicio || !dataFim) return;
+    if (
+      !lojaSelecionada ||
+      lojaSelecionada === NENHUMA_LOJA_VALUE ||
+      !dataInicio ||
+      !dataFim
+    )
+      return;
 
     setErro("");
     setLoading(true);
 
     try {
+      const paramsBase = { dataInicio, dataFim };
+      let dashboardPromise;
+      let impressaoPromise;
+
+      if (lojaSelecionada === TODAS_LOJAS_VALUE) {
+        dashboardPromise = api.get("/relatorios/todas-lojas", {
+          params: paramsBase,
+        });
+        impressaoPromise = Promise.resolve({ data: null });
+      } else {
+        const params = { ...paramsBase, lojaId: lojaSelecionada };
+        dashboardPromise = api.get("/relatorios/dashboard", { params });
+        impressaoPromise = api.get("/relatorios/impressao", { params });
+      }
+
       const [dashboardResponse, impressaoResponse] = await Promise.all([
-        api.get("/relatorios/dashboard", {
-          params: {
-            lojaId: lojaSelecionada,
-            dataInicio,
-            dataFim,
-          },
-        }),
-        api.get("/relatorios/impressao", {
-          params: {
-            lojaId: lojaSelecionada,
-            dataInicio,
-            dataFim,
-          },
-        }),
+        dashboardPromise,
+        impressaoPromise,
       ]);
 
       setDadosDashboard(dashboardResponse.data || null);
       setDadosImpressao(impressaoResponse.data || null);
+      // Processa os dados para os gráficos
+      setDadosGraficos({
+        valorFichas: calcularValorFichasRelatorio(dashboardResponse.data),
+        valorConsolidado: calcularValorConsolidadoRelatorio(
+          dashboardResponse.data,
+        ),
+        lucroLiquido: calcularLucroLiquidoRelatorio(dashboardResponse.data),
+        ...dashboardResponse.data?.totais,
+      });
     } catch (error) {
       console.error("Erro ao carregar dashboard:", error);
       setErro("Não foi possível carregar os dados do painel.");
       setDadosDashboard(null);
       setDadosImpressao(null);
+      setDadosGraficos(null);
     } finally {
       setLoading(false);
     }
@@ -360,20 +433,30 @@ export function Graficos() {
     }).format(val || 0);
 
   const dadosDisponiveis = Boolean(
-    dadosGraficos && lojaSelecionada && dataInicio && dataFim,
+    dadosGraficos &&
+    lojaSelecionada &&
+    lojaSelecionada !== NENHUMA_LOJA_VALUE &&
+    dataInicio &&
+    dataFim,
   );
-  
+
   useEffect(() => {
-    if (!lojaSelecionada || !dataInicio || !dataFim) return;
+    if (
+      !lojaSelecionada ||
+      lojaSelecionada === NENHUMA_LOJA_VALUE ||
+      !dataInicio ||
+      !dataFim
+    )
+      return;
     setLoading(true);
     const token = localStorage.getItem("token");
-    const params = {
-      dataInicio,
-      dataFim,
-    };
-    if (lojaSelecionada !== TODAS_LOJAS_VALUE) {
-      params.lojaId = lojaSelecionada;
-    }
+    const paramsBase = { dataInicio, dataFim };
+    const params =
+      lojaSelecionada &&
+      lojaSelecionada !== NENHUMA_LOJA_VALUE &&
+      lojaSelecionada !== TODAS_LOJAS_VALUE
+        ? { ...paramsBase, lojaId: lojaSelecionada }
+        : paramsBase;
     // Carregar dados dos gráficos
     api
       .get("/graficos/dashboard", {
@@ -477,7 +560,6 @@ export function Graficos() {
           <div className="space-y-8 animate-fade-in">
             {/* Rankings de lojas */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-8">
-              
               {/* Lucro Bruto */}
               <div className="bg-white p-6 rounded-lg shadow">
                 <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
@@ -659,7 +741,6 @@ export function Graficos() {
 
             {/* Gráficos mensais */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
-
               <div className="bg-white p-6 rounded-lg shadow">
                 <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
                   <span className="bg-gray-100 p-1 rounded mr-2">💵</span>
@@ -693,7 +774,7 @@ export function Graficos() {
                   </ResponsiveContainer>
                 </div>
               </div>
-              
+
               <div className="bg-white p-6 rounded-lg shadow">
                 <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
                   <span className="bg-gray-100 p-1 rounded mr-2">💰</span>
@@ -727,7 +808,7 @@ export function Graficos() {
                   </ResponsiveContainer>
                 </div>
               </div>
-              
+
               <div className="bg-white p-6 rounded-lg shadow">
                 <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
                   <span className="bg-gray-100 p-1 rounded mr-2">✅</span>
@@ -1068,7 +1149,7 @@ export function Graficos() {
                                       (prod.quantidade /
                                         (dadosDashboard?.rankingProdutos?.[0]
                                           .quantidade || 1)) *
-                                      100,
+                                        100,
                                       100,
                                     )}%`,
                                   }}
