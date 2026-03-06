@@ -1,3 +1,67 @@
+// Endpoint novo: ranking de lucro bruto das lojas
+export const rankingLucroBrutoLojas = async (req, res) => {
+  try {
+    const { dataInicio, dataFim } = req.query;
+    if (!dataInicio || !dataFim) {
+      return res
+        .status(400)
+        .json({ error: "dataInicio e dataFim são obrigatórios" });
+    }
+    const lojas = await Loja.findAll({ where: { ativo: true }, raw: true });
+    const respostas = await Promise.allSettled(
+      lojas.map((loja) =>
+        gerarRelatorioImpressaoPorLoja({
+          lojaId: loja.id,
+          dataInicio,
+          dataFim,
+        }),
+      ),
+    );
+    const relatoriosPorLoja = respostas
+      .map((resposta, index) => {
+        if (resposta.status !== "fulfilled") return null;
+        return {
+          loja: lojas[index],
+          dados: resposta.value,
+        };
+      })
+      .filter(Boolean);
+    if (!relatoriosPorLoja.length) {
+      return res
+        .status(404)
+        .json({
+          error: "Não foi possível gerar o ranking para o período selecionado.",
+        });
+    }
+    const rankingLojas = relatoriosPorLoja.map(({ loja, dados }) => {
+      const totais = dados?.totais || {};
+      const lucroBruto = Number(
+        totais.valorBrutoConsolidadoLojaMaquinas ??
+          Number(totais.valorDinheiroLoja || 0) +
+            Number(totais.valorCartaoPixLoja || 0) +
+            Number(totais.valorDinheiroMaquinas || 0) +
+            Number(totais.valorCartaoPixMaquinasBruto || 0),
+      );
+      return {
+        lojaId: loja?.id,
+        lojaNome: dados?.loja?.nome || loja?.nome || "Loja",
+        lucroBruto,
+      };
+    });
+    const rankingLucroBrutoLojas = [...rankingLojas]
+      .sort((a, b) => b.lucroBruto - a.lucroBruto)
+      .slice(0, 10);
+    return res.json({ rankingLucroBrutoLojas });
+  } catch (error) {
+    console.error("Erro ao gerar ranking de lucro bruto:", error);
+    return res
+      .status(500)
+      .json({
+        error: "Erro ao gerar ranking de lucro bruto",
+        message: error.message,
+      });
+  }
+};
 // src/controllers/relatorioController.js
 import {
   Sequelize,
