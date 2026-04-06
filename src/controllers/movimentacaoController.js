@@ -466,66 +466,143 @@ export const atualizarMovimentacao = async (req, res) => {
     }
 
     const {
+      dataColeta,
+      totalPre,
+      totalPos,
+      sairam,
       observacoes,
       tipoOcorrencia,
       fichas,
       abastecidas,
+      contadorMaquina,
       contadorIn,
       contadorOut,
+      retiradaEstoque,
       quantidade_notas_entrada,
       valor_entrada_maquininha_pix,
+      produtos,
     } = req.body;
 
-    // Preparar dados para atualização
-    const updateData = {
-      observacoes: observacoes ?? movimentacao.observacoes,
-      tipoOcorrencia: tipoOcorrencia ?? movimentacao.tipoOcorrencia,
-      fichas:
-        fichas !== undefined ? parseInt(fichas) || 0 : movimentacao.fichas,
-      abastecidas:
-        abastecidas !== undefined
-          ? parseInt(abastecidas) || 0
-          : movimentacao.abastecidas,
-      contadorIn:
-        contadorIn !== undefined
-          ? parseInt(contadorIn) || null
-          : movimentacao.contadorIn,
-      contadorOut:
-        contadorOut !== undefined
-          ? parseInt(contadorOut) || null
-          : movimentacao.contadorOut,
-      quantidade_notas_entrada:
-        quantidade_notas_entrada !== undefined
-          ? parseInt(quantidade_notas_entrada) || null
-          : movimentacao.quantidade_notas_entrada,
-      valor_entrada_maquininha_pix:
-        valor_entrada_maquininha_pix !== undefined
-          ? parseFloat(valor_entrada_maquininha_pix) || null
-          : movimentacao.valor_entrada_maquininha_pix,
+    const toIntOr = (valor, fallback) => {
+      if (valor === undefined) return fallback;
+      if (valor === null || valor === "") return null;
+      const parsed = parseInt(valor, 10);
+      return Number.isFinite(parsed) ? parsed : fallback;
     };
 
-    // Se fichas, notas ou digital foram atualizados, recalcular o valorFaturado
-    if (
-      fichas !== undefined ||
-      quantidade_notas_entrada !== undefined ||
-      valor_entrada_maquininha_pix !== undefined
-    ) {
-      const maquina = await Maquina.findByPk(movimentacao.maquinaId);
-      if (maquina) {
-        updateData.valorFaturado =
-          updateData.fichas * parseFloat(maquina.valorFicha) +
-          (updateData.quantidade_notas_entrada
-            ? parseFloat(updateData.quantidade_notas_entrada)
-            : 0) +
-          (updateData.valor_entrada_maquininha_pix
-            ? parseFloat(updateData.valor_entrada_maquininha_pix)
-            : 0);
-      }
+    const toFloatOr = (valor, fallback) => {
+      if (valor === undefined) return fallback;
+      if (valor === null || valor === "") return null;
+      const parsed = parseFloat(valor);
+      return Number.isFinite(parsed) ? parsed : fallback;
+    };
+
+    const updateData = {
+      dataColeta: dataColeta ? new Date(dataColeta) : movimentacao.dataColeta,
+      totalPre: toIntOr(totalPre, movimentacao.totalPre),
+      sairam: toIntOr(sairam, movimentacao.sairam),
+      abastecidas: toIntOr(abastecidas, movimentacao.abastecidas),
+      fichas: toIntOr(fichas, movimentacao.fichas),
+      contadorMaquina: toIntOr(contadorMaquina, movimentacao.contadorMaquina),
+      contadorIn: toIntOr(contadorIn, movimentacao.contadorIn),
+      contadorOut: toIntOr(contadorOut, movimentacao.contadorOut),
+      observacoes: observacoes ?? movimentacao.observacoes,
+      tipoOcorrencia: tipoOcorrencia ?? movimentacao.tipoOcorrencia,
+      retiradaEstoque:
+        retiradaEstoque !== undefined
+          ? Boolean(retiradaEstoque)
+          : movimentacao.retiradaEstoque,
+      quantidade_notas_entrada: toIntOr(
+        quantidade_notas_entrada,
+        movimentacao.quantidade_notas_entrada,
+      ),
+      valor_entrada_maquininha_pix: toFloatOr(
+        valor_entrada_maquininha_pix,
+        movimentacao.valor_entrada_maquininha_pix,
+      ),
+    };
+
+    updateData.totalPos =
+      totalPos !== undefined
+        ? toIntOr(totalPos, movimentacao.totalPos)
+        : Number(updateData.totalPre || 0) +
+          Number(updateData.abastecidas || 0) -
+          Number(updateData.sairam || 0);
+
+    const maquina = await Maquina.findByPk(movimentacao.maquinaId);
+    if (maquina) {
+      updateData.valorFaturado =
+        Number(updateData.fichas || 0) * parseFloat(maquina.valorFicha || 0) +
+        Number(updateData.quantidade_notas_entrada || 0) +
+        Number(updateData.valor_entrada_maquininha_pix || 0);
     }
 
-    await movimentacao.update(updateData);
+    const transaction = await Movimentacao.sequelize.transaction();
 
-    res.json(movimentacao);
+    try {
+      await movimentacao.update(updateData, { transaction });
+
+      if (Array.isArray(produtos)) {
+        await MovimentacaoProduto.destroy({
+          where: { movimentacaoId: movimentacao.id },
+          transaction,
+        });
+
+        const detalhesProdutos = produtos
+          .filter((p) => p?.produtoId)
+          .map((p) => ({
+            movimentacaoId: movimentacao.id,
+            produtoId: p.produtoId,
+            quantidadeSaiu: Number(parseInt(p.quantidadeSaiu, 10) || 0),
+            quantidadeAbastecida: Number(
+              parseInt(p.quantidadeAbastecida, 10) || 0,
+            ),
+            retiradaProduto: Number(parseInt(p.retiradaProduto, 10) || 0),
+          }));
+
+        if (detalhesProdutos.length > 0) {
+          await MovimentacaoProduto.bulkCreate(detalhesProdutos, {
+            transaction,
+          });
+        }
+      }
+
+      await transaction.commit();
+    } catch (erroTransacao) {
+      await transaction.rollback();
+      throw erroTransacao;
+    }
+
+    const movimentacaoAtualizada = await Movimentacao.findByPk(
+      movimentacao.id,
+      {
+        include: [
+          {
+            model: Maquina,
+            as: "maquina",
+            attributes: ["id", "codigo", "nome", "lojaId"],
+          },
+          {
+            model: Usuario,
+            as: "usuario",
+            attributes: ["id", "nome"],
+          },
+          {
+            model: MovimentacaoProduto,
+            as: "detalhesProdutos",
+            include: [
+              {
+                model: Produto,
+                as: "produto",
+                attributes: ["id", "nome", "codigo", "emoji"],
+              },
+            ],
+          },
+        ],
+      },
+    );
+
+    res.json(movimentacaoAtualizada);
   } catch (error) {
     console.error("Erro ao atualizar movimentação:", error);
     res.status(500).json({ error: "Erro ao atualizar movimentação" });
