@@ -33,6 +33,12 @@ const Loja = sequelize.define(
       type: DataTypes.STRING(20),
       allowNull: true,
     },
+    valorFichaPadrao: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: false,
+      defaultValue: 2.5,
+      comment: "Valor padrão da ficha da loja em R$",
+    },
     ativo: {
       type: DataTypes.BOOLEAN,
       defaultValue: true,
@@ -41,7 +47,7 @@ const Loja = sequelize.define(
   {
     tableName: "lojas",
     timestamps: true,
-  }
+  },
 );
 
 export default Loja;

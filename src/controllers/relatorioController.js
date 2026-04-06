@@ -27,11 +27,9 @@ export const rankingLucroBrutoLojas = async (req, res) => {
       })
       .filter(Boolean);
     if (!relatoriosPorLoja.length) {
-      return res
-        .status(404)
-        .json({
-          error: "Não foi possível gerar o ranking para o período selecionado.",
-        });
+      return res.status(404).json({
+        error: "Não foi possível gerar o ranking para o período selecionado.",
+      });
     }
     const rankingLojas = relatoriosPorLoja.map(({ loja, dados }) => {
       const totais = dados?.totais || {};
@@ -54,12 +52,10 @@ export const rankingLucroBrutoLojas = async (req, res) => {
     return res.json({ rankingLucroBrutoLojas });
   } catch (error) {
     console.error("Erro ao gerar ranking de lucro bruto:", error);
-    return res
-      .status(500)
-      .json({
-        error: "Erro ao gerar ranking de lucro bruto",
-        message: error.message,
-      });
+    return res.status(500).json({
+      error: "Erro ao gerar ranking de lucro bruto",
+      message: error.message,
+    });
   }
 };
 // src/controllers/relatorioController.js
@@ -85,6 +81,7 @@ import {
 } from "../models/index.js";
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
+const VALOR_FICHA_PADRAO_DEFAULT = 2.5;
 
 const normalizarNomeGasto = (nomeOriginal) =>
   String(nomeOriginal || "")
@@ -1034,6 +1031,10 @@ const gerarRelatorioImpressaoPorLoja = async ({
     throw erro;
   }
 
+  const valorFichaPadraoLoja = Number(
+    loja.valorFichaPadrao ?? VALOR_FICHA_PADRAO_DEFAULT,
+  );
+
   const registrosDinheiro = await RegistroDinheiro.findAll({
     where: {
       lojaId,
@@ -1370,7 +1371,7 @@ const gerarRelatorioImpressaoPorLoja = async ({
 
     const valorFicha = m.maquina.valorFicha
       ? Number(m.maquina.valorFicha)
-      : 2.5;
+      : valorFichaPadraoLoja;
     const faturamentoMaquina =
       (valoresPorMaquina[m.maquina.id]?.dinheiro || 0) +
       (valoresPorMaquina[m.maquina.id]?.cartaoPixLiquido || 0) +
@@ -1448,10 +1449,12 @@ const gerarRelatorioImpressaoPorLoja = async ({
       ? Number((valorTotalLojaBruto / Number(totalSairam || 0)).toFixed(2))
       : 0;
 
-  let valorMedioFicha = 2.5;
+  let valorMedioFicha = valorFichaPadraoLoja;
   if (Object.values(dadosPorMaquina).length > 0) {
     const somaValorFicha = Object.values(dadosPorMaquina).reduce((acc, m) => {
-      const v = m.maquina.valorFicha ? Number(m.maquina.valorFicha) : 2.5;
+      const v = m.maquina.valorFicha
+        ? Number(m.maquina.valorFicha)
+        : valorFichaPadraoLoja;
       return acc + v;
     }, 0);
     valorMedioFicha = somaValorFicha / Object.values(dadosPorMaquina).length;
@@ -1481,6 +1484,7 @@ const gerarRelatorioImpressaoPorLoja = async ({
       id: loja.id,
       nome: loja.nome,
       endereco: loja.endereco,
+      valorFichaPadrao: Number(valorFichaPadraoLoja.toFixed(2)),
     },
     periodo: {
       inicio: inicio.toISOString(),
@@ -1488,6 +1492,9 @@ const gerarRelatorioImpressaoPorLoja = async ({
     },
     totais: {
       fichas: totalFichas,
+      valorFichasTotal: Number(
+        (totalFichas * Number(valorFichaPadraoLoja || 0)).toFixed(2),
+      ),
       produtosSairam: totalSairam,
       produtosEntraram: totalAbastecidas,
       movimentacoes: movimentacoes.length,
@@ -1622,6 +1629,11 @@ export const relatorioTodasLojas = async (req, res) => {
 
     const rankingLojas = relatoriosPorLoja.map(({ loja, dados }) => {
       const totais = dados?.totais || {};
+      const valorFichaPadrao = Number(
+        dados?.loja?.valorFichaPadrao ??
+          loja?.valorFichaPadrao ??
+          VALOR_FICHA_PADRAO_DEFAULT,
+      );
       const custoTotal = Number(totais.gastoTotalPeriodo || 0);
       const custoVariavel = Number(totais.gastoVariavelTotalPeriodo || 0);
       const custoProdutos = Number(totais.gastoProdutosTotalPeriodo || 0);
@@ -1659,6 +1671,9 @@ export const relatorioTodasLojas = async (req, res) => {
         cartaoPix > 0 ? (taxaDeCartao / cartaoPix) * 100 : 0,
       );
       const fichas = Number(totais.fichas || 0);
+      const valorFichasTotal = Number(
+        totais.valorFichasTotal ?? fichas * valorFichaPadrao,
+      );
       const produtosSairam = Number(totais.produtosSairam || 0);
       const produtosEntraram = Number(totais.produtosEntraram || 0);
 
@@ -1696,6 +1711,8 @@ export const relatorioTodasLojas = async (req, res) => {
         cartaoPixLiquido,
         percentualTaxaCartaoMedia,
         fichas,
+        valorFichaPadrao,
+        valorFichasTotal,
         produtosSairam,
         produtosEntraram,
       };
@@ -1714,6 +1731,7 @@ export const relatorioTodasLojas = async (req, res) => {
         acc.cartaoPixTotal += loja.cartaoPix;
         acc.cartaoPixLiquidoTotal += loja.cartaoPixLiquido;
         acc.fichasTotal += loja.fichas;
+        acc.valorFichasTotal += loja.valorFichasTotal;
         acc.produtosSairamTotal += loja.produtosSairam;
         acc.produtosEntraramTotal += loja.produtosEntraram;
         acc.somaPercentualTaxaPonderado +=
@@ -1733,6 +1751,7 @@ export const relatorioTodasLojas = async (req, res) => {
         cartaoPixTotal: 0,
         cartaoPixLiquidoTotal: 0,
         fichasTotal: 0,
+        valorFichasTotal: 0,
         produtosSairamTotal: 0,
         produtosEntraramTotal: 0,
         somaPercentualTaxaPonderado: 0,

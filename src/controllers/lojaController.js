@@ -1,5 +1,26 @@
 import { Loja, Maquina, UsuarioLoja } from "../models/index.js";
 
+const VALOR_FICHA_PADRAO_DEFAULT = 2.5;
+
+const normalizarValorFichaPadrao = (valor) => {
+  if (valor === undefined || valor === null || valor === "") {
+    return { informado: false, valor: undefined };
+  }
+
+  const valorNormalizado = Number(
+    typeof valor === "string" ? valor.replace(",", ".") : valor,
+  );
+
+  if (!Number.isFinite(valorNormalizado) || valorNormalizado <= 0) {
+    return { informado: true, invalido: true };
+  }
+
+  return {
+    informado: true,
+    valor: Number(valorNormalizado.toFixed(2)),
+  };
+};
+
 // US04 - Listar todas as lojas
 export const listarLojas = async (req, res) => {
   try {
@@ -71,10 +92,25 @@ export const obterLoja = async (req, res) => {
 // US04 - Criar loja
 export const criarLoja = async (req, res) => {
   try {
-    const { nome, endereco, cidade, estado, responsavel, telefone } = req.body;
+    const {
+      nome,
+      endereco,
+      cidade,
+      estado,
+      responsavel,
+      telefone,
+      valorFichaPadrao,
+    } = req.body;
 
     if (!nome) {
       return res.status(400).json({ error: "Nome da loja é obrigatório" });
+    }
+
+    const valorFichaNormalizado = normalizarValorFichaPadrao(valorFichaPadrao);
+    if (valorFichaNormalizado.invalido) {
+      return res.status(400).json({
+        error: "valorFichaPadrao deve ser um número maior que zero",
+      });
     }
 
     const loja = await Loja.create({
@@ -84,6 +120,9 @@ export const criarLoja = async (req, res) => {
       estado,
       responsavel,
       telefone,
+      valorFichaPadrao: valorFichaNormalizado.informado
+        ? valorFichaNormalizado.valor
+        : VALOR_FICHA_PADRAO_DEFAULT,
     });
 
     res.locals.entityId = loja.id;
@@ -103,8 +142,23 @@ export const atualizarLoja = async (req, res) => {
       return res.status(404).json({ error: "Loja não encontrada" });
     }
 
-    const { nome, endereco, cidade, estado, responsavel, telefone, ativo } =
-      req.body;
+    const {
+      nome,
+      endereco,
+      cidade,
+      estado,
+      responsavel,
+      telefone,
+      ativo,
+      valorFichaPadrao,
+    } = req.body;
+
+    const valorFichaNormalizado = normalizarValorFichaPadrao(valorFichaPadrao);
+    if (valorFichaNormalizado.invalido) {
+      return res.status(400).json({
+        error: "valorFichaPadrao deve ser um número maior que zero",
+      });
+    }
 
     await loja.update({
       nome: nome ?? loja.nome,
@@ -113,6 +167,9 @@ export const atualizarLoja = async (req, res) => {
       estado: estado ?? loja.estado,
       responsavel: responsavel ?? loja.responsavel,
       telefone: telefone ?? loja.telefone,
+      valorFichaPadrao: valorFichaNormalizado.informado
+        ? valorFichaNormalizado.valor
+        : loja.valorFichaPadrao,
       ativo: ativo ?? loja.ativo,
     });
 
