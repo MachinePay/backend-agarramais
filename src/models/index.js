@@ -19,6 +19,7 @@ import GastoTotalFixoLoja from "./GastoTotalFixoLoja.js";
 import FechamentoMensalRelatorio from "./FechamentoMensalRelatorio.js";
 import Manutencao from "./Manutencao.js";
 import ManutencaoUsuario from "./ManutencaoUsuario.js";
+import Sangria from "./Sangria.js";
 // Movimentação de Veículo -> Veículo e Usuário
 MovimentacaoVeiculo.belongsTo(Veiculo, {
   as: "veiculo",
@@ -245,6 +246,24 @@ Manutencao.belongsTo(Loja, {
   as: "loja",
 });
 
+Loja.hasMany(Sangria, {
+  foreignKey: "lojaId",
+  as: "sangrias",
+});
+Sangria.belongsTo(Loja, {
+  foreignKey: "lojaId",
+  as: "loja",
+});
+
+Usuario.hasMany(Sangria, {
+  foreignKey: "usuarioId",
+  as: "sangriasCriadas",
+});
+Sangria.belongsTo(Usuario, {
+  foreignKey: "usuarioId",
+  as: "usuario",
+});
+
 export {
   Usuario,
   Loja,
@@ -267,4 +286,5 @@ export {
   FechamentoMensalRelatorio,
   Manutencao,
   ManutencaoUsuario,
+  Sangria,
 };

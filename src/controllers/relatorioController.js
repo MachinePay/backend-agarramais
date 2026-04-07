@@ -75,6 +75,7 @@ import {
   Produto,
   AlertaIgnorado,
   RegistroDinheiro,
+  Sangria,
   GastoVariavel,
   GastoFixoLoja,
   GastoTotalFixoLoja,
@@ -1044,6 +1045,15 @@ const gerarRelatorioImpressaoPorLoja = async ({
     raw: true,
   });
 
+  const registrosSangria = await Sangria.findAll({
+    where: {
+      lojaId,
+      dataContagem: { [Op.between]: [inicio, fim] },
+    },
+    order: [["dataContagem", "DESC"]],
+    raw: true,
+  });
+
   const movimentacoes = await Movimentacao.findAll({
     where: {
       dataColeta: {
@@ -1431,6 +1441,19 @@ const gerarRelatorioImpressaoPorLoja = async ({
   const valorBrutoConsolidadoLojaMaquinas = Number(
     (valorTotalLojaBruto + valorBrutoMaquinas).toFixed(2),
   );
+
+  const valorSangriaTotalPeriodo = Number(
+    registrosSangria
+      .reduce((acc, item) => acc + Number(item.quantidade || 0), 0)
+      .toFixed(2),
+  );
+
+  const valorSangriaCalculadoNotasPeriodo = Number(
+    registrosSangria
+      .reduce((acc, item) => acc + Number(item.valor_calculado_notas || 0), 0)
+      .toFixed(2),
+  );
+
   const valorLiquidoConsolidadoLojaMaquinas = Number(
     (
       valorDinheiroLoja +
@@ -1521,7 +1544,36 @@ const gerarRelatorioImpressaoPorLoja = async ({
       valorLiquidoMaquinas,
       valorBrutoConsolidadoLojaMaquinas,
       valorLiquidoConsolidadoLojaMaquinas,
+      valorSangriaTotalPeriodo,
+      valorSangriaCalculadoNotasPeriodo,
+      quantidadeRegistrosSangria: registrosSangria.length,
       ticketPorPremioTotal,
+    },
+    sangria: {
+      totalPeriodo: valorSangriaTotalPeriodo,
+      totalCalculadoPelasNotasPeriodo: valorSangriaCalculadoNotasPeriodo,
+      quantidadeRegistros: registrosSangria.length,
+      registros: registrosSangria.map((item) => ({
+        id: item.id,
+        dataContagem: item.data_contagem ?? item.dataContagem,
+        lojaId: item.loja_id ?? item.lojaId,
+        usuarioId: item.usuario_id ?? item.usuarioId,
+        quantidade: Number(item.quantidade || 0),
+        valorCalculadoNotas: Number(
+          item.valor_calculado_notas ?? item.valorCalculadoNotas ?? 0,
+        ),
+        notas: {
+          notas2: Number(item.notas_2 ?? item.notas2 ?? 0),
+          notas5: Number(item.notas_5 ?? item.notas5 ?? 0),
+          notas10: Number(item.notas_10 ?? item.notas10 ?? 0),
+          notas20: Number(item.notas_20 ?? item.notas20 ?? 0),
+          notas50: Number(item.notas_50 ?? item.notas50 ?? 0),
+          notas100: Number(item.notas_100 ?? item.notas100 ?? 0),
+          notas200: Number(item.notas_200 ?? item.notas200 ?? 0),
+        },
+        observacao: item.observacao || null,
+        createdAt: item.created_at ?? item.createdAt,
+      })),
     },
     produtosSairam: produtosSairam.map((p) => ({
       id: p.produto.id,
@@ -1676,6 +1728,7 @@ export const relatorioTodasLojas = async (req, res) => {
       );
       const produtosSairam = Number(totais.produtosSairam || 0);
       const produtosEntraram = Number(totais.produtosEntraram || 0);
+      const sangriaTotalPeriodo = Number(totais.valorSangriaTotalPeriodo || 0);
 
       (dados?.produtosSairam || []).forEach((produto) => {
         const id = String(produto.id ?? produto.codigo ?? produto.nome);
@@ -1715,6 +1768,7 @@ export const relatorioTodasLojas = async (req, res) => {
         valorFichasTotal,
         produtosSairam,
         produtosEntraram,
+        sangriaTotalPeriodo,
       };
     });
 
@@ -1734,6 +1788,7 @@ export const relatorioTodasLojas = async (req, res) => {
         acc.valorFichasTotal += loja.valorFichasTotal;
         acc.produtosSairamTotal += loja.produtosSairam;
         acc.produtosEntraramTotal += loja.produtosEntraram;
+        acc.sangriaTotal += loja.sangriaTotalPeriodo;
         acc.somaPercentualTaxaPonderado +=
           loja.percentualTaxaCartaoMedia * loja.cartaoPix;
         acc.somaBasePercentualTaxa += loja.cartaoPix;
@@ -1754,6 +1809,7 @@ export const relatorioTodasLojas = async (req, res) => {
         valorFichasTotal: 0,
         produtosSairamTotal: 0,
         produtosEntraramTotal: 0,
+        sangriaTotal: 0,
         somaPercentualTaxaPonderado: 0,
         somaBasePercentualTaxa: 0,
       },

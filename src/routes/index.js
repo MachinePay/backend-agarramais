@@ -19,6 +19,7 @@ import gastoVariavelRoutes from "./gastoVariavel.routes.js";
 import gastoFixoLojaRoutes from "./gastoFixoLoja.routes.js";
 import manutencaoRoutes from "./manutencao.routes.js";
 import fechamentoMensalRelatorioRoutes from "./fechamentoMensalRelatorio.routes.js";
+import sangriaRoutes from "./sangria.routes.js";
 const router = express.Router();
 
 router.use("/auth", authRoutes);
@@ -46,5 +47,6 @@ router.use("/graficos", graficosRoutes);
 router.use("/gastos-fixos-loja", gastoFixoLojaRoutes);
 router.use("/manutencoes", manutencaoRoutes);
 router.use("/fechamentos-mensais-relatorio", fechamentoMensalRelatorioRoutes);
+router.use("/sangrias", sangriaRoutes);
 
 export default router;
