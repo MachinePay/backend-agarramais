@@ -122,6 +122,68 @@ const sangriaController = {
       return res.status(500).json({ error: "Erro ao listar sangrias." });
     }
   },
+
+  async excluir(req, res) {
+    try {
+      const { id } = req.params;
+
+      if (!id) {
+        return res.status(400).json({ error: "id é obrigatório." });
+      }
+
+      const excluidas = await Sangria.destroy({ where: { id } });
+
+      if (!excluidas) {
+        return res.status(404).json({ error: "Sangria não encontrada." });
+      }
+
+      return res.json({ success: true, id });
+    } catch (error) {
+      console.error("Erro ao excluir sangria:", error);
+      return res.status(500).json({ error: "Erro ao excluir sangria." });
+    }
+  },
+
+  async excluirEmLote(req, res) {
+    try {
+      const { ids } = req.body;
+
+      if (!Array.isArray(ids) || ids.length === 0) {
+        return res.status(400).json({
+          error: "Informe um array de ids para exclusão em lote.",
+        });
+      }
+
+      const idsValidos = ids
+        .map((item) => String(item || "").trim())
+        .filter((item) => item.length > 0);
+
+      if (idsValidos.length === 0) {
+        return res.status(400).json({
+          error: "Nenhum id válido informado para exclusão.",
+        });
+      }
+
+      const excluidas = await Sangria.destroy({
+        where: {
+          id: {
+            [Op.in]: idsValidos,
+          },
+        },
+      });
+
+      return res.json({
+        success: true,
+        solicitadas: idsValidos.length,
+        excluidas,
+      });
+    } catch (error) {
+      console.error("Erro ao excluir sangrias em lote:", error);
+      return res
+        .status(500)
+        .json({ error: "Erro ao excluir sangrias em lote." });
+    }
+  },
 };
 
 export default sangriaController;
