@@ -540,9 +540,46 @@ export const atualizarMovimentacao = async (req, res) => {
     const transaction = await Movimentacao.sequelize.transaction();
 
     try {
+      // 1. Buscar produtos antigos para reverter estoque
+      const produtosAntigos = await MovimentacaoProduto.findAll({
+        where: { movimentacaoId: movimentacao.id },
+        transaction,
+      });
+
       await movimentacao.update(updateData, { transaction });
 
       if (Array.isArray(produtos)) {
+        // 2. Reverter estoque anterior (devolver o que foi abastecido antes)
+        if (maquina) {
+          for (const produtoAntigo of produtosAntigos) {
+            if (produtoAntigo.quantidadeAbastecida > 0) {
+              const estoqueLoja = await EstoqueLoja.findOne({
+                where: {
+                  lojaId: maquina.lojaId,
+                  produtoId: produtoAntigo.produtoId,
+                },
+                transaction,
+              });
+              if (estoqueLoja) {
+                await estoqueLoja.update(
+                  {
+                    quantidade:
+                      estoqueLoja.quantidade +
+                      produtoAntigo.quantidadeAbastecida,
+                  },
+                  { transaction },
+                );
+                console.log("↩️ [atualizarMovimentacao] Estoque revertido:", {
+                  produtoId: produtoAntigo.produtoId,
+                  devolvido: produtoAntigo.quantidadeAbastecida,
+                  novaQuantidade:
+                    estoqueLoja.quantidade + produtoAntigo.quantidadeAbastecida,
+                });
+              }
+            }
+          }
+        }
+
         await MovimentacaoProduto.destroy({
           where: { movimentacaoId: movimentacao.id },
           transaction,
@@ -564,6 +601,44 @@ export const atualizarMovimentacao = async (req, res) => {
           await MovimentacaoProduto.bulkCreate(detalhesProdutos, {
             transaction,
           });
+
+          // 3. Aplicar nova dedução de estoque
+          if (maquina) {
+            for (const detalhe of detalhesProdutos) {
+              if (detalhe.quantidadeAbastecida > 0) {
+                const estoqueLoja = await EstoqueLoja.findOne({
+                  where: {
+                    lojaId: maquina.lojaId,
+                    produtoId: detalhe.produtoId,
+                  },
+                  transaction,
+                });
+                if (estoqueLoja) {
+                  const novaQuantidade = Math.max(
+                    0,
+                    estoqueLoja.quantidade - detalhe.quantidadeAbastecida,
+                  );
+                  await estoqueLoja.update(
+                    { quantidade: novaQuantidade },
+                    { transaction },
+                  );
+                  console.log("📦 [atualizarMovimentacao] Estoque deduzido:", {
+                    produtoId: detalhe.produtoId,
+                    deduzido: detalhe.quantidadeAbastecida,
+                    novaQuantidade,
+                  });
+                } else {
+                  console.log(
+                    "⚠️ [atualizarMovimentacao] Estoque não encontrado para dedução:",
+                    {
+                      lojaId: maquina.lojaId,
+                      produtoId: detalhe.produtoId,
+                    },
+                  );
+                }
+              }
+            }
+          }
         }
       }
 
