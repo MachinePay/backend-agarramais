@@ -888,12 +888,35 @@ export const alertasEstoque = async (req, res) => {
       const ultimaMovimentacao = await Movimentacao.findOne({
         where: { maquinaId: maquina.id },
         order: [["dataColeta", "DESC"]],
+        include: [
+          {
+            model: MovimentacaoProduto,
+            as: "detalhesProdutos",
+            include: [
+              {
+                model: Produto,
+                as: "produto",
+                attributes: ["id", "nome", "emoji"],
+              },
+            ],
+          },
+        ],
       });
 
       const estoqueAtual = ultimaMovimentacao ? ultimaMovimentacao.totalPos : 0;
       const estoqueMinimo =
         (maquina.capacidadePadrao * maquina.percentualAlertaEstoque) / 100;
       const percentualAtual = (estoqueAtual / maquina.capacidadePadrao) * 100;
+
+      // Pegar produtos únicos da última movimentação
+      const produtosUnicos = [
+        ...new Map(
+          (ultimaMovimentacao?.detalhesProdutos ?? []).map((d) => [
+            d.produtoId,
+            { nome: d.produto?.nome, emoji: d.produto?.emoji },
+          ]),
+        ).values(),
+      ];
 
       if (estoqueAtual < estoqueMinimo) {
         alertas.push({
@@ -903,6 +926,7 @@ export const alertasEstoque = async (req, res) => {
             nome: maquina.nome,
             loja: maquina.loja?.nome,
           },
+          produtos: produtosUnicos,
           estoqueAtual,
           capacidadePadrao: maquina.capacidadePadrao,
           estoqueMinimo,
