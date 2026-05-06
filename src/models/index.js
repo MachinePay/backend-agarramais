@@ -20,6 +20,9 @@ import FechamentoMensalRelatorio from "./FechamentoMensalRelatorio.js";
 import Manutencao from "./Manutencao.js";
 import ManutencaoUsuario from "./ManutencaoUsuario.js";
 import Sangria from "./Sangria.js";
+import ListaComprasPendente from "./ListaComprasPendente.js";
+import ListaComprasLoja from "./ListaComprasLoja.js";
+import ListaComprasProduto from "./ListaComprasProduto.js";
 // Movimentação de Veículo -> Veículo e Usuário
 MovimentacaoVeiculo.belongsTo(Veiculo, {
   as: "veiculo",
@@ -264,6 +267,27 @@ Sangria.belongsTo(Usuario, {
   as: "usuario",
 });
 
+// Lista de Compras Pendentes
+ListaComprasPendente.hasMany(ListaComprasLoja, {
+  foreignKey: "listaId",
+  as: "lojas",
+  onDelete: "CASCADE",
+});
+ListaComprasLoja.belongsTo(ListaComprasPendente, {
+  foreignKey: "listaId",
+  as: "lista",
+});
+
+ListaComprasLoja.hasMany(ListaComprasProduto, {
+  foreignKey: "listaLojaId",
+  as: "produtos",
+  onDelete: "CASCADE",
+});
+ListaComprasProduto.belongsTo(ListaComprasLoja, {
+  foreignKey: "listaLojaId",
+  as: "listaLoja",
+});
+
 export {
   Usuario,
   Loja,
@@ -287,4 +311,7 @@ export {
   Manutencao,
   ManutencaoUsuario,
   Sangria,
+  ListaComprasPendente,
+  ListaComprasLoja,
+  ListaComprasProduto,
 };

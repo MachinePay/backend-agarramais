@@ -12,7 +12,9 @@ const TODAS_LOJAS_VALUE = "__TODAS_AS_LOJAS__";
 export function Relatorios() {
   const [dashboard, setDashboard] = useState(null);
   const [lojas, setLojas] = useState([]);
+  const [usuariosMap, setUsuariosMap] = useState({});
   const [lojaSelecionada, setLojaSelecionada] = useState("");
+  const [mesReferencia, setMesReferencia] = useState("");
   const [dataInicio, setDataInicio] = useState("");
   const [dataFim, setDataFim] = useState("");
   const [loading, setLoading] = useState(false);
@@ -42,16 +44,17 @@ export function Relatorios() {
 
   useEffect(() => {
     carregarLojas();
+    carregarUsuarios();
     definirDatasDefault();
   }, []);
 
   const definirDatasDefault = () => {
-    const hoje = new Date();
-    const seteDiasAtras = new Date();
-    seteDiasAtras.setDate(hoje.getDate() - 7);
+    const mesAtual = formatarMesInput(new Date());
+    const periodoPadrao = obterPeriodoDoMes(mesAtual);
 
-    setDataFim(hoje.toISOString().split("T")[0]);
-    setDataInicio(seteDiasAtras.toISOString().split("T")[0]);
+    setMesReferencia(mesAtual);
+    setDataInicio(periodoPadrao?.dataInicio || "");
+    setDataFim(periodoPadrao?.dataFim || "");
   };
 
   const carregarLojas = async () => {
@@ -67,11 +70,110 @@ export function Relatorios() {
     }
   };
 
+  const carregarUsuarios = async () => {
+    try {
+      const response = await api.get("/usuarios");
+      const lista = Array.isArray(response.data) ? response.data : [];
+      const mapa = lista.reduce((acc, usuario) => {
+        if (usuario?.id !== undefined && usuario?.id !== null) {
+          acc[String(usuario.id)] = usuario.nome || usuario.name || "-";
+        }
+        return acc;
+      }, {});
+      setUsuariosMap(mapa);
+    } catch (error) {
+      console.warn(
+        "Não foi possível carregar usuários para detalhar sangrias no relatório:",
+        error,
+      );
+      setUsuariosMap({});
+    }
+  };
+
   const formatarDataISO = (data) => {
     const ano = data.getFullYear();
     const mes = String(data.getMonth() + 1).padStart(2, "0");
     const dia = String(data.getDate()).padStart(2, "0");
     return `${ano}-${mes}-${dia}`;
+  };
+
+  const formatarMesInput = (data) => {
+    const ano = data.getFullYear();
+    const mes = String(data.getMonth() + 1).padStart(2, "0");
+    return `${ano}-${mes}`;
+  };
+
+  const obterPeriodoDoMes = (mesTexto) => {
+    if (!mesTexto) return null;
+
+    const [anoTexto, mesNumeroTexto] = String(mesTexto).split("-");
+    const ano = Number(anoTexto);
+    const mes = Number(mesNumeroTexto);
+
+    if (
+      !Number.isInteger(ano) ||
+      !Number.isInteger(mes) ||
+      mes < 1 ||
+      mes > 12
+    ) {
+      return null;
+    }
+
+    const inicio = new Date(ano, mes - 1, 1);
+    const fim = new Date(ano, mes, 0);
+
+    return {
+      dataInicio: formatarDataISO(inicio),
+      dataFim: formatarDataISO(fim),
+    };
+  };
+
+  const obterMesCompletoDoPeriodo = (inicioTexto, fimTexto) => {
+    if (!inicioTexto || !fimTexto) return "";
+
+    const inicio = new Date(`${inicioTexto}T00:00:00`);
+    const fim = new Date(`${fimTexto}T00:00:00`);
+
+    if (Number.isNaN(inicio.getTime()) || Number.isNaN(fim.getTime())) {
+      return "";
+    }
+
+    if (
+      inicio.getFullYear() !== fim.getFullYear() ||
+      inicio.getMonth() !== fim.getMonth()
+    ) {
+      return "";
+    }
+
+    const ultimoDiaDoMes = new Date(
+      inicio.getFullYear(),
+      inicio.getMonth() + 1,
+      0,
+    ).getDate();
+
+    if (inicio.getDate() !== 1 || fim.getDate() !== ultimoDiaDoMes) {
+      return "";
+    }
+
+    return formatarMesInput(inicio);
+  };
+
+  const handleMesReferenciaChange = (valorMes) => {
+    setMesReferencia(valorMes);
+
+    const periodo = obterPeriodoDoMes(valorMes);
+    setDataInicio(periodo?.dataInicio || "");
+    setDataFim(periodo?.dataFim || "");
+  };
+
+  const handleDataInicioChange = (valor) => {
+    setDataInicio(valor);
+    setMesReferencia(obterMesCompletoDoPeriodo(valor, dataFim));
+  };
+
+  const handleDataFimChange = (valor) => {
+    setDataFim(valor);
+    setMesReferencia(obterMesCompletoDoPeriodo(dataInicio, valor));
   };
 
   const obterMesmoDiaNoMesAnterior = (dataTexto) => {
@@ -256,6 +358,13 @@ export function Relatorios() {
     return `${dia}/${mes}/${ano}`;
   };
 
+  const formatarDataHoraExibicao = (dataTexto) => {
+    if (!dataTexto) return "-";
+    const data = new Date(dataTexto);
+    if (Number.isNaN(data.getTime())) return String(dataTexto);
+    return data.toLocaleString("pt-BR");
+  };
+
   const validarPeriodoFechamentoMensal = () => {
     if (!dataInicio || !dataFim) {
       return { valido: false, motivo: "Selecione data inicial e final." };
@@ -401,11 +510,11 @@ export function Relatorios() {
 
   const gerarRelatorio = async () => {
     if (!lojaSelecionada || !dataInicio || !dataFim) {
-      setError("Por favor, preencha todos os campos");
+      setError("Por favor, preencha loja, data inicial e data final");
       return;
     }
 
-    // Validar datas
+    // Validar período calculado a partir do mês selecionado
     const inicio = new Date(dataInicio);
     const fim = new Date(dataFim);
 
@@ -814,6 +923,42 @@ export function Relatorios() {
     0,
   );
 
+  const sangriaRelatorio = relatorio?.sangria || {};
+  const valorSangriaTotalPeriodo = Number(
+    relatorio?.totais?.valorSangriaTotalPeriodo ??
+      sangriaRelatorio.totalPeriodo ??
+      0,
+  );
+  const quantidadeRegistrosSangria = Number(
+    relatorio?.totais?.quantidadeRegistrosSangria ??
+      sangriaRelatorio.quantidadeRegistros ??
+      0,
+  );
+  const registrosSangria = Array.isArray(sangriaRelatorio.registros)
+    ? sangriaRelatorio.registros
+    : [];
+
+  const obterNomeUsuarioSangria = (registro) => {
+    const nomeDireto =
+      registro?.usuarioNome ||
+      registro?.nomeUsuario ||
+      registro?.usuario?.nome ||
+      registro?.responsavel?.nome ||
+      registro?.createdByNome;
+
+    if (nomeDireto) return nomeDireto;
+
+    const usuarioId =
+      registro?.usuarioId ??
+      registro?.usuario_id ??
+      registro?.userId ??
+      registro?.createdBy;
+
+    if (usuarioId === undefined || usuarioId === null) return "-";
+
+    return usuariosMap[String(usuarioId)] || `ID ${usuarioId}`;
+  };
+
   const fechamentoValido = validarPeriodoFechamentoMensal();
 
   if (loadingLojas) return <PageLoader />;
@@ -853,12 +998,23 @@ export function Relatorios() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
+                📅 Mês
+              </label>
+              <input
+                type="month"
+                value={mesReferencia}
+                onChange={(e) => handleMesReferenciaChange(e.target.value)}
+                className="input-field w-full"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
                 📅 Data Inicial *
               </label>
               <input
                 type="date"
                 value={dataInicio}
-                onChange={(e) => setDataInicio(e.target.value)}
+                onChange={(e) => handleDataInicioChange(e.target.value)}
                 className="input-field w-full"
               />
             </div>
@@ -869,7 +1025,7 @@ export function Relatorios() {
               <input
                 type="date"
                 value={dataFim}
-                onChange={(e) => setDataFim(e.target.value)}
+                onChange={(e) => handleDataFimChange(e.target.value)}
                 className="input-field w-full"
               />
             </div>
@@ -1369,6 +1525,22 @@ export function Relatorios() {
                     Lucro Líquido
                   </div>
                 </div>
+                <div className="card bg-gradient-to-br from-red-500 to-rose-700 text-white">
+                  <div className="text-2xl sm:text-3xl mb-2">💸</div>
+                  <div className="text-xl sm:text-2xl font-bold">
+                    R${" "}
+                    {valorSangriaTotalPeriodo.toLocaleString("pt-BR", {
+                      minimumFractionDigits: 2,
+                    })}
+                  </div>
+                  <div className="text-xs sm:text-sm opacity-90">
+                    Sangria (separada)
+                  </div>
+                  <div className="text-[10px] sm:text-xs opacity-80 mt-1">
+                    Registros:{" "}
+                    {quantidadeRegistrosSangria.toLocaleString("pt-BR")}
+                  </div>
+                </div>
               </div>
 
               <div className="mt-5 border-t border-purple-200 pt-4 no-print">
@@ -1403,6 +1575,100 @@ export function Relatorios() {
                   </button>
                 </div>
               </div>
+            </div>
+
+            <div className="card bg-linear-to-r from-red-50 to-rose-100 border-2 border-rose-200">
+              <h3 className="text-lg sm:text-2xl font-bold text-gray-900 mb-2 flex items-center gap-2">
+                <span className="text-2xl sm:text-3xl">💸</span>
+                Sangria no Período (Separada)
+              </h3>
+              <p className="text-xs sm:text-sm text-gray-700 mb-4">
+                Exibição informativa da sangria sem somar, subtrair ou alterar
+                qualquer cálculo existente do relatório.
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                <div className="bg-white border border-rose-200 rounded-lg p-3">
+                  <div className="text-xs text-gray-500">Total Sangria</div>
+                  <div className="text-lg font-bold text-rose-700">
+                    R${" "}
+                    {valorSangriaTotalPeriodo.toLocaleString("pt-BR", {
+                      minimumFractionDigits: 2,
+                    })}
+                  </div>
+                </div>
+                <div className="bg-white border border-rose-200 rounded-lg p-3">
+                  <div className="text-xs text-gray-500">
+                    Quantidade de registros
+                  </div>
+                  <div className="text-lg font-bold text-gray-900">
+                    {quantidadeRegistrosSangria.toLocaleString("pt-BR")}
+                  </div>
+                </div>
+              </div>
+
+              {registrosSangria.length > 0 ? (
+                <div className="overflow-x-auto rounded-xl border border-rose-200">
+                  <table className="table-modern">
+                    <thead>
+                      <tr>
+                        <th>Data/Hora</th>
+                        <th>Usuário</th>
+                        <th>Valor</th>
+                        <th>Notas</th>
+                        <th>Observação</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {registrosSangria.map((registro) => (
+                        <tr
+                          key={
+                            registro.id ||
+                            `${registro.lojaId}-${registro.dataHoraContagem || registro.createdAt}`
+                          }
+                        >
+                          <td>
+                            {formatarDataHoraExibicao(
+                              registro.dataHoraContagem ||
+                                registro.dataHora ||
+                                registro.createdAt,
+                            )}
+                          </td>
+                          <td>{obterNomeUsuarioSangria(registro)}</td>
+                          <td>
+                            R${" "}
+                            {Number(
+                              registro.quantidade ||
+                                registro.totalRetirado ||
+                                0,
+                            ).toLocaleString("pt-BR", {
+                              minimumFractionDigits: 2,
+                            })}
+                          </td>
+                          <td>
+                            R${" "}
+                            {Number(
+                              registro.totalCalculadoPelasNotas ||
+                                registro.valorCalculadoNotas ||
+                                registro.totalNotas ||
+                                0,
+                            ).toLocaleString("pt-BR", {
+                              minimumFractionDigits: 2,
+                            })}
+                          </td>
+                          <td>
+                            {registro.observacao || registro.observacoes || "-"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-600">
+                  Sem registros detalhados de sangria no período selecionado.
+                </p>
+              )}
             </div>
 
             {comparativoMensal && (
