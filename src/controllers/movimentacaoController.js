@@ -100,6 +100,31 @@ export const registrarMovimentacao = async (req, res) => {
       return res.status(404).json({ error: "Máquina não encontrada" });
     }
 
+    if (Array.isArray(produtos) && produtos.length > 0) {
+      for (const produto of produtos) {
+        const quantidadeAbastecida = Number(produto.quantidadeAbastecida) || 0;
+        if (quantidadeAbastecida <= 0) continue;
+
+        const estoqueLoja = await EstoqueLoja.findOne({
+          where: {
+            lojaId: maquina.lojaId,
+            produtoId: produto.produtoId,
+          },
+        });
+
+        const estoqueDisponivel = Number(estoqueLoja?.quantidade || 0);
+        if (quantidadeAbastecida > estoqueDisponivel) {
+          const produtoInfo = await Produto.findByPk(produto.produtoId, {
+            attributes: ["nome"],
+          });
+
+          return res.status(400).json({
+            error: `Não há estoque suficiente na loja para abastecer ${produtoInfo?.nome || "este produto"}. Disponível: ${estoqueDisponivel}, solicitado: ${quantidadeAbastecida}.`,
+          });
+        }
+      }
+    }
+
     // Calcular valor faturado: fichas + notas + digital
     const valorFaturado =
       (fichas ? fichas * parseFloat(maquina.valorFicha) : 0) +
@@ -255,7 +280,7 @@ export const registrarMovimentacao = async (req, res) => {
     }
 
     // Se for devolução ao estoque da loja, somar retiradaProduto
-    for (const produto of produtos) {
+    for (const produto of produtos || []) {
       if (
         produto.retiradaProdutoDevolverEstoque &&
         produto.retiradaProduto > 0
