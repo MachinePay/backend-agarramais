@@ -6,6 +6,7 @@ import {
 } from "../utils/dataRetention.js";
 
 const router = express.Router();
+const dataRetentionEnabled = process.env.DATA_RETENTION_ENABLED === "true";
 
 // Verificar quantos dados podem ser excluídos (dry run)
 router.get(
@@ -13,6 +14,12 @@ router.get(
   autenticar,
   autorizarRole("ADMIN"),
   async (req, res) => {
+    if (!dataRetentionEnabled) {
+      return res.status(503).json({
+        error: "Limpeza de dados antigos está desativada no momento",
+      });
+    }
+
     try {
       const resultado = await verificarDadosParaLimpeza();
       res.json(resultado);
@@ -20,7 +27,7 @@ router.get(
       console.error("Erro ao verificar limpeza:", error);
       res.status(500).json({ error: "Erro ao verificar dados para limpeza" });
     }
-  }
+  },
 );
 
 // Executar limpeza de dados antigos
@@ -29,6 +36,12 @@ router.post(
   autenticar,
   autorizarRole("ADMIN"),
   async (req, res) => {
+    if (!dataRetentionEnabled) {
+      return res.status(503).json({
+        error: "Limpeza de dados antigos está desativada no momento",
+      });
+    }
+
     try {
       const resultado = await limparDadosAntigos();
       res.json(resultado);
@@ -36,7 +49,7 @@ router.post(
       console.error("Erro ao limpar dados:", error);
       res.status(500).json({ error: "Erro ao executar limpeza de dados" });
     }
-  }
+  },
 );
 
 export default router;

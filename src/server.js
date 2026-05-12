@@ -15,6 +15,7 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const dataRetentionEnabled = process.env.DATA_RETENTION_ENABLED === "true";
 
 // Middlewares
 app.use(
@@ -146,9 +147,11 @@ const startServer = async () => {
       console.log(`📍 http://localhost:${PORT}`);
       console.log(`🏥 Health check: http://localhost:${PORT}/health`);
 
-      // Agendar limpeza automática de dados antigos (diariamente às 3h da manhã)
-      if (process.env.NODE_ENV === "production") {
+      // Agendar limpeza automática de dados antigos apenas quando explicitamente habilitada
+      if (process.env.NODE_ENV === "production" && dataRetentionEnabled) {
         iniciarLimpezaAutomatica();
+      } else {
+        console.log("⏸️ Limpeza automática de dados antigos desativada");
       }
     });
   } catch (error) {
