@@ -80,6 +80,15 @@ export function Movimentacoes() {
   const [estoqueAnterior, setEstoqueAnterior] = useState(0);
   const [alertaDivergencia, setAlertaDivergencia] = useState(null);
 
+  const formatarDataHoraMovimentacao = (valor) => {
+    if (!valor) return "-";
+
+    const data = new Date(valor);
+    if (Number.isNaN(data.getTime())) return String(valor);
+
+    return data.toLocaleString("pt-BR");
+  };
+
   // --- EFEITOS ---
   useEffect(() => {
     carregarDados();
@@ -129,6 +138,13 @@ export function Movimentacoes() {
           const ultimaMov = movimentacoes[0];
           const contadorOutAnterior = ultimaMov.contadorOut || 0;
           const totalPosAnterior = ultimaMov.totalPos || 0;
+          const maquinaSelecionada = maquinas.find(
+            (maquina) => maquina.id === formData.maquina_id,
+          );
+          const lojaSelecionada = lojas.find(
+            (loja) =>
+              String(loja.id) === String(ultimaMov.maquina?.lojaId || ""),
+          );
 
           // Calcular quantos produtos saíram baseado no contador OUT
           const saidaCalculada = contadorOutAtual - contadorOutAnterior;
@@ -147,6 +163,20 @@ export function Movimentacoes() {
               totalPosAnterior,
               contadorOutAnterior,
               contadorOutAtual,
+              maquina:
+                ultimaMov.maquina?.nome || maquinaSelecionada?.nome || "-",
+              loja: lojaSelecionada?.nome || "-",
+              responsavelAnterior:
+                ultimaMov.usuario?.nome ||
+                ultimaMov.usuarioNome ||
+                "Não informado",
+              responsavelAtual: usuario?.nome || "Não informado",
+              dataAnterior:
+                ultimaMov.dataMovimentacao ||
+                ultimaMov.dataColeta ||
+                ultimaMov.createdAt,
+              dataAtual: new Date().toISOString(),
+              erro: "A movimentação atual não confere com o histórico da máquina.",
             });
           } else {
             setAlertaDivergencia(null);
@@ -166,6 +196,8 @@ export function Movimentacoes() {
     formData.maquina_id,
     formData.contadorOut,
     formData.quantidadeAtualMaquina,
+    lojas,
+    usuario?.nome,
   ]);
 
   // Sugere produto automaticamente ao escolher máquina, mas permite troca manual
@@ -653,7 +685,9 @@ export function Movimentacoes() {
       key: "data",
       label: "Data/Hora",
       render: (mov) => {
-        const data = new Date(mov.dataColeta || mov.createdAt);
+        const data = new Date(
+          mov.dataMovimentacao || mov.dataColeta || mov.createdAt,
+        );
         return (
           <div>
             <div className="font-semibold">
@@ -673,7 +707,7 @@ export function Movimentacoes() {
         <div className="flex items-center gap-1">
           <span className="text-lg">👤</span>
           <span className="text-sm font-medium text-gray-700">
-            {mov.usuario?.nome || "Não informado"}
+            {mov.usuarioNome || mov.usuario?.nome || "Não informado"}
           </span>
         </div>
       ),
@@ -1035,16 +1069,55 @@ export function Movimentacoes() {
                     </p>
                   )}
                   {alertaDivergencia && (
-                    <div className="mt-2 p-3 bg-yellow-50 border-l-4 border-yellow-400 rounded">
-                      <div className="flex items-start">
-                        <span className="text-yellow-600 text-lg mr-2">⚠️</span>
+                    <div className="mt-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 shadow-sm">
+                      <div className="flex items-start gap-3">
+                        <span className="text-2xl">⚠️</span>
                         <div className="flex-1">
-                          <p className="text-xs font-bold text-yellow-800 mb-1">
-                            Atenção: Possível erro de contagem!
+                          <p className="text-sm font-bold text-amber-900">
+                            Atenção: possível erro de contagem na movimentação.
                           </p>
-                          <p className="text-xs text-yellow-700">
-                            Reconte por favor
+                          <p className="mt-1 text-xs text-amber-800">
+                            Máquina {alertaDivergencia.maquina} na loja{" "}
+                            {alertaDivergencia.loja}.
                           </p>
+                          <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-amber-900 sm:grid-cols-2">
+                            <div className="rounded-xl bg-white/70 px-3 py-2">
+                              <strong>Anterior:</strong>{" "}
+                              {alertaDivergencia.responsavelAnterior}
+                              <div>
+                                {formatarDataHoraMovimentacao(
+                                  alertaDivergencia.dataAnterior,
+                                )}
+                              </div>
+                            </div>
+                            <div className="rounded-xl bg-white/70 px-3 py-2">
+                              <strong>Atual:</strong>{" "}
+                              {alertaDivergencia.responsavelAtual}
+                              <div>
+                                {formatarDataHoraMovimentacao(
+                                  alertaDivergencia.dataAtual,
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="mt-4 flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                navigate("/relatorio-consolidado", {
+                                  state: {
+                                    alertData: alertaDivergencia,
+                                  },
+                                })
+                              }
+                              className="rounded-xl bg-amber-600 px-4 py-2 text-xs font-bold text-white hover:bg-amber-700"
+                            >
+                              Ver relatório detalhado
+                            </button>
+                            <span className="rounded-xl bg-white px-4 py-2 text-xs font-semibold text-amber-800">
+                              Reconte antes de salvar
+                            </span>
+                          </div>
                         </div>
                       </div>
                     </div>

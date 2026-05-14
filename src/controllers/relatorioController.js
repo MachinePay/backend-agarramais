@@ -73,6 +73,7 @@ import {
   Maquina,
   Loja,
   Produto,
+  Usuario,
   AlertaIgnorado,
   RegistroDinheiro,
   Sangria,
@@ -83,6 +84,23 @@ import {
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 const VALOR_FICHA_PADRAO_DEFAULT = 2.5;
+
+const formatarDataMovimentacao = (valor) => {
+  if (!valor) return null;
+
+  const data = new Date(valor);
+  if (Number.isNaN(data.getTime())) return null;
+
+  return data.toISOString();
+};
+
+const montarMetadadosMovimentacao = (movimentacao) => ({
+  usuarioId: movimentacao?.usuario?.id ?? movimentacao?.usuarioId ?? null,
+  usuarioNome: movimentacao?.usuario?.nome ?? null,
+  dataMovimentacao: formatarDataMovimentacao(
+    movimentacao?.dataColeta ?? movimentacao?.createdAt,
+  ),
+});
 
 const normalizarNomeGasto = (nomeOriginal) =>
   String(nomeOriginal || "")
@@ -621,7 +639,10 @@ export const buscarAlertasDeInconsistencia = async (req, res) => {
   console.log("--- INICIANDO ALERTAS DE INCONSISTÊNCIA ---");
   try {
     // const usuarioId = req.usuario?.id; // Pode ser usado se necessário no futuro
-    const maquinas = await Maquina.findAll({ where: { ativo: true } });
+    const maquinas = await Maquina.findAll({
+      where: { ativo: true },
+      include: [{ model: Loja, as: "loja", attributes: ["nome"] }],
+    });
     const alertas = [];
 
     // Buscar alertas ignorados globalmente
@@ -636,11 +657,19 @@ export const buscarAlertasDeInconsistencia = async (req, res) => {
         limit: 2,
         attributes: [
           "id",
+          "usuarioId",
           "contadorIn",
           "contadorOut",
           "fichas",
           "sairam",
           "dataColeta",
+        ],
+        include: [
+          {
+            model: Usuario,
+            as: "usuario",
+            attributes: ["id", "nome", "email"],
+          },
         ],
       });
 
@@ -652,6 +681,8 @@ export const buscarAlertasDeInconsistencia = async (req, res) => {
 
       const atual = movimentacoes[0]; // mais recente
       const anterior = movimentacoes[1];
+      const metadadosAtual = montarMetadadosMovimentacao(atual);
+      const metadadosAnterior = montarMetadadosMovimentacao(anterior);
 
       // OUT: diferença do campo contadorOut
       const diffOut = (atual.contadorOut || 0) - (anterior.contadorOut || 0);
@@ -674,11 +705,17 @@ export const buscarAlertasDeInconsistencia = async (req, res) => {
           tipo: "inconsistencia_contador",
           maquinaId: maquina.id,
           maquinaNome: maquina.nome,
+          lojaNome: maquina.loja?.nome || null,
           contador_out: atual.contadorOut || 0,
           contador_in: atual.contadorIn || 0,
           fichas: atual.fichas,
           sairam: atual.sairam,
-          dataMovimentacao: atual.dataColeta,
+          ...metadadosAnterior,
+          ...metadadosAtual,
+          usuarioAnterior: metadadosAnterior.usuarioNome,
+          usuarioAtual: metadadosAtual.usuarioNome,
+          dataMovimentacaoAnterior: metadadosAnterior.dataMovimentacao,
+          dataMovimentacaoAtual: metadadosAtual.dataMovimentacao,
           mensagem: `Inconsistência detectada: OUT (${diffOut}) esperado ${
             atual.sairam
           }, IN (${diffIn}) esperado ${atual.fichas}.\nOUT registrado: ${
@@ -1951,16 +1988,26 @@ export const alertasMovimentacaoOut = async (req, res) => {
         limit: 2,
         attributes: [
           "id",
+          "usuarioId",
           "contadorOut",
           "contadorIn",
           "fichas",
           "sairam",
           "dataColeta",
         ],
+        include: [
+          {
+            model: Usuario,
+            as: "usuario",
+            attributes: ["id", "nome", "email"],
+          },
+        ],
       });
       if (!movimentacoes || movimentacoes.length < 2) continue;
       const atual = movimentacoes[0];
       const anterior = movimentacoes[1];
+      const metadadosAtual = montarMetadadosMovimentacao(atual);
+      const metadadosAnterior = montarMetadadosMovimentacao(anterior);
       const diffOut = (atual.contadorOut || 0) - (anterior.contadorOut || 0);
       const alertaId = `${maquina.id}-${atual.id}`;
       if (
@@ -1982,7 +2029,12 @@ export const alertasMovimentacaoOut = async (req, res) => {
           contador_out: inserido,
           contador_out_anterior: referencia,
           sairam: saidaCalculada,
-          dataMovimentacao: atual.dataColeta,
+          ...metadadosAnterior,
+          ...metadadosAtual,
+          usuarioAnterior: metadadosAnterior.usuarioNome,
+          usuarioAtual: metadadosAtual.usuarioNome,
+          dataMovimentacaoAnterior: metadadosAnterior.dataMovimentacao,
+          dataMovimentacaoAtual: metadadosAtual.dataMovimentacao,
         });
       }
     }
@@ -2011,16 +2063,26 @@ export const alertasMovimentacaoIn = async (req, res) => {
         limit: 2,
         attributes: [
           "id",
+          "usuarioId",
           "contadorOut",
           "contadorIn",
           "fichas",
           "sairam",
           "dataColeta",
         ],
+        include: [
+          {
+            model: Usuario,
+            as: "usuario",
+            attributes: ["id", "nome", "email"],
+          },
+        ],
       });
       if (!movimentacoes || movimentacoes.length < 2) continue;
       const atual = movimentacoes[0];
       const anterior = movimentacoes[1];
+      const metadadosAtual = montarMetadadosMovimentacao(atual);
+      const metadadosAnterior = montarMetadadosMovimentacao(anterior);
       const diffIn = (atual.contadorIn || 0) - (anterior.contadorIn || 0);
       const alertaId = `${maquina.id}-${atual.id}`;
       if (
@@ -2038,7 +2100,12 @@ export const alertasMovimentacaoIn = async (req, res) => {
           contador_in: atual.contadorIn || 0,
           contador_in_anterior: anterior.contadorIn || 0,
           fichas: atual.fichas,
-          dataMovimentacao: atual.dataColeta,
+          ...metadadosAnterior,
+          ...metadadosAtual,
+          usuarioAnterior: metadadosAnterior.usuarioNome,
+          usuarioAtual: metadadosAtual.usuarioNome,
+          dataMovimentacaoAnterior: metadadosAnterior.dataMovimentacao,
+          dataMovimentacaoAtual: metadadosAtual.dataMovimentacao,
         });
       }
     }
