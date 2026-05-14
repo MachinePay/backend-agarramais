@@ -27,7 +27,8 @@ export function Movimentacoes() {
 
   // Filtros Estoque Loja
   const [filtroLojaEstoque, setFiltroLojaEstoque] = useState("");
-  const [filtroDataEstoque, setFiltroDataEstoque] = useState("");
+  const [filtroDataInicioEstoque, setFiltroDataInicioEstoque] = useState("");
+  const [filtroDataFimEstoque, setFiltroDataFimEstoque] = useState("");
   const [filtroResponsavelEstoque, setFiltroResponsavelEstoque] = useState("");
 
   // Ações Estoque Loja
@@ -79,15 +80,6 @@ export function Movimentacoes() {
   // Estados auxiliares
   const [estoqueAnterior, setEstoqueAnterior] = useState(0);
   const [alertaDivergencia, setAlertaDivergencia] = useState(null);
-
-  const formatarDataHoraMovimentacao = (valor) => {
-    if (!valor) return "-";
-
-    const data = new Date(valor);
-    if (Number.isNaN(data.getTime())) return String(valor);
-
-    return data.toLocaleString("pt-BR");
-  };
 
   // --- EFEITOS ---
   useEffect(() => {
@@ -143,7 +135,10 @@ export function Movimentacoes() {
           );
           const lojaSelecionada = lojas.find(
             (loja) =>
-              String(loja.id) === String(ultimaMov.maquina?.lojaId || ""),
+              String(loja.id) ===
+              String(
+                ultimaMov.maquina?.lojaId || maquinaSelecionada?.lojaId || "",
+              ),
           );
 
           // Calcular quantos produtos saíram baseado no contador OUT
@@ -167,10 +162,15 @@ export function Movimentacoes() {
                 ultimaMov.maquina?.nome || maquinaSelecionada?.nome || "-",
               loja: lojaSelecionada?.nome || "-",
               responsavelAnterior:
-                ultimaMov.usuario?.nome ||
                 ultimaMov.usuarioNome ||
+                ultimaMov.usuario?.nome ||
+                ultimaMov.usuario?.email ||
                 "Não informado",
-              responsavelAtual: usuario?.nome || "Não informado",
+              responsavelAtual:
+                usuario?.nome ||
+                usuario?.name ||
+                usuario?.email ||
+                "Não informado",
               dataAnterior:
                 ultimaMov.dataMovimentacao ||
                 ultimaMov.dataColeta ||
@@ -196,8 +196,9 @@ export function Movimentacoes() {
     formData.maquina_id,
     formData.contadorOut,
     formData.quantidadeAtualMaquina,
+    maquinas,
     lojas,
-    usuario?.nome,
+    usuario,
   ]);
 
   // Sugere produto automaticamente ao escolher máquina, mas permite troca manual
@@ -707,7 +708,10 @@ export function Movimentacoes() {
         <div className="flex items-center gap-1">
           <span className="text-lg">👤</span>
           <span className="text-sm font-medium text-gray-700">
-            {mov.usuarioNome || mov.usuario?.nome || "Não informado"}
+            {mov.usuarioNome ||
+              mov.usuario?.nome ||
+              mov.usuario?.email ||
+              "Não informado"}
           </span>
         </div>
       ),
@@ -1069,55 +1073,16 @@ export function Movimentacoes() {
                     </p>
                   )}
                   {alertaDivergencia && (
-                    <div className="mt-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 shadow-sm">
-                      <div className="flex items-start gap-3">
-                        <span className="text-2xl">⚠️</span>
+                    <div className="mt-2 p-3 bg-yellow-50 border-l-4 border-yellow-400 rounded">
+                      <div className="flex items-start">
+                        <span className="text-yellow-600 text-lg mr-2">⚠️</span>
                         <div className="flex-1">
-                          <p className="text-sm font-bold text-amber-900">
-                            Atenção: possível erro de contagem na movimentação.
+                          <p className="text-xs font-bold text-yellow-800 mb-1">
+                            Atenção: Possível erro de contagem!
                           </p>
-                          <p className="mt-1 text-xs text-amber-800">
-                            Máquina {alertaDivergencia.maquina} na loja{" "}
-                            {alertaDivergencia.loja}.
+                          <p className="text-xs text-yellow-700">
+                            Reconte por favor
                           </p>
-                          <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-amber-900 sm:grid-cols-2">
-                            <div className="rounded-xl bg-white/70 px-3 py-2">
-                              <strong>Anterior:</strong>{" "}
-                              {alertaDivergencia.responsavelAnterior}
-                              <div>
-                                {formatarDataHoraMovimentacao(
-                                  alertaDivergencia.dataAnterior,
-                                )}
-                              </div>
-                            </div>
-                            <div className="rounded-xl bg-white/70 px-3 py-2">
-                              <strong>Atual:</strong>{" "}
-                              {alertaDivergencia.responsavelAtual}
-                              <div>
-                                {formatarDataHoraMovimentacao(
-                                  alertaDivergencia.dataAtual,
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                          <div className="mt-4 flex flex-wrap gap-2">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                navigate("/relatorio-consolidado", {
-                                  state: {
-                                    alertData: alertaDivergencia,
-                                  },
-                                })
-                              }
-                              className="rounded-xl bg-amber-600 px-4 py-2 text-xs font-bold text-white hover:bg-amber-700"
-                            >
-                              Ver relatório detalhado
-                            </button>
-                            <span className="rounded-xl bg-white px-4 py-2 text-xs font-semibold text-amber-800">
-                              Reconte antes de salvar
-                            </span>
-                          </div>
                         </div>
                       </div>
                     </div>
@@ -1496,38 +1461,99 @@ export function Movimentacoes() {
               Movimentações de Estoque de Loja
             </h2>
             {/* Filtros */}
-            <div className="mb-4 flex flex-wrap gap-4">
-              <select
-                className="input-field"
-                value={filtroLojaEstoque}
-                onChange={(e) => setFiltroLojaEstoque(e.target.value)}
-              >
-                <option value="">Todas as lojas</option>
-                {lojas.map((loja) => (
-                  <option key={loja.id} value={loja.id}>
-                    {loja.nome}
-                  </option>
-                ))}
-              </select>
-              <input
-                type="date"
-                className="input-field"
-                value={filtroDataEstoque}
-                onChange={(e) => setFiltroDataEstoque(e.target.value)}
-              />
-              <input
-                type="text"
-                className="input-field"
-                placeholder="Responsável"
-                value={filtroResponsavelEstoque}
-                onChange={(e) => setFiltroResponsavelEstoque(e.target.value)}
-              />
+            <div className="mb-5 rounded-2xl border border-gray-200 bg-white/80 backdrop-blur-sm shadow-sm p-4 md:p-5">
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <h3 className="text-sm md:text-base font-bold text-gray-800 flex items-center gap-2">
+                  <span>🔎</span>
+                  Filtros
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFiltroLojaEstoque("");
+                    setFiltroDataInicioEstoque("");
+                    setFiltroDataFimEstoque("");
+                    setFiltroResponsavelEstoque("");
+                  }}
+                  className="text-xs md:text-sm font-semibold text-blue-700 hover:text-blue-800 transition-colors"
+                >
+                  Limpar filtros
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Loja
+                  </label>
+                  <select
+                    className="input-field"
+                    value={filtroLojaEstoque}
+                    onChange={(e) => setFiltroLojaEstoque(e.target.value)}
+                  >
+                    <option value="">Todas as lojas</option>
+                    {lojas.map((loja) => (
+                      <option key={loja.id} value={loja.id}>
+                        {loja.nome}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Data início
+                  </label>
+                  <input
+                    type="date"
+                    className="input-field"
+                    value={filtroDataInicioEstoque}
+                    onChange={(e) => setFiltroDataInicioEstoque(e.target.value)}
+                    aria-label="Data início"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Data fim
+                  </label>
+                  <input
+                    type="date"
+                    className="input-field"
+                    value={filtroDataFimEstoque}
+                    onChange={(e) => setFiltroDataFimEstoque(e.target.value)}
+                    aria-label="Data fim"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Responsável
+                  </label>
+                  <input
+                    type="text"
+                    className="input-field"
+                    placeholder="Digite o nome"
+                    value={filtroResponsavelEstoque}
+                    onChange={(e) =>
+                      setFiltroResponsavelEstoque(e.target.value)
+                    }
+                  />
+                </div>
+              </div>
+
+              <p className="text-xs text-gray-500 mt-3">
+                Sem selecionar datas, a tabela mostra automaticamente apenas os
+                registros de hoje.
+              </p>
             </div>
             <TabelaMovimentacoesEstoqueDeLoja
               movimentacoesEstoqueLoja={movimentacoesEstoqueLoja}
               lojas={lojas}
+              produtos={produtos}
               filtroLojaEstoque={filtroLojaEstoque}
-              filtroDataEstoque={filtroDataEstoque}
+              filtroDataInicioEstoque={filtroDataInicioEstoque}
+              filtroDataFimEstoque={filtroDataFimEstoque}
               filtroResponsavelEstoque={filtroResponsavelEstoque}
               setEditandoEstoqueLoja={setEditandoEstoqueLoja}
               setExcluindoEstoqueLoja={setExcluindoEstoqueLoja}

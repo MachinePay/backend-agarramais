@@ -419,7 +419,16 @@ export const listarMovimentacoes = async (req, res) => {
       limit: parseInt(limite),
     });
 
-    res.json(movimentacoes);
+    res.json(
+      movimentacoes.map((movimentacao) => {
+        const json = movimentacao.toJSON();
+        return {
+          ...json,
+          usuarioNome: json.usuario?.nome || json.usuario?.email || null,
+          dataMovimentacao: json.dataColeta || json.createdAt || null,
+        };
+      }),
+    );
   } catch (error) {
     console.error("Erro ao listar movimentações:", error);
     res.status(500).json({ error: "Erro ao listar movimentações" });
@@ -464,7 +473,12 @@ export const obterMovimentacao = async (req, res) => {
       return res.status(404).json({ error: "Movimentação não encontrada" });
     }
 
-    res.json(movimentacao);
+    const json = movimentacao.toJSON();
+    res.json({
+      ...json,
+      usuarioNome: json.usuario?.nome || json.usuario?.email || null,
+      dataMovimentacao: json.dataColeta || json.createdAt || null,
+    });
   } catch (error) {
     console.error("Erro ao obter movimentação:", error);
     res.status(500).json({ error: "Erro ao obter movimentação" });
