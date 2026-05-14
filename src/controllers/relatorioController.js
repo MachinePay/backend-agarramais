@@ -96,7 +96,10 @@ const formatarDataMovimentacao = (valor) => {
 
 const montarMetadadosMovimentacao = (movimentacao) => ({
   usuarioId: movimentacao?.usuario?.id ?? movimentacao?.usuarioId ?? null,
-  usuarioNome: movimentacao?.usuario?.nome ?? null,
+  usuarioNome:
+    movimentacao?.usuario?.nome ??
+    movimentacao?.usuario?.email ??
+    (movimentacao?.usuarioId ? `ID ${movimentacao.usuarioId}` : null),
   dataMovimentacao: formatarDataMovimentacao(
     movimentacao?.dataColeta ?? movimentacao?.createdAt,
   ),
