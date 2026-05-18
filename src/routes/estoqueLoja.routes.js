@@ -7,6 +7,7 @@ import {
   alertasEstoqueLoja,
   criarOuAtualizarProdutoEstoque,
 } from "../controllers/estoqueLojaController.js";
+import { analisarEstoqueLoja } from "../controllers/estoqueAnaliseController.js";
 import { autenticar, registrarLog } from "../middlewares/auth.js";
 
 const router = express.Router();
@@ -27,6 +28,7 @@ router.use((req, res, next) => {
 
 // Rotas GET específicas primeiro
 router.get("/:lojaId/alertas", autenticar, alertasEstoqueLoja);
+router.get("/:lojaId/analise", autenticar, analisarEstoqueLoja);
 router.get("/:lojaId", autenticar, listarEstoqueLoja);
 
 // Rotas POST específicas

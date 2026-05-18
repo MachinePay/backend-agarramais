@@ -1,4 +1,5 @@
 import { EstoqueLoja, Loja, Produto } from "../models/index.js";
+import { registrarAuditoriaEstoque } from "../utils/auditoriaEstoque.js";
 
 // Listar estoque de uma loja
 export const listarEstoqueLoja = async (req, res) => {
@@ -84,12 +85,23 @@ export const atualizarEstoqueLoja = async (req, res) => {
 
     if (!created) {
       const quantidadeAnterior = estoque.quantidade;
+      const estoqueMinimoAnterior = estoque.estoqueMinimo;
       // Atualizar se já existe
       estoque.quantidade = quantidade;
       if (estoqueMinimo !== undefined) {
         estoque.estoqueMinimo = estoqueMinimo;
       }
       await estoque.save();
+      await registrarAuditoriaEstoque({
+        req,
+        lojaId,
+        produtoId,
+        quantidadeAnterior,
+        quantidadeNova: quantidade,
+        estoqueMinimoAnterior,
+        estoqueMinimoNovo: estoque.estoqueMinimo,
+        entidadeId: estoque.id,
+      });
 
       console.log("✅ [atualizarEstoqueLoja] Estoque atualizado:", {
         quantidadeAnterior,
@@ -97,6 +109,17 @@ export const atualizarEstoqueLoja = async (req, res) => {
         diferenca: quantidade - quantidadeAnterior,
       });
     } else {
+      await registrarAuditoriaEstoque({
+        req,
+        lojaId,
+        produtoId,
+        quantidadeAnterior: 0,
+        quantidadeNova: quantidade,
+        estoqueMinimoAnterior: 0,
+        estoqueMinimoNovo: estoque.estoqueMinimo,
+        entidadeId: estoque.id,
+        observacao: "Criacao manual do estoque",
+      });
       console.log("✨ [atualizarEstoqueLoja] Novo estoque criado:", {
         quantidade,
         estoqueMinimo,
@@ -194,12 +217,23 @@ export const criarOuAtualizarProdutoEstoque = async (req, res) => {
 
     if (!created) {
       const quantidadeAnterior = estoque.quantidade;
+      const estoqueMinimoAnterior = estoque.estoqueMinimo;
       // Atualizar se já existe
       estoque.quantidade = quantidade;
       if (estoqueMinimo !== undefined) {
         estoque.estoqueMinimo = estoqueMinimo;
       }
       await estoque.save();
+      await registrarAuditoriaEstoque({
+        req,
+        lojaId,
+        produtoId,
+        quantidadeAnterior,
+        quantidadeNova: quantidade,
+        estoqueMinimoAnterior,
+        estoqueMinimoNovo: estoque.estoqueMinimo,
+        entidadeId: estoque.id,
+      });
 
       console.log("✅ [criarOuAtualizarProdutoEstoque] Estoque atualizado:", {
         quantidadeAnterior,
@@ -207,6 +241,17 @@ export const criarOuAtualizarProdutoEstoque = async (req, res) => {
         diferenca: quantidade - quantidadeAnterior,
       });
     } else {
+      await registrarAuditoriaEstoque({
+        req,
+        lojaId,
+        produtoId,
+        quantidadeAnterior: 0,
+        quantidadeNova: quantidade,
+        estoqueMinimoAnterior: 0,
+        estoqueMinimoNovo: estoque.estoqueMinimo,
+        entidadeId: estoque.id,
+        observacao: "Criacao manual do estoque",
+      });
       console.log("✨ [criarOuAtualizarProdutoEstoque] Novo estoque criado:", {
         quantidade,
         estoqueMinimo,
@@ -287,11 +332,35 @@ export const atualizarVariosEstoques = async (req, res) => {
         });
 
         if (!created) {
+          const quantidadeAnterior = estoque.quantidade;
+          const estoqueMinimoAnterior = estoque.estoqueMinimo;
           estoque.quantidade = quantidade;
           if (estoqueMinimo !== undefined) {
             estoque.estoqueMinimo = estoqueMinimo;
           }
           await estoque.save();
+          await registrarAuditoriaEstoque({
+            req,
+            lojaId,
+            produtoId,
+            quantidadeAnterior,
+            quantidadeNova: quantidade,
+            estoqueMinimoAnterior,
+            estoqueMinimoNovo: estoque.estoqueMinimo,
+            entidadeId: estoque.id,
+          });
+        } else {
+          await registrarAuditoriaEstoque({
+            req,
+            lojaId,
+            produtoId,
+            quantidadeAnterior: 0,
+            quantidadeNova: quantidade,
+            estoqueMinimoAnterior: 0,
+            estoqueMinimoNovo: estoque.estoqueMinimo,
+            entidadeId: estoque.id,
+            observacao: "Criacao manual do estoque",
+          });
         }
 
         console.log(`Estoque ${created ? "criado" : "atualizado"}:`, {
@@ -340,6 +409,19 @@ export const deletarEstoqueLoja = async (req, res) => {
     if (!estoque) {
       return res.status(404).json({ error: "Estoque não encontrado" });
     }
+
+    await registrarAuditoriaEstoque({
+      req,
+      lojaId,
+      produtoId,
+      acao: "REMOCAO_MANUAL_ESTOQUE",
+      quantidadeAnterior: estoque.quantidade,
+      quantidadeNova: 0,
+      estoqueMinimoAnterior: estoque.estoqueMinimo,
+      estoqueMinimoNovo: 0,
+      entidadeId: estoque.id,
+      observacao: "Remocao manual do item de estoque",
+    });
 
     await estoque.destroy();
 

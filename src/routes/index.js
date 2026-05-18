@@ -21,6 +21,7 @@ import manutencaoRoutes from "./manutencao.routes.js";
 import fechamentoMensalRelatorioRoutes from "./fechamentoMensalRelatorio.routes.js";
 import sangriaRoutes from "./sangria.routes.js";
 import listaComprasPendenteRoutes from "./listaComprasPendente.routes.js";
+import logAtividadeRoutes from "./logAtividade.routes.js";
 const router = express.Router();
 
 router.use("/auth", authRoutes);
@@ -34,6 +35,7 @@ router.use("/totais", totaisRoutes);
 router.use("/admin", adminRoutes);
 router.use("/estoque-lojas", estoqueLojaRoutes);
 router.use("/movimentacao-estoque-loja", movimentacaoEstoqueLojaRoutes);
+router.use("/logs-atividade", logAtividadeRoutes);
 
 router.use("/veiculos", veiculoRoutes);
 router.use("/alertas-veiculos", alertasVeiculosRoutes);
