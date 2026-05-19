@@ -89,6 +89,8 @@ const schemaComandoVoz = {
     "lojaNome",
     "maquinaId",
     "maquinaNome",
+    "contadorIn",
+    "contadorOut",
     "periodo",
     "respostaCurta",
     "precisaConfirmacao",
@@ -109,6 +111,8 @@ const schemaComandoVoz = {
     lojaNome: { type: ["string", "null"] },
     maquinaId: { type: ["string", "null"] },
     maquinaNome: { type: ["string", "null"] },
+    contadorIn: { type: ["integer", "null"] },
+    contadorOut: { type: ["integer", "null"] },
     periodo: {
       type: "object",
       additionalProperties: false,
@@ -175,6 +179,8 @@ const chamarOpenAIParaInterpretar = async ({ texto, lojas, maquinas }) => {
         "Se faltar loja ou periodo para relatorio, marque precisaConfirmacao e liste camposFaltantes.",
         "Abrir aba de movimentacoes ou fazer uma movimentacao deve ser intent ABRIR_MOVIMENTACOES.",
         "Quando o usuario disser que quer fazer uma movimentacao em determinada loja e maquina, preencha lojaId e maquinaId se conseguir identificar.",
+        "Para movimentacoes, se o usuario disser contador entrada, contador in ou contador IN, preencha contadorIn com o numero informado.",
+        "Para movimentacoes, se o usuario disser contador saida, contador out ou contador OUT, preencha contadorOut com o numero informado.",
         `Lojas disponiveis:\n${listaLojas || "- nenhuma loja cadastrada"}`,
         `Maquinas disponiveis:\n${listaMaquinas || "- nenhuma maquina cadastrada"}`,
       ].join("\n"),
@@ -438,11 +444,55 @@ const inferirIntentPeloTexto = (texto) => {
   return null;
 };
 
+const extrairNumeroAposRotulo = (textoNormalizado, rotulos) => {
+  for (const rotulo of rotulos) {
+    const match = textoNormalizado.match(
+      new RegExp(
+        `\\b${rotulo}\\b\\s*(?:e|eh|de|=|:|-)?\\s*(\\d{1,9})\\b`,
+      ),
+    );
+    if (match) return Number(match[1]);
+  }
+
+  return null;
+};
+
+const inferirContadoresPeloTexto = (texto) => {
+  const textoNormalizado = normalizar(texto);
+
+  return {
+    contadorIn: extrairNumeroAposRotulo(textoNormalizado, [
+      "contador entrada",
+      "contador de entrada",
+      "contador in",
+      "entrada",
+      "in",
+    ]),
+    contadorOut: extrairNumeroAposRotulo(textoNormalizado, [
+      "contador saida",
+      "contador de saida",
+      "contador out",
+      "saida",
+      "out",
+    ]),
+  };
+};
+
 const completarInterpretacaoComTexto = ({ interpretacao, texto, lojas, maquinas }) => {
   const interpretacaoCompleta = {
     ...interpretacao,
     maquinaId: interpretacao?.maquinaId ?? null,
     maquinaNome: interpretacao?.maquinaNome ?? null,
+    contadorIn:
+      Number.isInteger(interpretacao?.contadorIn) &&
+      interpretacao.contadorIn >= 0
+        ? interpretacao.contadorIn
+        : null,
+    contadorOut:
+      Number.isInteger(interpretacao?.contadorOut) &&
+      interpretacao.contadorOut >= 0
+        ? interpretacao.contadorOut
+        : null,
     periodo: {
       dataInicio: interpretacao?.periodo?.dataInicio ?? null,
       dataFim: interpretacao?.periodo?.dataFim ?? null,
@@ -475,6 +525,20 @@ const completarInterpretacaoComTexto = ({ interpretacao, texto, lojas, maquinas 
     interpretacaoCompleta.maquinaId = maquinaInferida.id;
     interpretacaoCompleta.maquinaNome =
       maquinaInferida.nome || maquinaInferida.codigo;
+  }
+
+  const contadoresInferidos = inferirContadoresPeloTexto(texto);
+  if (
+    Number.isInteger(contadoresInferidos.contadorIn) &&
+    interpretacaoCompleta.contadorIn === null
+  ) {
+    interpretacaoCompleta.contadorIn = contadoresInferidos.contadorIn;
+  }
+  if (
+    Number.isInteger(contadoresInferidos.contadorOut) &&
+    interpretacaoCompleta.contadorOut === null
+  ) {
+    interpretacaoCompleta.contadorOut = contadoresInferidos.contadorOut;
   }
 
   const periodoInferido = inferirPeriodoPeloTexto(texto);
@@ -645,14 +709,42 @@ const executarRelatorioLoja = async ({ interpretacao, lojaResolvida }) => {
   };
 };
 
-const executarAbrirMovimentacoes = ({ lojaResolvida, maquinaResolvida }) => {
+const montarPrefillMovimentacao = ({ interpretacao, lojaResolvida, maquinaResolvida }) => ({
+  lojaId: lojaResolvida && lojaResolvida !== TODAS_AS_LOJAS ? lojaResolvida.id : null,
+  maquinaId: maquinaResolvida?.id || null,
+  contadorIn: Number.isInteger(interpretacao?.contadorIn)
+    ? interpretacao.contadorIn
+    : null,
+  contadorOut: Number.isInteger(interpretacao?.contadorOut)
+    ? interpretacao.contadorOut
+    : null,
+});
+
+const executarAbrirMovimentacoes = ({
+  interpretacao,
+  lojaResolvida,
+  maquinaResolvida,
+}) => {
+  const prefill = montarPrefillMovimentacao({
+    interpretacao,
+    lojaResolvida,
+    maquinaResolvida,
+  });
+
   if (!lojaResolvida || lojaResolvida === TODAS_AS_LOJAS) {
     return {
       status: "precisa_confirmacao",
       tipo: "navegacao",
       mensagem: "Qual loja devo selecionar para a movimentacao?",
       camposFaltantes: ["loja"],
-      acao: { tipo: "navegar", rota: "/movimentacoes" },
+      acao: {
+        tipo: "abrir_movimentacao",
+        rota: "/movimentacoes",
+        modo: "nova_movimentacao",
+        abrirFormulario: true,
+        query: prefill,
+        prefill,
+      },
     };
   }
 
@@ -670,7 +762,10 @@ const executarAbrirMovimentacoes = ({ lojaResolvida, maquinaResolvida }) => {
         query: {
           lojaId: lojaResolvida.id,
           maquinaId: null,
+          contadorIn: prefill.contadorIn,
+          contadorOut: prefill.contadorOut,
         },
+        prefill,
       },
     };
   }
@@ -689,11 +784,15 @@ const executarAbrirMovimentacoes = ({ lojaResolvida, maquinaResolvida }) => {
       query: {
         lojaId: lojaResolvida.id,
         maquinaId: maquinaResolvida.id,
+        contadorIn: prefill.contadorIn,
+        contadorOut: prefill.contadorOut,
       },
+      prefill,
     },
     dados: {
       loja: lojaResolvida,
       maquina: maquinaResolvida,
+      prefill,
     },
   };
 };
@@ -734,7 +833,11 @@ export const processarComandoAssistenteIa = async (req, res) => {
     } else if (interpretacao.intent === "GERAR_RELATORIO_LOJA") {
       resultado = await executarRelatorioLoja({ interpretacao, lojaResolvida });
     } else if (interpretacao.intent === "ABRIR_MOVIMENTACOES") {
-      resultado = executarAbrirMovimentacoes({ lojaResolvida, maquinaResolvida });
+      resultado = executarAbrirMovimentacoes({
+        interpretacao,
+        lojaResolvida,
+        maquinaResolvida,
+      });
     } else {
       resultado = {
         status: "nao_entendido",
