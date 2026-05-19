@@ -5,6 +5,37 @@ import { gerarRelatorioImpressaoPorLoja } from "./relatorioController.js";
 const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 const MODELO_PADRAO = process.env.OPENAI_MODEL || "gpt-4.1-mini";
 const TODAS_AS_LOJAS = "__TODAS_AS_LOJAS__";
+const ASSISTENTE = {
+  nome: "IAgarra",
+  icone: "garra",
+};
+
+const MESES_PT_BR = [
+  ["janeiro", 0],
+  ["fevereiro", 1],
+  ["marco", 2],
+  ["marco", 2],
+  ["abril", 3],
+  ["maio", 4],
+  ["junho", 5],
+  ["julho", 6],
+  ["agosto", 7],
+  ["setembro", 8],
+  ["outubro", 9],
+  ["novembro", 10],
+  ["dezembro", 11],
+];
+
+const TERMOS_LOJA_IGNORADOS = new Set([
+  "agarra",
+  "agarramais",
+  "mais",
+  "shopping",
+  "loja",
+  "quiosque",
+  "self",
+  "machine",
+]);
 
 const normalizar = (valor) =>
   String(valor || "")
@@ -21,6 +52,18 @@ const formatarMoeda = (valor) =>
   });
 
 const hojeIso = () => new Date().toISOString().slice(0, 10);
+
+const isoLocal = (data) => {
+  const ano = data.getFullYear();
+  const mes = String(data.getMonth() + 1).padStart(2, "0");
+  const dia = String(data.getDate()).padStart(2, "0");
+  return `${ano}-${mes}-${dia}`;
+};
+
+const primeiroDiaMes = (ano, mesIndex) => isoLocal(new Date(ano, mesIndex, 1));
+
+const ultimoDiaMes = (ano, mesIndex) =>
+  isoLocal(new Date(ano, mesIndex + 1, 0));
 
 const extrairTextoResposta = (resposta) => {
   if (typeof resposta?.output_text === "string") return resposta.output_text;
@@ -111,9 +154,13 @@ const chamarOpenAIParaInterpretar = async ({ texto, lojas }) => {
       instructions: [
         "Voce interpreta comandos de voz em portugues para um dashboard operacional.",
         "Retorne apenas JSON estruturado conforme o schema.",
-        "Use as lojas disponiveis para resolver lojaId quando o nome bater ou for muito parecido.",
+        "Seu nome e IAgarra. Voce usa um icone de garra no frontend.",
+        "Use as lojas disponiveis para resolver lojaId quando o nome bater, for muito parecido, ou quando o usuario disser apenas uma parte unica do nome da loja.",
+        "Exemplo: se existir 'AgarraMais shopping Interlagos' e o usuario disser 'loja de Interlagos', use essa loja.",
         "Se o usuario pedir estoque de cada loja, todas as lojas ou geral, use lojaId \"__TODAS_AS_LOJAS__\".",
         "Para relatorio de loja, dataInicio e dataFim devem estar em YYYY-MM-DD.",
+        "Quando o usuario disser 'mes de abril', 'em abril' ou equivalente, use o primeiro e o ultimo dia desse mes. Abril tem 30 dias; meses com 31 devem terminar em 31.",
+        "Se o usuario disser um mes sem ano, use o ano atual.",
         `A data de hoje e ${hojeIso()}.`,
         "Se faltar loja ou periodo para relatorio, marque precisaConfirmacao e liste camposFaltantes.",
         "Abrir aba de movimentacoes deve ser intent ABRIR_MOVIMENTACOES.",
@@ -160,6 +207,41 @@ const buscarLojasAtivas = () =>
     raw: true,
   });
 
+const calcularPontuacaoLojaNoTexto = (textoNormalizado, loja) => {
+  const nomeNormalizado = normalizar(loja.nome);
+  if (!nomeNormalizado) return 0;
+  if (textoNormalizado.includes(nomeNormalizado)) return 100;
+
+  const tokens = nomeNormalizado
+    .split(" ")
+    .filter((token) => token.length >= 4 && !TERMOS_LOJA_IGNORADOS.has(token));
+
+  return tokens.reduce((score, token) => {
+    if (!textoNormalizado.includes(token)) return score;
+    return score + Math.min(token.length, 12);
+  }, 0);
+};
+
+const inferirLojaPeloTexto = (texto, lojas) => {
+  const textoNormalizado = normalizar(texto);
+  if (!textoNormalizado) return null;
+
+  const candidatas = lojas
+    .map((loja) => ({
+      loja,
+      score: calcularPontuacaoLojaNoTexto(textoNormalizado, loja),
+    }))
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  if (!candidatas.length) return null;
+  if (candidatas.length === 1) return candidatas[0].loja;
+
+  return candidatas[0].score > candidatas[1].score
+    ? candidatas[0].loja
+    : null;
+};
+
 const resolverLoja = (interpretacao, lojas) => {
   if (interpretacao.lojaId === TODAS_AS_LOJAS) return TODAS_AS_LOJAS;
 
@@ -175,6 +257,120 @@ const resolverLoja = (interpretacao, lojas) => {
     lojas.find((loja) => alvo.includes(normalizar(loja.nome))) ||
     null
   );
+};
+
+const obterAnoParaMesFalado = (textoNormalizado, mesNome, anoAtual) => {
+  const matchAnoDepois = textoNormalizado.match(
+    new RegExp(`${mesNome}\\s+de\\s+(20\\d{2})`),
+  );
+  if (matchAnoDepois) return Number(matchAnoDepois[1]);
+
+  const matchAnoAntes = textoNormalizado.match(
+    new RegExp(`(20\\d{2}).{0,20}${mesNome}`),
+  );
+  if (matchAnoAntes) return Number(matchAnoAntes[1]);
+
+  return anoAtual;
+};
+
+const inferirPeriodoPeloTexto = (texto) => {
+  const textoNormalizado = normalizar(texto);
+  const hoje = new Date();
+
+  if (/\bmes passado\b/.test(textoNormalizado)) {
+    const ano = hoje.getMonth() === 0 ? hoje.getFullYear() - 1 : hoje.getFullYear();
+    const mesIndex = hoje.getMonth() === 0 ? 11 : hoje.getMonth() - 1;
+    return {
+      dataInicio: primeiroDiaMes(ano, mesIndex),
+      dataFim: ultimoDiaMes(ano, mesIndex),
+      descricao: "mes passado",
+    };
+  }
+
+  for (const [mesNome, mesIndex] of MESES_PT_BR) {
+    const padraoMes =
+      new RegExp(`\\b(mes\\s+de|mês\\s+de|em|de)\\s+${mesNome}\\b`).test(
+        textoNormalizado,
+      ) || new RegExp(`\\b${mesNome}\\b`).test(textoNormalizado);
+
+    if (!padraoMes) continue;
+
+    const ano = obterAnoParaMesFalado(
+      textoNormalizado,
+      mesNome,
+      hoje.getFullYear(),
+    );
+
+    return {
+      dataInicio: primeiroDiaMes(ano, mesIndex),
+      dataFim: ultimoDiaMes(ano, mesIndex),
+      descricao: `${mesNome} de ${ano}`,
+    };
+  }
+
+  return null;
+};
+
+const inferirIntentPeloTexto = (texto) => {
+  const textoNormalizado = normalizar(texto);
+
+  if (/\brelatorio\b/.test(textoNormalizado)) return "GERAR_RELATORIO_LOJA";
+  if (/\bestoque\b/.test(textoNormalizado)) return "CONSULTAR_ESTOQUE";
+  if (/\bmovimentac/.test(textoNormalizado)) return "ABRIR_MOVIMENTACOES";
+
+  return null;
+};
+
+const completarInterpretacaoComTexto = ({ interpretacao, texto, lojas }) => {
+  const interpretacaoCompleta = {
+    ...interpretacao,
+    periodo: {
+      dataInicio: interpretacao?.periodo?.dataInicio ?? null,
+      dataFim: interpretacao?.periodo?.dataFim ?? null,
+      descricao: interpretacao?.periodo?.descricao ?? null,
+    },
+  };
+
+  const intentInferido = inferirIntentPeloTexto(texto);
+  if (
+    intentInferido &&
+    (!interpretacaoCompleta.intent ||
+      ["DESCONHECIDO", "AJUDA"].includes(interpretacaoCompleta.intent))
+  ) {
+    interpretacaoCompleta.intent = intentInferido;
+  }
+
+  const lojaInferida = inferirLojaPeloTexto(texto, lojas);
+  if (lojaInferida && !interpretacaoCompleta.lojaId) {
+    interpretacaoCompleta.lojaId = lojaInferida.id;
+    interpretacaoCompleta.lojaNome = lojaInferida.nome;
+  }
+
+  const periodoInferido = inferirPeriodoPeloTexto(texto);
+  if (
+    periodoInferido &&
+    (!interpretacaoCompleta.periodo.dataInicio ||
+      !interpretacaoCompleta.periodo.dataFim)
+  ) {
+    interpretacaoCompleta.periodo = periodoInferido;
+  }
+
+  const camposFaltantes = new Set(interpretacaoCompleta.camposFaltantes || []);
+  if (interpretacaoCompleta.lojaId) camposFaltantes.delete("loja");
+  if (
+    interpretacaoCompleta.periodo.dataInicio &&
+    interpretacaoCompleta.periodo.dataFim
+  ) {
+    camposFaltantes.delete("periodo");
+    camposFaltantes.delete("dataInicio");
+    camposFaltantes.delete("dataFim");
+  }
+
+  interpretacaoCompleta.camposFaltantes = Array.from(camposFaltantes);
+  interpretacaoCompleta.precisaConfirmacao =
+    interpretacaoCompleta.camposFaltantes.length > 0;
+
+  return interpretacaoCompleta;
 };
 
 const montarResumoEstoque = (estoques, lojas) => {
@@ -299,6 +495,20 @@ const executarRelatorioLoja = async ({ interpretacao, lojaResolvida }) => {
     status: "executado",
     tipo: "relatorio-loja",
     mensagem: montarResumoRelatorio(relatorio),
+    acao: {
+      tipo: "abrir_relatorio",
+      rota: "/relatorios",
+      query: {
+        lojaId: lojaResolvida.id,
+        dataInicio,
+        dataFim,
+      },
+      endpoint: `/api/relatorios/impressao?lojaId=${encodeURIComponent(
+        lojaResolvida.id,
+      )}&dataInicio=${encodeURIComponent(dataInicio)}&dataFim=${encodeURIComponent(
+        dataFim,
+      )}`,
+    },
     dados: relatorio,
   };
 };
@@ -312,7 +522,12 @@ export const processarComandoAssistenteIa = async (req, res) => {
     }
 
     const lojas = await buscarLojasAtivas();
-    const interpretacao = await chamarOpenAIParaInterpretar({ texto, lojas });
+    const interpretacaoOpenAI = await chamarOpenAIParaInterpretar({ texto, lojas });
+    const interpretacao = completarInterpretacaoComTexto({
+      interpretacao: interpretacaoOpenAI,
+      texto,
+      lojas,
+    });
     const lojaResolvida = resolverLoja(interpretacao, lojas);
 
     let resultado;
@@ -337,6 +552,7 @@ export const processarComandoAssistenteIa = async (req, res) => {
     }
 
     return res.json({
+      assistente: ASSISTENTE,
       transcricao: texto,
       interpretacao,
       lojaResolvida:
