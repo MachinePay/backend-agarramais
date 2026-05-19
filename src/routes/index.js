@@ -22,6 +22,7 @@ import fechamentoMensalRelatorioRoutes from "./fechamentoMensalRelatorio.routes.
 import sangriaRoutes from "./sangria.routes.js";
 import listaComprasPendenteRoutes from "./listaComprasPendente.routes.js";
 import logAtividadeRoutes from "./logAtividade.routes.js";
+import assistenteIaRoutes from "./assistenteIa.routes.js";
 const router = express.Router();
 
 router.use("/auth", authRoutes);
@@ -36,6 +37,7 @@ router.use("/admin", adminRoutes);
 router.use("/estoque-lojas", estoqueLojaRoutes);
 router.use("/movimentacao-estoque-loja", movimentacaoEstoqueLojaRoutes);
 router.use("/logs-atividade", logAtividadeRoutes);
+router.use("/assistente-ia", assistenteIaRoutes);
 
 router.use("/veiculos", veiculoRoutes);
 router.use("/alertas-veiculos", alertasVeiculosRoutes);
