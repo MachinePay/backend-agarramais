@@ -665,6 +665,8 @@ const executarAbrirMovimentacoes = ({ lojaResolvida, maquinaResolvida }) => {
       acao: {
         tipo: "abrir_movimentacao",
         rota: "/movimentacoes",
+        modo: "nova_movimentacao",
+        abrirFormulario: true,
         query: {
           lojaId: lojaResolvida.id,
           maquinaId: null,
@@ -682,6 +684,8 @@ const executarAbrirMovimentacoes = ({ lojaResolvida, maquinaResolvida }) => {
     acao: {
       tipo: "abrir_movimentacao",
       rota: "/movimentacoes",
+      modo: "nova_movimentacao",
+      abrirFormulario: true,
       query: {
         lojaId: lojaResolvida.id,
         maquinaId: maquinaResolvida.id,
