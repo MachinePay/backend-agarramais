@@ -1,5 +1,5 @@
 import { Op } from "sequelize";
-import { Loja, EstoqueLoja, Produto } from "../models/index.js";
+import { Loja, Maquina, EstoqueLoja, Produto } from "../models/index.js";
 import { gerarRelatorioImpressaoPorLoja } from "./relatorioController.js";
 
 const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
@@ -87,6 +87,8 @@ const schemaComandoVoz = {
     "intent",
     "lojaId",
     "lojaNome",
+    "maquinaId",
+    "maquinaNome",
     "periodo",
     "respostaCurta",
     "precisaConfirmacao",
@@ -105,6 +107,8 @@ const schemaComandoVoz = {
     },
     lojaId: { type: ["string", "null"] },
     lojaNome: { type: ["string", "null"] },
+    maquinaId: { type: ["string", "null"] },
+    maquinaNome: { type: ["string", "null"] },
     periodo: {
       type: "object",
       additionalProperties: false,
@@ -124,7 +128,7 @@ const schemaComandoVoz = {
   },
 };
 
-const chamarOpenAIParaInterpretar = async ({ texto, lojas }) => {
+const chamarOpenAIParaInterpretar = async ({ texto, lojas, maquinas }) => {
   if (!process.env.OPENAI_API_KEY) {
     const erro = new Error("OPENAI_API_KEY nao configurada no backend");
     erro.status = 500;
@@ -141,6 +145,12 @@ const chamarOpenAIParaInterpretar = async ({ texto, lojas }) => {
 
   const listaLojas = lojas
     .map((loja) => `- ${loja.nome} | id: ${loja.id}`)
+    .join("\n");
+  const listaMaquinas = maquinas
+    .map(
+      (maquina) =>
+        `- ${maquina.nome || maquina.codigo} | codigo: ${maquina.codigo} | id: ${maquina.id} | lojaId: ${maquina.lojaId}`,
+    )
     .join("\n");
 
   const resposta = await fetch(OPENAI_RESPONSES_URL, {
@@ -163,8 +173,10 @@ const chamarOpenAIParaInterpretar = async ({ texto, lojas }) => {
         "Se o usuario disser um mes sem ano, use o ano atual.",
         `A data de hoje e ${hojeIso()}.`,
         "Se faltar loja ou periodo para relatorio, marque precisaConfirmacao e liste camposFaltantes.",
-        "Abrir aba de movimentacoes deve ser intent ABRIR_MOVIMENTACOES.",
+        "Abrir aba de movimentacoes ou fazer uma movimentacao deve ser intent ABRIR_MOVIMENTACOES.",
+        "Quando o usuario disser que quer fazer uma movimentacao em determinada loja e maquina, preencha lojaId e maquinaId se conseguir identificar.",
         `Lojas disponiveis:\n${listaLojas || "- nenhuma loja cadastrada"}`,
+        `Maquinas disponiveis:\n${listaMaquinas || "- nenhuma maquina cadastrada"}`,
       ].join("\n"),
       input: texto,
       text: {
@@ -207,6 +219,17 @@ const buscarLojasAtivas = () =>
     raw: true,
   });
 
+const buscarMaquinasAtivas = () =>
+  Maquina.findAll({
+    where: { ativo: true },
+    attributes: ["id", "codigo", "nome", "tipo", "lojaId"],
+    order: [
+      ["lojaId", "ASC"],
+      ["codigo", "ASC"],
+    ],
+    raw: true,
+  });
+
 const calcularPontuacaoLojaNoTexto = (textoNormalizado, loja) => {
   const nomeNormalizado = normalizar(loja.nome);
   if (!nomeNormalizado) return 0;
@@ -242,6 +265,74 @@ const inferirLojaPeloTexto = (texto, lojas) => {
     : null;
 };
 
+const calcularPontuacaoMaquinaNoTexto = (textoNormalizado, maquina) => {
+  const partes = [maquina.codigo, maquina.nome, maquina.tipo]
+    .filter(Boolean)
+    .map(normalizar)
+    .filter(Boolean);
+
+  let score = 0;
+  const codigoNormalizado = normalizar(maquina.codigo);
+  const numeroCodigo = codigoNormalizado.match(/\d+/)?.[0] || null;
+
+  if (
+    codigoNormalizado &&
+    new RegExp(`\\b${codigoNormalizado}\\b`).test(textoNormalizado)
+  ) {
+    score += 140;
+  }
+
+  if (
+    numeroCodigo &&
+    new RegExp(`\\bmaquina\\s+${Number(numeroCodigo)}\\b`).test(
+      textoNormalizado,
+    )
+  ) {
+    score += 120;
+  }
+
+  for (const parte of partes) {
+    if (new RegExp(`\\b${parte}\\b`).test(textoNormalizado)) score += 80;
+
+    const tokens = parte
+      .split(" ")
+      .filter((token) => token.length >= 2 && token !== "maquina");
+
+    for (const token of tokens) {
+      if (/^\d+$/.test(token)) continue;
+      const limite = Math.min(token.length, 12);
+      if (new RegExp(`\\b${token}\\b`).test(textoNormalizado)) score += limite;
+    }
+  }
+
+  return score;
+};
+
+const inferirMaquinaPeloTexto = ({ texto, maquinas, lojaResolvida }) => {
+  const textoNormalizado = normalizar(texto);
+  if (!textoNormalizado) return null;
+
+  const maquinasElegiveis =
+    lojaResolvida && lojaResolvida !== TODAS_AS_LOJAS
+      ? maquinas.filter((maquina) => maquina.lojaId === lojaResolvida.id)
+      : maquinas;
+
+  const candidatas = maquinasElegiveis
+    .map((maquina) => ({
+      maquina,
+      score: calcularPontuacaoMaquinaNoTexto(textoNormalizado, maquina),
+    }))
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  if (!candidatas.length) return null;
+  if (candidatas.length === 1) return candidatas[0].maquina;
+
+  return candidatas[0].score > candidatas[1].score
+    ? candidatas[0].maquina
+    : null;
+};
+
 const resolverLoja = (interpretacao, lojas) => {
   if (interpretacao.lojaId === TODAS_AS_LOJAS) return TODAS_AS_LOJAS;
 
@@ -255,6 +346,32 @@ const resolverLoja = (interpretacao, lojas) => {
     lojas.find((loja) => normalizar(loja.nome) === alvo) ||
     lojas.find((loja) => normalizar(loja.nome).includes(alvo)) ||
     lojas.find((loja) => alvo.includes(normalizar(loja.nome))) ||
+    null
+  );
+};
+
+const resolverMaquina = ({ interpretacao, maquinas, lojaResolvida }) => {
+  const maquinasElegiveis =
+    lojaResolvida && lojaResolvida !== TODAS_AS_LOJAS
+      ? maquinas.filter((maquina) => maquina.lojaId === lojaResolvida.id)
+      : maquinas;
+
+  const maquinaPorId = maquinasElegiveis.find(
+    (maquina) => maquina.id === interpretacao.maquinaId,
+  );
+  if (maquinaPorId) return maquinaPorId;
+
+  const alvo = normalizar(interpretacao.maquinaNome);
+  if (!alvo) return null;
+
+  return (
+    maquinasElegiveis.find((maquina) => normalizar(maquina.codigo) === alvo) ||
+    maquinasElegiveis.find((maquina) => normalizar(maquina.nome) === alvo) ||
+    maquinasElegiveis.find((maquina) =>
+      normalizar(`${maquina.codigo} ${maquina.nome} ${maquina.tipo}`).includes(
+        alvo,
+      ),
+    ) ||
     null
   );
 };
@@ -321,9 +438,11 @@ const inferirIntentPeloTexto = (texto) => {
   return null;
 };
 
-const completarInterpretacaoComTexto = ({ interpretacao, texto, lojas }) => {
+const completarInterpretacaoComTexto = ({ interpretacao, texto, lojas, maquinas }) => {
   const interpretacaoCompleta = {
     ...interpretacao,
+    maquinaId: interpretacao?.maquinaId ?? null,
+    maquinaNome: interpretacao?.maquinaNome ?? null,
     periodo: {
       dataInicio: interpretacao?.periodo?.dataInicio ?? null,
       dataFim: interpretacao?.periodo?.dataFim ?? null,
@@ -346,6 +465,18 @@ const completarInterpretacaoComTexto = ({ interpretacao, texto, lojas }) => {
     interpretacaoCompleta.lojaNome = lojaInferida.nome;
   }
 
+  const lojaParaMaquina = resolverLoja(interpretacaoCompleta, lojas);
+  const maquinaInferida = inferirMaquinaPeloTexto({
+    texto,
+    maquinas,
+    lojaResolvida: lojaParaMaquina,
+  });
+  if (maquinaInferida && !interpretacaoCompleta.maquinaId) {
+    interpretacaoCompleta.maquinaId = maquinaInferida.id;
+    interpretacaoCompleta.maquinaNome =
+      maquinaInferida.nome || maquinaInferida.codigo;
+  }
+
   const periodoInferido = inferirPeriodoPeloTexto(texto);
   if (
     periodoInferido &&
@@ -357,6 +488,7 @@ const completarInterpretacaoComTexto = ({ interpretacao, texto, lojas }) => {
 
   const camposFaltantes = new Set(interpretacaoCompleta.camposFaltantes || []);
   if (interpretacaoCompleta.lojaId) camposFaltantes.delete("loja");
+  if (interpretacaoCompleta.maquinaId) camposFaltantes.delete("maquina");
   if (
     interpretacaoCompleta.periodo.dataInicio &&
     interpretacaoCompleta.periodo.dataFim
@@ -513,6 +645,55 @@ const executarRelatorioLoja = async ({ interpretacao, lojaResolvida }) => {
   };
 };
 
+const executarAbrirMovimentacoes = ({ lojaResolvida, maquinaResolvida }) => {
+  if (!lojaResolvida || lojaResolvida === TODAS_AS_LOJAS) {
+    return {
+      status: "precisa_confirmacao",
+      tipo: "navegacao",
+      mensagem: "Qual loja devo selecionar para a movimentacao?",
+      camposFaltantes: ["loja"],
+      acao: { tipo: "navegar", rota: "/movimentacoes" },
+    };
+  }
+
+  if (!maquinaResolvida) {
+    return {
+      status: "precisa_confirmacao",
+      tipo: "navegacao",
+      mensagem: "Qual maquina devo selecionar para a movimentacao?",
+      camposFaltantes: ["maquina"],
+      acao: {
+        tipo: "abrir_movimentacao",
+        rota: "/movimentacoes",
+        query: {
+          lojaId: lojaResolvida.id,
+          maquinaId: null,
+        },
+      },
+    };
+  }
+
+  return {
+    status: "executado",
+    tipo: "navegacao",
+    mensagem: `Abrindo movimentacoes com ${lojaResolvida.nome} e maquina ${
+      maquinaResolvida.nome || maquinaResolvida.codigo
+    } selecionadas.`,
+    acao: {
+      tipo: "abrir_movimentacao",
+      rota: "/movimentacoes",
+      query: {
+        lojaId: lojaResolvida.id,
+        maquinaId: maquinaResolvida.id,
+      },
+    },
+    dados: {
+      loja: lojaResolvida,
+      maquina: maquinaResolvida,
+    },
+  };
+};
+
 export const processarComandoAssistenteIa = async (req, res) => {
   try {
     const texto = String(req.body?.texto || req.body?.transcricao || "").trim();
@@ -521,14 +702,27 @@ export const processarComandoAssistenteIa = async (req, res) => {
       return res.status(400).json({ error: "texto e obrigatorio" });
     }
 
-    const lojas = await buscarLojasAtivas();
-    const interpretacaoOpenAI = await chamarOpenAIParaInterpretar({ texto, lojas });
+    const [lojas, maquinas] = await Promise.all([
+      buscarLojasAtivas(),
+      buscarMaquinasAtivas(),
+    ]);
+    const interpretacaoOpenAI = await chamarOpenAIParaInterpretar({
+      texto,
+      lojas,
+      maquinas,
+    });
     const interpretacao = completarInterpretacaoComTexto({
       interpretacao: interpretacaoOpenAI,
       texto,
       lojas,
+      maquinas,
     });
     const lojaResolvida = resolverLoja(interpretacao, lojas);
+    const maquinaResolvida = resolverMaquina({
+      interpretacao,
+      maquinas,
+      lojaResolvida,
+    });
 
     let resultado;
     if (interpretacao.intent === "CONSULTAR_ESTOQUE") {
@@ -536,12 +730,7 @@ export const processarComandoAssistenteIa = async (req, res) => {
     } else if (interpretacao.intent === "GERAR_RELATORIO_LOJA") {
       resultado = await executarRelatorioLoja({ interpretacao, lojaResolvida });
     } else if (interpretacao.intent === "ABRIR_MOVIMENTACOES") {
-      resultado = {
-        status: "executado",
-        tipo: "navegacao",
-        mensagem: "Abrindo a aba de movimentacoes.",
-        acao: { tipo: "navegar", rota: "/movimentacoes" },
-      };
+      resultado = executarAbrirMovimentacoes({ lojaResolvida, maquinaResolvida });
     } else {
       resultado = {
         status: "nao_entendido",
@@ -557,6 +746,7 @@ export const processarComandoAssistenteIa = async (req, res) => {
       interpretacao,
       lojaResolvida:
         lojaResolvida && lojaResolvida !== TODAS_AS_LOJAS ? lojaResolvida : null,
+      maquinaResolvida,
       resultado,
     });
   } catch (error) {
