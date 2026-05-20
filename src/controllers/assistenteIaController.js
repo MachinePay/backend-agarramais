@@ -91,6 +91,7 @@ const schemaComandoVoz = {
     "maquinaNome",
     "contadorIn",
     "contadorOut",
+    "quantidadeAbastecida",
     "periodo",
     "respostaCurta",
     "precisaConfirmacao",
@@ -113,6 +114,7 @@ const schemaComandoVoz = {
     maquinaNome: { type: ["string", "null"] },
     contadorIn: { type: ["integer", "null"] },
     contadorOut: { type: ["integer", "null"] },
+    quantidadeAbastecida: { type: ["integer", "null"] },
     periodo: {
       type: "object",
       additionalProperties: false,
@@ -179,8 +181,10 @@ const chamarOpenAIParaInterpretar = async ({ texto, lojas, maquinas }) => {
         "Se faltar loja ou periodo para relatorio, marque precisaConfirmacao e liste camposFaltantes.",
         "Abrir aba de movimentacoes ou fazer uma movimentacao deve ser intent ABRIR_MOVIMENTACOES.",
         "Quando o usuario disser que quer fazer uma movimentacao em determinada loja e maquina, preencha lojaId e maquinaId se conseguir identificar.",
-        "Para movimentacoes, se o usuario disser contador entrada, contador in ou contador IN, preencha contadorIn com o numero informado.",
-        "Para movimentacoes, se o usuario disser contador saida, contador out ou contador OUT, preencha contadorOut com o numero informado.",
+        "Para movimentacoes, entenda entrada como IN e saida como OUT. Se o usuario disser entrada, contador entrada, in ou contador IN, preencha contadorIn com o numero informado.",
+        "Para movimentacoes, se o usuario disser saida, contador saida, out ou contador OUT, preencha contadorOut com o numero informado.",
+        "Para movimentacoes, quando o usuario disser que vai abastecer, colocar, adicionar, repor, completar ou inserir uma quantidade de pelucias/produtos, preencha quantidadeAbastecida com esse numero.",
+        "Se o comando parecer complemento do comando anterior, preserve o contexto que vier no input, principalmente loja, maquina e movimentacao.",
         `Lojas disponiveis:\n${listaLojas || "- nenhuma loja cadastrada"}`,
         `Maquinas disponiveis:\n${listaMaquinas || "- nenhuma maquina cadastrada"}`,
       ].join("\n"),
@@ -439,7 +443,13 @@ const inferirIntentPeloTexto = (texto) => {
 
   if (/\brelatorio\b/.test(textoNormalizado)) return "GERAR_RELATORIO_LOJA";
   if (/\bestoque\b/.test(textoNormalizado)) return "CONSULTAR_ESTOQUE";
-  if (/\bmovimentac/.test(textoNormalizado)) return "ABRIR_MOVIMENTACOES";
+  if (
+    /\b(movimentac|abastec|abastecer|colocar|adicionar|adiciona|repor|inserir|entrada|saida|contador|in|out)\b/.test(
+      textoNormalizado,
+    )
+  ) {
+    return "ABRIR_MOVIMENTACOES";
+  }
 
   return null;
 };
@@ -478,25 +488,118 @@ const inferirContadoresPeloTexto = (texto) => {
   };
 };
 
-const completarInterpretacaoComTexto = ({ interpretacao, texto, lojas, maquinas }) => {
+const extrairQuantidadeAbastecidaPeloTexto = (texto) => {
+  const textoNormalizado = normalizar(texto);
+  const padroes = [
+    /\b(?:abastecer|abastece|abasteci|abastecimento|colocar|coloquei|coloca|adicionar|adicionei|adiciona|add|repor|repor com|completei|completar|inserir|inseri)\b(?:\s+\w+){0,4}?\s+(\d{1,6})\b/,
+    /\b(\d{1,6})\s+(?:pelucias|pelucia|produtos|produto|unidades|unidade|itens|item)\b/,
+  ];
+
+  for (const padrao of padroes) {
+    const match = textoNormalizado.match(padrao);
+    if (match) return Number(match[1]);
+  }
+
+  return null;
+};
+
+const normalizarMemoriaLocal = (valor) => {
+  const origem = valor && typeof valor === "object" ? valor : {};
+  const prefill = origem.prefill && typeof origem.prefill === "object"
+    ? origem.prefill
+    : origem;
+
+  return {
+    intent: origem.intent || origem.ultimoIntent || null,
+    lojaId: origem.lojaId || prefill.lojaId || null,
+    lojaNome: origem.lojaNome || null,
+    maquinaId: origem.maquinaId || prefill.maquinaId || null,
+    maquinaNome: origem.maquinaNome || null,
+    contadorIn: Number.isInteger(origem.contadorIn)
+      ? origem.contadorIn
+      : Number.isInteger(prefill.contadorIn)
+        ? prefill.contadorIn
+        : null,
+    contadorOut: Number.isInteger(origem.contadorOut)
+      ? origem.contadorOut
+      : Number.isInteger(prefill.contadorOut)
+        ? prefill.contadorOut
+        : null,
+    quantidadeAbastecida: Number.isInteger(origem.quantidadeAbastecida)
+      ? origem.quantidadeAbastecida
+      : Number.isInteger(prefill.quantidadeAbastecida)
+        ? prefill.quantidadeAbastecida
+        : Number.isInteger(prefill.abastecidas)
+          ? prefill.abastecidas
+          : null,
+  };
+};
+
+const completarComMemoriaLocal = ({ interpretacao, memoriaLocal }) => {
+  const memoria = normalizarMemoriaLocal(memoriaLocal);
+  const interpretacaoCompleta = { ...interpretacao };
+
+  if (
+    !interpretacaoCompleta.intent ||
+    ["DESCONHECIDO", "AJUDA"].includes(interpretacaoCompleta.intent)
+  ) {
+    interpretacaoCompleta.intent = memoria.intent || interpretacaoCompleta.intent;
+  }
+
+  for (const campo of ["lojaId", "lojaNome", "maquinaId", "maquinaNome"]) {
+    if (!interpretacaoCompleta[campo] && memoria[campo]) {
+      interpretacaoCompleta[campo] = memoria[campo];
+    }
+  }
+
+  for (const campo of ["contadorIn", "contadorOut", "quantidadeAbastecida"]) {
+    if (
+      !Number.isInteger(interpretacaoCompleta[campo]) &&
+      Number.isInteger(memoria[campo])
+    ) {
+      interpretacaoCompleta[campo] = memoria[campo];
+    }
+  }
+
+  return interpretacaoCompleta;
+};
+
+const completarInterpretacaoComTexto = ({
+  interpretacao,
+  texto,
+  lojas,
+  maquinas,
+  memoriaLocal,
+}) => {
+  const interpretacaoComMemoria = completarComMemoriaLocal({
+    interpretacao,
+    memoriaLocal,
+  });
   const interpretacaoCompleta = {
-    ...interpretacao,
-    maquinaId: interpretacao?.maquinaId ?? null,
-    maquinaNome: interpretacao?.maquinaNome ?? null,
+    ...interpretacaoComMemoria,
+    lojaId: interpretacaoComMemoria?.lojaId ?? null,
+    lojaNome: interpretacaoComMemoria?.lojaNome ?? null,
+    maquinaId: interpretacaoComMemoria?.maquinaId ?? null,
+    maquinaNome: interpretacaoComMemoria?.maquinaNome ?? null,
     contadorIn:
-      Number.isInteger(interpretacao?.contadorIn) &&
-      interpretacao.contadorIn >= 0
-        ? interpretacao.contadorIn
+      Number.isInteger(interpretacaoComMemoria?.contadorIn) &&
+      interpretacaoComMemoria.contadorIn >= 0
+        ? interpretacaoComMemoria.contadorIn
         : null,
     contadorOut:
-      Number.isInteger(interpretacao?.contadorOut) &&
-      interpretacao.contadorOut >= 0
-        ? interpretacao.contadorOut
+      Number.isInteger(interpretacaoComMemoria?.contadorOut) &&
+      interpretacaoComMemoria.contadorOut >= 0
+        ? interpretacaoComMemoria.contadorOut
+        : null,
+    quantidadeAbastecida:
+      Number.isInteger(interpretacaoComMemoria?.quantidadeAbastecida) &&
+      interpretacaoComMemoria.quantidadeAbastecida >= 0
+        ? interpretacaoComMemoria.quantidadeAbastecida
         : null,
     periodo: {
-      dataInicio: interpretacao?.periodo?.dataInicio ?? null,
-      dataFim: interpretacao?.periodo?.dataFim ?? null,
-      descricao: interpretacao?.periodo?.descricao ?? null,
+      dataInicio: interpretacaoComMemoria?.periodo?.dataInicio ?? null,
+      dataFim: interpretacaoComMemoria?.periodo?.dataFim ?? null,
+      descricao: interpretacaoComMemoria?.periodo?.descricao ?? null,
     },
   };
 
@@ -539,6 +642,14 @@ const completarInterpretacaoComTexto = ({ interpretacao, texto, lojas, maquinas 
     interpretacaoCompleta.contadorOut === null
   ) {
     interpretacaoCompleta.contadorOut = contadoresInferidos.contadorOut;
+  }
+
+  const quantidadeAbastecidaInferida = extrairQuantidadeAbastecidaPeloTexto(texto);
+  if (
+    Number.isInteger(quantidadeAbastecidaInferida) &&
+    interpretacaoCompleta.quantidadeAbastecida === null
+  ) {
+    interpretacaoCompleta.quantidadeAbastecida = quantidadeAbastecidaInferida;
   }
 
   const periodoInferido = inferirPeriodoPeloTexto(texto);
@@ -718,6 +829,41 @@ const montarPrefillMovimentacao = ({ interpretacao, lojaResolvida, maquinaResolv
   contadorOut: Number.isInteger(interpretacao?.contadorOut)
     ? interpretacao.contadorOut
     : null,
+  quantidadeAbastecida: Number.isInteger(interpretacao?.quantidadeAbastecida)
+    ? interpretacao.quantidadeAbastecida
+    : null,
+  abastecidas: Number.isInteger(interpretacao?.quantidadeAbastecida)
+    ? interpretacao.quantidadeAbastecida
+    : null,
+});
+
+const montarMemoriaLocal = ({
+  texto,
+  interpretacao,
+  lojaResolvida,
+  maquinaResolvida,
+  resultado,
+}) => ({
+  versao: 1,
+  salvoEm: new Date().toISOString(),
+  ultimoTexto: texto,
+  intent: interpretacao.intent,
+  lojaId:
+    lojaResolvida && lojaResolvida !== TODAS_AS_LOJAS ? lojaResolvida.id : null,
+  lojaNome:
+    lojaResolvida && lojaResolvida !== TODAS_AS_LOJAS ? lojaResolvida.nome : null,
+  maquinaId: maquinaResolvida?.id || null,
+  maquinaNome: maquinaResolvida?.nome || maquinaResolvida?.codigo || null,
+  contadorIn: Number.isInteger(interpretacao?.contadorIn)
+    ? interpretacao.contadorIn
+    : null,
+  contadorOut: Number.isInteger(interpretacao?.contadorOut)
+    ? interpretacao.contadorOut
+    : null,
+  quantidadeAbastecida: Number.isInteger(interpretacao?.quantidadeAbastecida)
+    ? interpretacao.quantidadeAbastecida
+    : null,
+  prefill: resultado?.acao?.prefill || resultado?.dados?.prefill || null,
 });
 
 const executarAbrirMovimentacoes = ({
@@ -764,6 +910,8 @@ const executarAbrirMovimentacoes = ({
           maquinaId: null,
           contadorIn: prefill.contadorIn,
           contadorOut: prefill.contadorOut,
+          quantidadeAbastecida: prefill.quantidadeAbastecida,
+          abastecidas: prefill.abastecidas,
         },
         prefill,
       },
@@ -786,6 +934,8 @@ const executarAbrirMovimentacoes = ({
         maquinaId: maquinaResolvida.id,
         contadorIn: prefill.contadorIn,
         contadorOut: prefill.contadorOut,
+        quantidadeAbastecida: prefill.quantidadeAbastecida,
+        abastecidas: prefill.abastecidas,
       },
       prefill,
     },
@@ -800,6 +950,11 @@ const executarAbrirMovimentacoes = ({
 export const processarComandoAssistenteIa = async (req, res) => {
   try {
     const texto = String(req.body?.texto || req.body?.transcricao || "").trim();
+    const memoriaLocal =
+      req.body?.memoriaLocal ||
+      req.body?.ultimoComando ||
+      req.body?.contextoAnterior ||
+      null;
 
     if (!texto) {
       return res.status(400).json({ error: "texto e obrigatorio" });
@@ -819,6 +974,7 @@ export const processarComandoAssistenteIa = async (req, res) => {
       texto,
       lojas,
       maquinas,
+      memoriaLocal,
     });
     const lojaResolvida = resolverLoja(interpretacao, lojas);
     const maquinaResolvida = resolverMaquina({
@@ -855,6 +1011,13 @@ export const processarComandoAssistenteIa = async (req, res) => {
         lojaResolvida && lojaResolvida !== TODAS_AS_LOJAS ? lojaResolvida : null,
       maquinaResolvida,
       resultado,
+      memoriaLocal: montarMemoriaLocal({
+        texto,
+        interpretacao,
+        lojaResolvida,
+        maquinaResolvida,
+        resultado,
+      }),
     });
   } catch (error) {
     console.error("Erro no assistente de IA:", error);
