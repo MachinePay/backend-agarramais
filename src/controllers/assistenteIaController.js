@@ -9,6 +9,8 @@ const ASSISTENTE = {
   nome: "IAgarra",
   icone: "garra",
 };
+const MEMORIA_ASSISTENTE_TTL_MS = 1000 * 60 * 60 * 6;
+const memoriasAssistentePorUsuario = new Map();
 
 const MESES_PT_BR = [
   ["janeiro", 0],
@@ -535,6 +537,30 @@ const normalizarMemoriaLocal = (valor) => {
   };
 };
 
+const obterChaveMemoriaAssistente = (req) =>
+  req.usuario?.id || req.usuario?.email || req.ip || "anonimo";
+
+const obterMemoriaAssistente = (chave) => {
+  const registro = memoriasAssistentePorUsuario.get(chave);
+  if (!registro) return null;
+
+  if (Date.now() - registro.salvoEmMs > MEMORIA_ASSISTENTE_TTL_MS) {
+    memoriasAssistentePorUsuario.delete(chave);
+    return null;
+  }
+
+  return registro.memoria;
+};
+
+const salvarMemoriaAssistente = (chave, memoria) => {
+  if (!chave || !memoria) return;
+
+  memoriasAssistentePorUsuario.set(chave, {
+    salvoEmMs: Date.now(),
+    memoria,
+  });
+};
+
 const completarComMemoriaLocal = ({ interpretacao, memoriaLocal }) => {
   const memoria = normalizarMemoriaLocal(memoriaLocal);
   const interpretacaoCompleta = { ...interpretacao };
@@ -950,10 +976,12 @@ const executarAbrirMovimentacoes = ({
 export const processarComandoAssistenteIa = async (req, res) => {
   try {
     const texto = String(req.body?.texto || req.body?.transcricao || "").trim();
+    const chaveMemoria = obterChaveMemoriaAssistente(req);
     const memoriaLocal =
       req.body?.memoriaLocal ||
       req.body?.ultimoComando ||
       req.body?.contextoAnterior ||
+      obterMemoriaAssistente(chaveMemoria) ||
       null;
 
     if (!texto) {
@@ -1003,6 +1031,15 @@ export const processarComandoAssistenteIa = async (req, res) => {
       };
     }
 
+    const memoriaAtualizada = montarMemoriaLocal({
+      texto,
+      interpretacao,
+      lojaResolvida,
+      maquinaResolvida,
+      resultado,
+    });
+    salvarMemoriaAssistente(chaveMemoria, memoriaAtualizada);
+
     return res.json({
       assistente: ASSISTENTE,
       transcricao: texto,
@@ -1011,13 +1048,7 @@ export const processarComandoAssistenteIa = async (req, res) => {
         lojaResolvida && lojaResolvida !== TODAS_AS_LOJAS ? lojaResolvida : null,
       maquinaResolvida,
       resultado,
-      memoriaLocal: montarMemoriaLocal({
-        texto,
-        interpretacao,
-        lojaResolvida,
-        maquinaResolvida,
-        resultado,
-      }),
+      memoriaLocal: memoriaAtualizada,
     });
   } catch (error) {
     console.error("Erro no assistente de IA:", error);
