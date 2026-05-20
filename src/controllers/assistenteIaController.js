@@ -531,6 +531,8 @@ const normalizarMemoriaLocal = (valor) => {
       ? origem.quantidadeAbastecida
       : Number.isInteger(prefill.quantidadeAbastecida)
         ? prefill.quantidadeAbastecida
+        : Number.isInteger(prefill.quantidadeAdicionada)
+          ? prefill.quantidadeAdicionada
         : Number.isInteger(prefill.abastecidas)
           ? prefill.abastecidas
           : null,
@@ -858,6 +860,9 @@ const montarPrefillMovimentacao = ({ interpretacao, lojaResolvida, maquinaResolv
   quantidadeAbastecida: Number.isInteger(interpretacao?.quantidadeAbastecida)
     ? interpretacao.quantidadeAbastecida
     : null,
+  quantidadeAdicionada: Number.isInteger(interpretacao?.quantidadeAbastecida)
+    ? interpretacao.quantidadeAbastecida
+    : null,
   abastecidas: Number.isInteger(interpretacao?.quantidadeAbastecida)
     ? interpretacao.quantidadeAbastecida
     : null,
@@ -887,6 +892,9 @@ const montarMemoriaLocal = ({
     ? interpretacao.contadorOut
     : null,
   quantidadeAbastecida: Number.isInteger(interpretacao?.quantidadeAbastecida)
+    ? interpretacao.quantidadeAbastecida
+    : null,
+  quantidadeAdicionada: Number.isInteger(interpretacao?.quantidadeAbastecida)
     ? interpretacao.quantidadeAbastecida
     : null,
   prefill: resultado?.acao?.prefill || resultado?.dados?.prefill || null,
@@ -937,6 +945,7 @@ const executarAbrirMovimentacoes = ({
           contadorIn: prefill.contadorIn,
           contadorOut: prefill.contadorOut,
           quantidadeAbastecida: prefill.quantidadeAbastecida,
+          quantidadeAdicionada: prefill.quantidadeAdicionada,
           abastecidas: prefill.abastecidas,
         },
         prefill,
@@ -961,6 +970,7 @@ const executarAbrirMovimentacoes = ({
         contadorIn: prefill.contadorIn,
         contadorOut: prefill.contadorOut,
         quantidadeAbastecida: prefill.quantidadeAbastecida,
+        quantidadeAdicionada: prefill.quantidadeAdicionada,
         abastecidas: prefill.abastecidas,
       },
       prefill,
