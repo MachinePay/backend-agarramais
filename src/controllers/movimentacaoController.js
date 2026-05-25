@@ -9,8 +9,12 @@ import {
 } from "../models/index.js";
 import { Op } from "sequelize";
 
+const movimentacoesEmAndamento = new Set();
+
 // US08, US09, US10 - Registrar movimentação completa
 export const registrarMovimentacao = async (req, res) => {
+  let chaveMovimentacaoEmAndamento = null;
+
   try {
     const {
       maquinaId,
@@ -43,6 +47,17 @@ export const registrarMovimentacao = async (req, res) => {
     }
 
     // --- REGRA DE SEGURANÇA: Não permitir total maior que totalPos da última movimentação, exceto para ADMIN ---
+    const chaveBloqueio = String(maquinaId);
+    if (movimentacoesEmAndamento.has(chaveBloqueio)) {
+      return res.status(409).json({
+        error:
+          "Ja existe uma movimentacao sendo registrada para esta maquina. Aguarde a finalizacao antes de tentar novamente.",
+      });
+    }
+
+    movimentacoesEmAndamento.add(chaveBloqueio);
+    chaveMovimentacaoEmAndamento = chaveBloqueio;
+
     const ultimaMov = await Movimentacao.findOne({
       where: { maquinaId },
       order: [["createdAt", "DESC"]],
@@ -348,6 +363,10 @@ export const registrarMovimentacao = async (req, res) => {
   } catch (error) {
     console.error("Erro ao registrar movimentação:", error);
     res.status(500).json({ error: "Erro ao registrar movimentação" });
+  } finally {
+    if (chaveMovimentacaoEmAndamento) {
+      movimentacoesEmAndamento.delete(chaveMovimentacaoEmAndamento);
+    }
   }
 };
 
