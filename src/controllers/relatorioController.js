@@ -1080,7 +1080,7 @@ export const performanceMaquinas = async (req, res) => {
 };
 
 // --- RELATÓRIO DE IMPRESSÃO (RESTAURADO E CORRIGIDO) ---
-const gerarRelatorioImpressaoPorLoja = async ({
+export const gerarRelatorioImpressaoPorLoja = async ({
   lojaId,
   dataInicio,
   dataFim,
