@@ -53,7 +53,7 @@ app.use(
   }),
 );
 app.use(morgan("dev"));
-app.use(express.json());
+app.use(express.json({ limit: "12mb" }));
 app.use(express.urlencoded({ extended: true }));
 
 // Servir arquivos estáticos da pasta public
