@@ -87,12 +87,16 @@ const parseStats = (html) => {
   const liquido = parseMoney(
     extractValue(text, /Liquido \(bruto - taxas\):\s*(R\$\s*[\d.,]+)/i),
   );
-  const total = Number((pix + debito + credito).toFixed(2));
+  const brutoComTaxasMp = parseMoney(
+    extractValue(text, /Bruto com Taxas MP:\s*(R\$\s*[\d.,]+)/i),
+  );
 
   if (
-    !/DETALHAMENTO POR TIPO|PIX:|D[eé]bito:|Cr[eé]dito:/i.test(text)
+    !/Bruto com Taxas MP:/i.test(text)
   ) {
-    throw new Error("A Machine Pay não devolveu o resumo financeiro esperado");
+    throw new Error(
+      "A Machine Pay não devolveu o campo Bruto com Taxas MP esperado",
+    );
   }
 
   return {
@@ -100,11 +104,14 @@ const parseStats = (html) => {
     debito,
     credito,
     cartao: Number((debito + credito).toFixed(2)),
-    cartaoPix: total,
+    brutoComTaxasMp,
+    cartaoPix: brutoComTaxasMp,
     taxas,
     liquido,
     percentualTaxaMedia:
-      total > 0 ? Number(((taxas / total) * 100).toFixed(4)) : 0,
+      brutoComTaxasMp > 0
+        ? Number(((taxas / brutoComTaxasMp) * 100).toFixed(4))
+        : 0,
   };
 };
 
