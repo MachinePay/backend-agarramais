@@ -10,6 +10,7 @@ import {
   Maquina,
   Produto,
 } from "../models/index.js";
+import { consultarFechamentoMachinePay } from "../services/machinePayService.js";
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 
@@ -259,6 +260,52 @@ const calcularGastosPeriodo = async (lojaId, inicio, fim) => {
 };
 
 const registroDinheiroController = {
+  async consultarMachinePay(req, res) {
+    try {
+      const { maquinaId, inicio, fim } = req.query;
+
+      if (!maquinaId || !inicio || !fim) {
+        return res.status(400).json({
+          error: "Informe máquina, início e fim para consultar a Machine Pay.",
+        });
+      }
+
+      const maquina = await Maquina.findByPk(maquinaId, {
+        attributes: ["id", "codigo", "nome", "machinePayPosId"],
+      });
+
+      if (!maquina) {
+        return res.status(404).json({ error: "Máquina não encontrada." });
+      }
+
+      if (!maquina.machinePayPosId) {
+        return res.status(400).json({
+          error: "Esta máquina ainda não possui ID da Machine Pay cadastrado.",
+        });
+      }
+
+      const dados = await consultarFechamentoMachinePay({
+        posId: maquina.machinePayPosId,
+        inicio,
+        fim,
+      });
+
+      return res.json({
+        maquinaId: maquina.id,
+        machinePayPosId: maquina.machinePayPosId,
+        inicio,
+        fim,
+        ...dados,
+      });
+    } catch (err) {
+      console.error("[MachinePay] Erro ao consultar fechamento:", err);
+      return res.status(502).json({
+        error: "Não foi possível consultar a Machine Pay.",
+        details: err.message,
+      });
+    }
+  },
+
   async criar(req, res) {
     try {
       const {

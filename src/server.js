@@ -122,6 +122,18 @@ const startServer = async () => {
     await sequelize.sync();
     console.log("✅ Database sincronizado!");
 
+    const queryInterface = sequelize.getQueryInterface();
+    const colunasMaquinas = await queryInterface.describeTable("maquinas");
+    if (!colunasMaquinas.machine_pay_pos_id) {
+      const { DataTypes } = await import("sequelize");
+      await queryInterface.addColumn("maquinas", "machine_pay_pos_id", {
+        type: DataTypes.STRING(50),
+        allowNull: true,
+        unique: true,
+      });
+      console.log("✅ Coluna Machine Pay adicionada às máquinas!");
+    }
+
     // Criar admin padrão se não existir
     const { Usuario } = await import("./models/index.js");
     const adminEmail = process.env.ADMIN_EMAIL || "admin@agarramais.com";

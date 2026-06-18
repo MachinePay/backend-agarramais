@@ -22,6 +22,10 @@ services:
         value: admin@agarramais.com
       - key: ADMIN_PASSWORD
         sync: false
+      - key: MACHINE_PAY_LOGIN
+        sync: false
+      - key: MACHINE_PAY_PASSWORD
+        sync: false
 
 databases:
   - name: agarra-mais-db
