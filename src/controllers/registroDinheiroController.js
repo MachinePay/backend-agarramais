@@ -10,7 +10,10 @@ import {
   Maquina,
   Produto,
 } from "../models/index.js";
-import { consultarFechamentoMachinePay } from "../services/machinePayService.js";
+import {
+  consultarFechamentoMachinePay,
+  fecharFechamentoMachinePay,
+} from "../services/machinePayService.js";
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 
@@ -477,7 +480,50 @@ const registroDinheiroController = {
         }
 
         await transaction.commit();
-        return res.status(201).json(registro);
+
+        let fechamentoMachinePay = {
+          executado: false,
+          concluido: false,
+          erro: null,
+        };
+
+        if (!ehRegistroTotalLoja && maquina) {
+          try {
+            const maquinaFechamento = await Maquina.findByPk(maquina, {
+              attributes: ["id", "machinePayPosId"],
+            });
+
+            if (maquinaFechamento?.machinePayPosId) {
+              const resultadoFechamento = await fecharFechamentoMachinePay({
+                posId: maquinaFechamento.machinePayPosId,
+                inicio,
+                fim,
+                valor: dadosRegistro.valorDinheiro,
+              });
+
+              fechamentoMachinePay = {
+                executado: true,
+                concluido: resultadoFechamento.concluido,
+                erro: null,
+              };
+            }
+          } catch (machinePayError) {
+            console.error(
+              "[MachinePay] Erro ao executar fechamento:",
+              machinePayError,
+            );
+            fechamentoMachinePay = {
+              executado: true,
+              concluido: false,
+              erro: machinePayError.message,
+            };
+          }
+        }
+
+        return res.status(201).json({
+          ...registro.toJSON(),
+          fechamentoMachinePay,
+        });
       } catch (dbError) {
         await transaction.rollback();
         throw dbError;
