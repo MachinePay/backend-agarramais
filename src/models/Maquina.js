@@ -60,6 +60,12 @@ const Maquina = sequelize.define(
         min: 1,
       },
     },
+    jogadasBoasPorPelucia: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+      field: "jogadas_boas_por_pelucia",
+      comment: "Quantidade ideal de jogadas para sair uma pelÃºcia",
+    },
     forcaForte: {
       type: DataTypes.INTEGER,
       allowNull: true,

@@ -2119,3 +2119,129 @@ export const alertasMovimentacaoIn = async (req, res) => {
       .json({ error: "Erro ao buscar alertas IN", message: error.message });
   }
 };
+
+// --- ALERTAS DE PELÚCIA SAINDO FORA DO ESPERADO ---
+export const alertasBomDesempenho = async (req, res) => {
+  try {
+    const maquinas = await Maquina.findAll({
+      where: { ativo: true },
+      include: [{ model: Loja, as: "loja", attributes: ["nome"] }],
+    });
+    const alertas = [];
+
+    for (const maquina of maquinas) {
+      const jogadasEsperadas = Number(maquina.jogadasBoasPorPelucia || 0);
+      const valorFicha = Number(maquina.valorFicha || 0);
+      const fichasParaJogar = Number(maquina.fichasNecessarias || 1);
+      const valorPorJogada = Number((valorFicha * fichasParaJogar).toFixed(2));
+
+      if (
+        jogadasEsperadas <= 0 ||
+        valorFicha <= 0 ||
+        fichasParaJogar <= 0 ||
+        valorPorJogada <= 0
+      ) {
+        continue;
+      }
+
+      const movimentacoes = await Movimentacao.findAll({
+        where: { maquinaId: maquina.id },
+        order: [["dataColeta", "DESC"]],
+        limit: 2,
+        attributes: [
+          "id",
+          "usuarioId",
+          "contadorIn",
+          "sairam",
+          "dataColeta",
+        ],
+        include: [
+          {
+            model: Usuario,
+            as: "usuario",
+            attributes: ["id", "nome", "email"],
+          },
+        ],
+      });
+
+      if (!movimentacoes || movimentacoes.length < 2) continue;
+
+      const atual = movimentacoes[0];
+      const anterior = movimentacoes[1];
+      if (
+        atual.contadorIn === null ||
+        anterior.contadorIn === null ||
+        (atual.sairam || 0) <= 0
+      ) {
+        continue;
+      }
+
+      const diffIn = Number(atual.contadorIn || 0) - Number(anterior.contadorIn || 0);
+      const quantidadeSaiu = Number(atual.sairam || 0);
+
+      if (diffIn <= 0 || quantidadeSaiu <= 0) {
+        continue;
+      }
+
+      const jogadasPeriodo = Number((diffIn / valorPorJogada).toFixed(2));
+      const jogadasPorPelucia = Number(
+        (jogadasPeriodo / quantidadeSaiu).toFixed(2),
+      );
+      const contadorInEsperado = Number(
+        (jogadasEsperadas * quantidadeSaiu * valorPorJogada).toFixed(2),
+      );
+
+      if (jogadasPorPelucia !== jogadasEsperadas) {
+        const estaAbaixoDaMeta = jogadasPorPelucia < jogadasEsperadas;
+        const metadadosAtual = montarMetadadosMovimentacao(atual);
+        const metadadosAnterior = montarMetadadosMovimentacao(anterior);
+        alertas.push({
+          id: `${maquina.id}-${atual.id}-${
+            estaAbaixoDaMeta ? "jogadas-abaixo" : "jogadas-acima"
+          }`,
+          tipo: estaAbaixoDaMeta
+            ? "jogadas_abaixo_do_esperado"
+            : "jogadas_acima_do_esperado",
+          direcao: estaAbaixoDaMeta ? "abaixo" : "acima",
+          maquinaId: maquina.id,
+          maquinaNome: maquina.nome,
+          lojaNome: maquina.loja?.nome || maquina.lojaNome || null,
+          contador_in: atual.contadorIn || 0,
+          contador_in_anterior: anterior.contadorIn || 0,
+          sairam: quantidadeSaiu,
+          valorFicha,
+          fichasParaJogar,
+          valorPorJogada,
+          jogadasPeriodo,
+          jogadasBoasPorPelucia: jogadasEsperadas,
+          jogadasPorPelucia,
+          diffIn,
+          contadorInEsperado,
+          diferencaJogadas: Number(
+            Math.abs(jogadasEsperadas - jogadasPorPelucia).toFixed(2),
+          ),
+          ...metadadosAnterior,
+          ...metadadosAtual,
+          usuarioAnterior: metadadosAnterior.usuarioNome,
+          usuarioAtual: metadadosAtual.usuarioNome,
+          dataMovimentacaoAnterior: metadadosAnterior.dataMovimentacao,
+          dataMovimentacaoAtual: metadadosAtual.dataMovimentacao,
+          mensagem: `A pelúcia está saindo ${
+            estaAbaixoDaMeta ? "com menos jogadas" : "com mais jogadas"
+          } que o esperado: na loja ${
+            maquina.loja?.nome || "não informada"
+          }, máquina ${
+            maquina.nome || maquina.codigo || maquina.id
+          }, saiu com ${jogadasPorPelucia} jogada(s) por pelúcia; o esperado era ${jogadasEsperadas}.`,
+        });
+      }
+    }
+
+    res.json({ alertas });
+  } catch (error) {
+    res.status(500).json({
+      error: "Erro ao buscar alertas de jogadas fora do esperado",
+      message: error.message,
+    });
+  }
+};

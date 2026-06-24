@@ -10,6 +10,7 @@ import {
   dashboardRelatorio,
   alertasMovimentacaoOut,
   alertasMovimentacaoIn,
+  alertasBomDesempenho,
 } from "../controllers/relatorioController.js";
 import { alertasAbastecimentoIncompleto } from "../controllers/movimentacaoController.js";
 import { autenticar, autorizarRole } from "../middlewares/auth.js";
@@ -28,6 +29,12 @@ router.get(
   autenticar,
   autorizarRole("ADMIN"),
   alertasMovimentacaoIn,
+);
+router.get(
+  "/alertas-bom-desempenho",
+  autenticar,
+  autorizarRole("ADMIN"),
+  alertasBomDesempenho,
 );
 
 // Todas as rotas de relatórios são restritas a ADMIN
