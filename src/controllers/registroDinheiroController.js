@@ -319,6 +319,18 @@ const registroDinheiroController = {
         });
       }
 
+      const inicioPeriodo = new Date(inicio);
+      const fimPeriodo = new Date(fim);
+
+      if (
+        Number.isNaN(inicioPeriodo.getTime()) ||
+        Number.isNaN(fimPeriodo.getTime())
+      ) {
+        return res.status(400).json({
+          error: "Período inválido para consultar o total da Machine Pay.",
+        });
+      }
+
       const maquinas = await Maquina.findAll({
         where: {
           machinePayPosId: {
