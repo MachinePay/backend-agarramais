@@ -118,7 +118,13 @@ const parseStats = (html) => {
 };
 
 const formatInicio = (value) => String(value || "").slice(0, 10);
-const formatFim = (value) => String(value || "").slice(0, 16);
+const formatFim = (value) => {
+  const texto = String(value || "");
+  if (/^\d{4}-\d{2}-\d{2}$/.test(texto)) {
+    return `${texto}T23:59`;
+  }
+  return texto.slice(0, 16);
+};
 
 const formatMoneyBr = (value) => {
   const number = Number(value || 0);
