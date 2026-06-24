@@ -9,6 +9,12 @@ router.get(
   registroDinheiroController.consultarMachinePay,
 );
 
+router.get(
+  "/machine-pay-total",
+  autenticar,
+  registroDinheiroController.consultarMachinePayTotal,
+);
+
 // POST /registro-dinheiro
 router.post("/", registroDinheiroController.criar);
 

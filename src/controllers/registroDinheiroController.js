@@ -309,6 +309,97 @@ const registroDinheiroController = {
     }
   },
 
+  async consultarMachinePayTotal(req, res) {
+    try {
+      const { inicio, fim } = req.query;
+
+      if (!inicio || !fim) {
+        return res.status(400).json({
+          error: "Informe início e fim para consultar o total da Machine Pay.",
+        });
+      }
+
+      const maquinas = await Maquina.findAll({
+        where: {
+          machinePayPosId: {
+            [Op.ne]: null,
+          },
+        },
+        attributes: ["id", "machinePayPosId", "nome", "codigo"],
+        raw: true,
+      });
+
+      if (!maquinas.length) {
+        return res.json({
+          totalBrutoComTaxasMp: 0,
+          totalPix: 0,
+          totalCartao: 0,
+          totalLiquido: 0,
+          maquinaCount: 0,
+          maquinas: [],
+        });
+      }
+
+      const resultados = await Promise.all(
+        maquinas.map(async (maquina) => {
+          try {
+            const dados = await consultarFechamentoMachinePay({
+              posId: maquina.machinePayPosId,
+              inicio,
+              fim,
+            });
+            return {
+              maquinaId: maquina.id,
+              machinePayPosId: maquina.machinePayPosId,
+              nome: maquina.nome,
+              codigo: maquina.codigo,
+              ...dados,
+            };
+          } catch (err) {
+            console.error(
+              `[MachinePay] Erro ao consultar máquina ${maquina.id} (pos ${maquina.machinePayPosId}):`,
+              err.message,
+            );
+            return null;
+          }
+        }),
+      );
+
+      const maquinasComDados = resultados.filter(Boolean);
+      const totalBrutoComTaxasMp = maquinasComDados.reduce(
+        (acc, item) => acc + Number(item.brutoComTaxasMp || 0),
+        0,
+      );
+      const totalPix = maquinasComDados.reduce(
+        (acc, item) => acc + Number(item.pix || 0),
+        0,
+      );
+      const totalCartao = maquinasComDados.reduce(
+        (acc, item) => acc + Number(item.cartao || 0),
+        0,
+      );
+      const totalLiquido = maquinasComDados.reduce(
+        (acc, item) => acc + Number(item.liquido || 0),
+        0,
+      );
+
+      return res.json({
+        totalBrutoComTaxasMp,
+        totalPix,
+        totalCartao,
+        totalLiquido,
+        maquinaCount: maquinasComDados.length,
+        maquinas: maquinasComDados,
+      });
+    } catch (err) {
+      console.error("[MachinePay] Erro ao consultar total Machine Pay:", err);
+      return res.status(502).json({
+        error: "Não foi possível consultar o total da Machine Pay.",
+        details: err.message,
+      });
+    }
+  },
+
   async criar(req, res) {
     try {
       const {
