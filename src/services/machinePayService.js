@@ -6,8 +6,6 @@ const DEFAULT_API_TEMPLATE =
   "https://www.cyberpix.com.br/pix-adesivo-clientes/maquinas.php?acao=stats&posid={posid}&dataini={inicio64}&datafim={fim64}&chave={chave}";
 const DEFAULT_FECHAMENTO_TEMPLATE =
   "https://www.cyberpix.com.br/pix-adesivo-clientes/maquinas.php?acao=fechamento&tipo=maq&dataini={inicio64}&datafim={fim64}&valor={valor64}&id={id}&pos_id={posid}";
-const DEFAULT_EXTRATO_TEMPLATE =
-  "https://www.cyberpix.com.br/pix-adesivo-clientes/maquinas.php?acao=stats&posid={posid}";
 const DEFAULT_MQTT_TEMPLATE =
   "https://www.cyberpix.com.br/pix-adesivo-clientes/salvar_credito_mqtt.php";
 
@@ -524,17 +522,7 @@ export const consultarStatusMachinePay = async ({ posId, usrId: usrIdParam }) =>
 };
 
 export const consultarTransacoesMachinePay = async ({ posId, inicio, fim }) => {
-  let url = (
-    process.env.MACHINE_PAY_EXTRATO_TEMPLATE || DEFAULT_EXTRATO_TEMPLATE
-  ).replaceAll("{posid}", encodeURIComponent(posId));
-
-  if (inicio) {
-    url += `&dt_ini=${encodeURIComponent(formatInicio(inicio))}`;
-  }
-  if (fim) {
-    url += `&dt_fim=${encodeURIComponent(formatFim(fim))}`;
-  }
-
+  const url = buildStatsUrl({ posId, inicio, fim });
   const { body, status } = await fetchMachinePay(url);
   const registros = parseExtratoMaquina(body);
 
