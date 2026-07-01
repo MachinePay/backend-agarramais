@@ -147,6 +147,19 @@ const startServer = async () => {
       );
     }
 
+    if (!colunasMaquinas.machine_pay_usr_id) {
+      const { DataTypes } = await import("sequelize");
+      await queryInterface.addColumn("maquinas", "machine_pay_usr_id", {
+        type: DataTypes.STRING(50),
+        allowNull: true,
+      });
+      console.log("✅ Coluna Machine Pay Usr ID adicionada às máquinas!");
+    }
+
+    await sequelize.query(`
+      ALTER TYPE "enum_usuarios_role" ADD VALUE IF NOT EXISTS 'MACHINEPAY';
+    `);
+
     const { Usuario } = await import("./models/index.js");
     const adminEmail = process.env.ADMIN_EMAIL || "admin@agarramais.com";
     const adminExistente = await Usuario.findOne({

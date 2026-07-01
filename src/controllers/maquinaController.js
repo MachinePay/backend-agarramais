@@ -67,6 +67,7 @@ export const criarMaquina = async (req, res) => {
       codigo,
       nome,
       machinePayPosId,
+      machinePayUsrId,
       tipo,
       lojaId,
       capacidadePadrao,
@@ -97,6 +98,7 @@ export const criarMaquina = async (req, res) => {
       codigo,
       nome,
       machinePayPosId: machinePayPosId?.trim() || null,
+      machinePayUsrId: machinePayUsrId?.trim() || null,
       tipo,
       lojaId,
       capacidadePadrao: capacidadePadrao || 100,
@@ -132,6 +134,7 @@ export const atualizarMaquina = async (req, res) => {
       codigo,
       nome,
       machinePayPosId,
+      machinePayUsrId,
       tipo,
       lojaId,
       capacidadePadrao,
@@ -162,6 +165,10 @@ export const atualizarMaquina = async (req, res) => {
         machinePayPosId === undefined
           ? maquina.machinePayPosId
           : machinePayPosId?.trim() || null,
+      machinePayUsrId:
+        machinePayUsrId === undefined
+          ? maquina.machinePayUsrId
+          : machinePayUsrId?.trim() || null,
       tipo: tipo ?? maquina.tipo,
       lojaId: lojaId ?? maquina.lojaId,
       capacidadePadrao: capacidadePadrao ?? maquina.capacidadePadrao,
