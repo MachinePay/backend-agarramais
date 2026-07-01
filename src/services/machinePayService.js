@@ -311,7 +311,7 @@ const parseDataHoraTabela = (texto) => {
   if (!match) return null;
 
   const [, dia, mes, ano, hora, min, seg] = match;
-  const data = new Date(`${ano}-${mes}-${dia}T${hora}:${min}:${seg}`);
+  const data = new Date(`${ano}-${mes}-${dia}T${hora}:${min}:${seg}-03:00`);
   return Number.isNaN(data.getTime()) ? null : data;
 };
 
@@ -325,16 +325,13 @@ const capturarValorPorLabel = (rowHtml, label) => {
 };
 
 const capturarPulsoMachinePay = (rowHtml) => {
-  const match = rowHtml.match(
-    /<div style="display:inline-block;">\s*<span[^>]*>\s*<img[^>]*>\s*([^<]*)<\/span>\s*<br>\s*<b>\s*<span[^>]*>([^<]*)<\/span>/i,
-  );
+  const match = rowHtml.match(/<b[^>]*>\s*(Pulso[^<]*)<\/b>/i);
   if (!match) return { pulsoConsultado: false, pulsoStatus: "" };
 
-  const consultadoTexto = stripHtml(match[1]);
-  const pulsoStatus = stripHtml(match[2]);
+  const pulsoStatus = stripHtml(match[1]);
 
   return {
-    pulsoConsultado: /consultado/i.test(consultadoTexto),
+    pulsoConsultado: /liberado/i.test(pulsoStatus),
     pulsoStatus,
   };
 };
@@ -545,8 +542,8 @@ export const consultarTransacoesMachinePay = async ({ posId, inicio, fim }) => {
   const { body, status } = await fetchMachinePay(url);
   const registros = parseExtratoMaquina(body);
 
-  const inicioData = inicio ? new Date(inicio) : null;
-  const fimData = fim ? new Date(fim) : null;
+  const inicioData = inicio ? new Date(`${inicio}-03:00`) : null;
+  const fimData = fim ? new Date(`${fim}-03:00`) : null;
 
   const transacoes = registros
     .filter((registro) => {
