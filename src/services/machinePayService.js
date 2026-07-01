@@ -324,6 +324,21 @@ const capturarValorPorLabel = (rowHtml, label) => {
   return match ? parseMoney(stripHtml(match[1])) : 0;
 };
 
+const capturarPulsoMachinePay = (rowHtml) => {
+  const match = rowHtml.match(
+    /<div style="display:inline-block;">\s*<span[^>]*>\s*<img[^>]*>\s*([^<]*)<\/span>\s*<br>\s*<b>\s*<span[^>]*>([^<]*)<\/span>/i,
+  );
+  if (!match) return { pulsoConsultado: false, pulsoStatus: "" };
+
+  const consultadoTexto = stripHtml(match[1]);
+  const pulsoStatus = stripHtml(match[2]);
+
+  return {
+    pulsoConsultado: /consultado/i.test(consultadoTexto),
+    pulsoStatus,
+  };
+};
+
 const parseLinhaExtratoMaquina = (rowHtml) => {
   const dataHoraTexto = extractValue(
     rowHtml,
@@ -352,6 +367,8 @@ const parseLinhaExtratoMaquina = (rowHtml) => {
 
   const referenciaVenda = extractValue(rowHtml, /\u{1F50D}\s*<span[^>]*>([^<]+)<\/span>/u);
 
+  const { pulsoConsultado, pulsoStatus } = capturarPulsoMachinePay(rowHtml);
+
   return {
     id,
     valorPago,
@@ -360,6 +377,8 @@ const parseLinhaExtratoMaquina = (rowHtml) => {
     bancoMetodo,
     statusVenda,
     referenciaVenda,
+    pulsoConsultado,
+    pulsoStatus,
     data: dataHora ? dataHora.toISOString() : null,
   };
 };
@@ -546,6 +565,8 @@ export const consultarTransacoesMachinePay = async ({ posId, inicio, fim }) => {
       taxa: registro.taxa,
       liquido: registro.liquido,
       referencia: registro.referenciaVenda,
+      pulsoConsultado: registro.pulsoConsultado,
+      pulsoStatus: registro.pulsoStatus,
     }));
 
   return {
