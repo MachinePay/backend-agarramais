@@ -524,9 +524,17 @@ export const consultarStatusMachinePay = async ({ posId, usrId: usrIdParam }) =>
 };
 
 export const consultarTransacoesMachinePay = async ({ posId, inicio, fim }) => {
-  const url = (
+  let url = (
     process.env.MACHINE_PAY_EXTRATO_TEMPLATE || DEFAULT_EXTRATO_TEMPLATE
   ).replaceAll("{posid}", encodeURIComponent(posId));
+
+  if (inicio) {
+    url += `&dt_ini=${encodeURIComponent(formatInicio(inicio))}`;
+  }
+  if (fim) {
+    url += `&dt_fim=${encodeURIComponent(formatFim(fim))}`;
+  }
+
   const { body, status } = await fetchMachinePay(url);
   const registros = parseExtratoMaquina(body);
 
