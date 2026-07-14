@@ -166,6 +166,63 @@ export const criarGastoVariavel = async (req, res) => {
   }
 };
 
+export const atualizarGastoVariavel = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { lojaId, nome, valor, observacao, data } = req.body;
+
+    const gasto = await GastoVariavel.findByPk(id);
+    if (!gasto) {
+      return res.status(404).json({ error: "Gasto variável não encontrado." });
+    }
+
+    if (!lojaId || !nome) {
+      return res
+        .status(400)
+        .json({ error: "Campos obrigatórios não preenchidos." });
+    }
+
+    const valorNumerico = Number(valor);
+    if (!Number.isFinite(valorNumerico) || valorNumerico <= 0) {
+      return res
+        .status(400)
+        .json({ error: "Informe um valor válido para o gasto." });
+    }
+
+    const dataGasto = data ? new Date(`${data}T12:00:00`) : gasto.dataInicio;
+
+    await gasto.update({
+      lojaId,
+      nome,
+      valor: valorNumerico,
+      observacao: observacao || null,
+      dataInicio: dataGasto,
+      dataFim: dataGasto,
+    });
+
+    res.json(gasto);
+  } catch (error) {
+    console.error("Erro ao atualizar gasto variável:", error);
+    res.status(500).json({ error: "Erro ao atualizar gasto variável." });
+  }
+};
+
+export const excluirGastoVariavel = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const gasto = await GastoVariavel.findByPk(id);
+    if (!gasto) {
+      return res.status(404).json({ error: "Gasto variável não encontrado." });
+    }
+
+    await gasto.destroy();
+    res.status(204).send();
+  } catch (error) {
+    console.error("Erro ao excluir gasto variável:", error);
+    res.status(500).json({ error: "Erro ao excluir gasto variável." });
+  }
+};
+
 export const listarGastosVariaveis = async (req, res) => {
   try {
     const { lojaId, dataInicio, dataFim, nome, veiculoId } = req.query;
