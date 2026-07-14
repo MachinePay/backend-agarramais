@@ -18,6 +18,7 @@ import registroDinheiroRoutes from "./registroDinheiro.routes.js";
 import gastoVariavelRoutes from "./gastoVariavel.routes.js";
 import gastoFixoLojaRoutes from "./gastoFixoLoja.routes.js";
 import manutencaoRoutes from "./manutencao.routes.js";
+import alertaMovimentacaoRoutes from "./alertaMovimentacao.routes.js";
 import fechamentoMensalRelatorioRoutes from "./fechamentoMensalRelatorio.routes.js";
 import sangriaRoutes from "./sangria.routes.js";
 import listaComprasPendenteRoutes from "./listaComprasPendente.routes.js";
@@ -52,6 +53,7 @@ router.use("/graficos", graficosRoutes);
 
 router.use("/gastos-fixos-loja", gastoFixoLojaRoutes);
 router.use("/manutencoes", manutencaoRoutes);
+router.use("/alertas-movimentacao", alertaMovimentacaoRoutes);
 router.use("/fechamentos-mensais-relatorio", fechamentoMensalRelatorioRoutes);
 router.use("/sangrias", sangriaRoutes);
 router.use("/lista-compras-pendentes", listaComprasPendenteRoutes);

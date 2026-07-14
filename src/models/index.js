@@ -23,6 +23,7 @@ import Sangria from "./Sangria.js";
 import ListaComprasPendente from "./ListaComprasPendente.js";
 import ListaComprasLoja from "./ListaComprasLoja.js";
 import ListaComprasProduto from "./ListaComprasProduto.js";
+import AlertaMovimentacao from "./AlertaMovimentacao.js";
 // Movimentação de Veículo -> Veículo e Usuário
 MovimentacaoVeiculo.belongsTo(Veiculo, {
   as: "veiculo",
@@ -249,6 +250,23 @@ Manutencao.belongsTo(Loja, {
   as: "loja",
 });
 
+AlertaMovimentacao.belongsTo(Maquina, {
+  foreignKey: "maquinaId",
+  as: "maquina",
+});
+AlertaMovimentacao.belongsTo(Loja, {
+  foreignKey: "lojaId",
+  as: "loja",
+});
+AlertaMovimentacao.belongsTo(Usuario, {
+  foreignKey: "usuarioId",
+  as: "usuario",
+});
+AlertaMovimentacao.belongsTo(Usuario, {
+  foreignKey: "resolvidoPorId",
+  as: "resolvidoPor",
+});
+
 Loja.hasMany(Sangria, {
   foreignKey: "lojaId",
   as: "sangrias",
@@ -325,4 +343,5 @@ export {
   ListaComprasPendente,
   ListaComprasLoja,
   ListaComprasProduto,
+  AlertaMovimentacao,
 };
