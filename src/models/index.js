@@ -24,6 +24,8 @@ import ListaComprasPendente from "./ListaComprasPendente.js";
 import ListaComprasLoja from "./ListaComprasLoja.js";
 import ListaComprasProduto from "./ListaComprasProduto.js";
 import AlertaMovimentacao from "./AlertaMovimentacao.js";
+import SuporteItem from "./SuporteItem.js";
+import SuporteMovimentacao from "./SuporteMovimentacao.js";
 // Movimentação de Veículo -> Veículo e Usuário
 MovimentacaoVeiculo.belongsTo(Veiculo, {
   as: "veiculo",
@@ -317,6 +319,34 @@ ListaComprasProduto.belongsTo(ListaComprasLoja, {
   as: "listaLoja",
 });
 
+// Suporte Técnico - Item <-> Movimentações
+SuporteItem.hasMany(SuporteMovimentacao, {
+  foreignKey: "itemId",
+  as: "movimentacoes",
+});
+SuporteMovimentacao.belongsTo(SuporteItem, {
+  foreignKey: "itemId",
+  as: "item",
+});
+
+SuporteItem.belongsTo(Usuario, {
+  foreignKey: "criadoPorId",
+  as: "criadoPor",
+});
+Usuario.hasMany(SuporteItem, {
+  foreignKey: "criadoPorId",
+  as: "itensSuporteCriados",
+});
+
+SuporteMovimentacao.belongsTo(Usuario, {
+  foreignKey: "usuarioId",
+  as: "usuario",
+});
+Usuario.hasMany(SuporteMovimentacao, {
+  foreignKey: "usuarioId",
+  as: "movimentacoesSuporte",
+});
+
 export {
   Usuario,
   Loja,
@@ -344,4 +374,6 @@ export {
   ListaComprasLoja,
   ListaComprasProduto,
   AlertaMovimentacao,
+  SuporteItem,
+  SuporteMovimentacao,
 };
