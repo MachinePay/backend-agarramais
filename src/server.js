@@ -160,6 +160,30 @@ const startServer = async () => {
       ALTER TYPE "enum_usuarios_role" ADD VALUE IF NOT EXISTS 'MACHINEPAY';
     `);
 
+    await sequelize.query(`
+      ALTER TYPE "enum_movimentacoes_veiculos_tipo" ADD VALUE IF NOT EXISTS 'abastecimento';
+    `);
+
+    const colunasGastoVariavel = await queryInterface.describeTable(
+      "GastoVariavel",
+    );
+    if (!colunasGastoVariavel.usuarioId) {
+      const { DataTypes } = await import("sequelize");
+      await queryInterface.addColumn("GastoVariavel", "usuarioId", {
+        type: DataTypes.UUID,
+        allowNull: true,
+      });
+      console.log("✅ Coluna usuarioId adicionada a GastoVariavel!");
+    }
+    if (!colunasGastoVariavel.veiculoId) {
+      const { DataTypes } = await import("sequelize");
+      await queryInterface.addColumn("GastoVariavel", "veiculoId", {
+        type: DataTypes.UUID,
+        allowNull: true,
+      });
+      console.log("✅ Coluna veiculoId adicionada a GastoVariavel!");
+    }
+
     const { Usuario } = await import("./models/index.js");
     const adminEmail = process.env.ADMIN_EMAIL || "admin@agarramais.com";
     const adminExistente = await Usuario.findOne({

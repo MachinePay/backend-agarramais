@@ -267,6 +267,17 @@ Sangria.belongsTo(Usuario, {
   as: "usuario",
 });
 
+GastoVariavel.belongsTo(Usuario, { foreignKey: "usuarioId", as: "usuario" });
+GastoVariavel.belongsTo(Veiculo, { foreignKey: "veiculoId", as: "veiculo" });
+Usuario.hasMany(GastoVariavel, {
+  foreignKey: "usuarioId",
+  as: "gastosVariaveis",
+});
+Veiculo.hasMany(GastoVariavel, {
+  foreignKey: "veiculoId",
+  as: "gastosVariaveis",
+});
+
 // Lista de Compras Pendentes
 ListaComprasPendente.hasMany(ListaComprasLoja, {
   foreignKey: "listaId",

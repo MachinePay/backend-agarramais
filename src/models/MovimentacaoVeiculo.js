@@ -22,7 +22,7 @@ const MovimentacaoVeiculo = sequelize.define(
       references: { model: "usuarios", key: "id" },
     },
     tipo: {
-      type: DataTypes.ENUM("retirada", "devolucao"),
+      type: DataTypes.ENUM("retirada", "devolucao", "abastecimento"),
       allowNull: false,
     },
     dataHora: {

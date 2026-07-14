@@ -39,6 +39,16 @@ const GastoVariavel = sequelize.define(
       allowNull: true,
       references: { model: "registro_dinheiro", key: "id" },
     },
+    usuarioId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: { model: "usuarios", key: "id" },
+    },
+    veiculoId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: { model: "veiculos", key: "id" },
+    },
   },
   {
     tableName: "GastoVariavel",

@@ -117,9 +117,10 @@ export const registrarMovimentacaoVeiculo = async (req, res) => {
 // Listar movimentações com filtro por veiculo e data
 export const listarMovimentacoesVeiculo = async (req, res) => {
   try {
-    const { veiculoId, dataInicio, dataFim } = req.query;
+    const { veiculoId, dataInicio, dataFim, tipo } = req.query;
     const where = {};
     if (veiculoId) where.veiculoId = veiculoId;
+    if (tipo) where.tipo = tipo;
     let inicio, fim;
     if (dataInicio && dataFim) {
       inicio = new Date(dataInicio + "T00:00:00.000Z");
