@@ -164,6 +164,17 @@ const startServer = async () => {
       ALTER TYPE "enum_movimentacoes_veiculos_tipo" ADD VALUE IF NOT EXISTS 'abastecimento';
     `);
 
+    // A coluna "tipo" em produção é validada por uma CHECK constraint
+    // (não pelo tipo enum acima), então ela também precisa ser atualizada
+    // para aceitar o valor 'abastecimento'.
+    await sequelize.query(`
+      ALTER TABLE "movimentacoes_veiculos"
+        DROP CONSTRAINT IF EXISTS "movimentacoes_veiculos_tipo_check";
+      ALTER TABLE "movimentacoes_veiculos"
+        ADD CONSTRAINT "movimentacoes_veiculos_tipo_check"
+        CHECK (tipo IN ('retirada', 'devolucao', 'abastecimento'));
+    `);
+
     const colunasGastoVariavel = await queryInterface.describeTable(
       "GastoVariavel",
     );
