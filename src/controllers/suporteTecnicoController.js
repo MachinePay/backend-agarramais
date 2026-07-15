@@ -1,10 +1,26 @@
 import { Op } from "sequelize";
 import { sequelize } from "../database/connection.js";
-import { SuporteItem, SuporteMovimentacao, Usuario } from "../models/index.js";
+import {
+  SuporteItem,
+  SuporteMovimentacao,
+  SuporteDevolucaoPendente,
+  Usuario,
+} from "../models/index.js";
+
+const CATEGORIAS_POR_TIPO = {
+  SAIDA: ["VENDA", "TROCA"],
+  ENTRADA: ["COMPRA", "DEVOLUCAO"],
+};
 
 const includeUsuario = {
   model: Usuario,
   as: "usuario",
+  attributes: ["id", "nome", "email", "role"],
+};
+
+const includeCriadoPor = {
+  model: Usuario,
+  as: "criadoPor",
   attributes: ["id", "nome", "email", "role"],
 };
 
@@ -146,7 +162,8 @@ export const registrarMovimentacao = async (req, res) => {
   const transaction = await sequelize.transaction();
 
   try {
-    const { itemId, tipo, quantidade, motivo } = req.body;
+    const { itemId, tipo, categoria, quantidade, motivo, devolucaoPendenteId } =
+      req.body;
 
     if (!itemId) {
       await transaction.rollback();
@@ -158,6 +175,13 @@ export const registrarMovimentacao = async (req, res) => {
       return res
         .status(400)
         .json({ error: "Tipo deve ser ENTRADA ou SAIDA" });
+    }
+
+    if (!CATEGORIAS_POR_TIPO[tipo].includes(categoria)) {
+      await transaction.rollback();
+      return res.status(400).json({
+        error: `Categoria deve ser ${CATEGORIAS_POR_TIPO[tipo].join(" ou ")} para ${tipo === "ENTRADA" ? "entradas" : "saídas"}`,
+      });
     }
 
     if (!Number.isInteger(quantidade) || quantidade <= 0) {
@@ -172,6 +196,37 @@ export const registrarMovimentacao = async (req, res) => {
       return res
         .status(400)
         .json({ error: "Informe o motivo da entrada/saída" });
+    }
+
+    let devolucaoPendente = null;
+
+    if (categoria === "DEVOLUCAO") {
+      if (!devolucaoPendenteId) {
+        await transaction.rollback();
+        return res.status(400).json({
+          error: "Selecione a devolução pendente que está sendo devolvida",
+        });
+      }
+
+      devolucaoPendente = await SuporteDevolucaoPendente.findOne({
+        where: { id: devolucaoPendenteId, itemId, status: "PENDENTE" },
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+
+      if (!devolucaoPendente) {
+        await transaction.rollback();
+        return res
+          .status(404)
+          .json({ error: "Devolução pendente não encontrada" });
+      }
+
+      if (devolucaoPendente.quantidade !== quantidade) {
+        await transaction.rollback();
+        return res.status(400).json({
+          error: `A quantidade deve ser igual à da devolução pendente (${devolucaoPendente.quantidade})`,
+        });
+      }
     }
 
     const item = await SuporteItem.findOne({
@@ -205,6 +260,7 @@ export const registrarMovimentacao = async (req, res) => {
       {
         itemId,
         tipo,
+        categoria,
         quantidade,
         motivo: motivo.trim(),
         quantidadeAnterior,
@@ -213,6 +269,27 @@ export const registrarMovimentacao = async (req, res) => {
       },
       { transaction },
     );
+
+    if (categoria === "TROCA") {
+      await SuporteDevolucaoPendente.create(
+        {
+          itemId,
+          quantidade,
+          motivo: motivo.trim(),
+          status: "PENDENTE",
+          movimentacaoOrigemId: movimentacao.id,
+          criadoPorId: req.usuario.id,
+        },
+        { transaction },
+      );
+    }
+
+    if (categoria === "DEVOLUCAO") {
+      await devolucaoPendente.update(
+        { status: "CONCLUIDA", movimentacaoResolucaoId: movimentacao.id },
+        { transaction },
+      );
+    }
 
     await transaction.commit();
 
@@ -237,12 +314,16 @@ export const registrarMovimentacao = async (req, res) => {
 
 export const listarMovimentacoes = async (req, res) => {
   try {
-    const { itemId, tipo, usuarioId, dataInicio, dataFim } = req.query;
+    const { itemId, tipo, categoria, usuarioId, dataInicio, dataFim } =
+      req.query;
     const where = {};
 
     if (itemId) where.itemId = itemId;
     if (usuarioId) where.usuarioId = usuarioId;
     if (tipo && ["ENTRADA", "SAIDA"].includes(tipo)) where.tipo = tipo;
+    if (categoria && ["VENDA", "TROCA", "COMPRA", "DEVOLUCAO"].includes(categoria)) {
+      where.categoria = categoria;
+    }
 
     if (dataInicio || dataFim) {
       where.createdAt = {};
@@ -267,5 +348,37 @@ export const listarMovimentacoes = async (req, res) => {
   } catch (error) {
     console.error("Erro ao listar movimentações de suporte técnico:", error);
     res.status(500).json({ error: "Erro ao listar movimentações" });
+  }
+};
+
+export const listarDevolucoesPendentes = async (req, res) => {
+  try {
+    const { itemId, status } = req.query;
+    const where = {};
+
+    if (itemId) where.itemId = itemId;
+    where.status =
+      status && ["PENDENTE", "CONCLUIDA"].includes(status)
+        ? status
+        : "PENDENTE";
+
+    const devolucoes = await SuporteDevolucaoPendente.findAll({
+      where,
+      include: [
+        { model: SuporteItem, as: "item" },
+        {
+          model: SuporteMovimentacao,
+          as: "movimentacaoOrigem",
+          include: [includeUsuario],
+        },
+        includeCriadoPor,
+      ],
+      order: [["createdAt", "DESC"]],
+    });
+
+    res.json(devolucoes);
+  } catch (error) {
+    console.error("Erro ao listar devoluções pendentes de suporte técnico:", error);
+    res.status(500).json({ error: "Erro ao listar devoluções pendentes" });
   }
 };

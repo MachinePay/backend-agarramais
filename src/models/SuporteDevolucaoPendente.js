@@ -1,8 +1,8 @@
 import { DataTypes } from "sequelize";
 import { sequelize } from "../database/connection.js";
 
-const SuporteMovimentacao = sequelize.define(
-  "SuporteMovimentacao",
+const SuporteDevolucaoPendente = sequelize.define(
+  "SuporteDevolucaoPendente",
   {
     id: {
       type: DataTypes.UUID,
@@ -17,31 +17,36 @@ const SuporteMovimentacao = sequelize.define(
         key: "id",
       },
     },
-    tipo: {
-      type: DataTypes.ENUM("ENTRADA", "SAIDA"),
-      allowNull: false,
-    },
-    categoria: {
-      type: DataTypes.ENUM("VENDA", "TROCA", "COMPRA", "DEVOLUCAO"),
-      allowNull: true,
-    },
     quantidade: {
       type: DataTypes.INTEGER,
       allowNull: false,
     },
     motivo: {
       type: DataTypes.TEXT,
-      allowNull: false,
+      allowNull: true,
     },
-    quantidadeAnterior: {
-      type: DataTypes.INTEGER,
+    status: {
+      type: DataTypes.ENUM("PENDENTE", "CONCLUIDA"),
       allowNull: false,
+      defaultValue: "PENDENTE",
     },
-    quantidadeAtual: {
-      type: DataTypes.INTEGER,
+    movimentacaoOrigemId: {
+      type: DataTypes.UUID,
       allowNull: false,
+      references: {
+        model: "suporte_movimentacoes",
+        key: "id",
+      },
     },
-    usuarioId: {
+    movimentacaoResolucaoId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: "suporte_movimentacoes",
+        key: "id",
+      },
+    },
+    criadoPorId: {
       type: DataTypes.UUID,
       allowNull: false,
       references: {
@@ -51,9 +56,9 @@ const SuporteMovimentacao = sequelize.define(
     },
   },
   {
-    tableName: "suporte_movimentacoes",
+    tableName: "suporte_devolucoes_pendentes",
     timestamps: true,
   },
 );
 
-export default SuporteMovimentacao;
+export default SuporteDevolucaoPendente;

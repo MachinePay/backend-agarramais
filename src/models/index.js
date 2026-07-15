@@ -26,6 +26,7 @@ import ListaComprasProduto from "./ListaComprasProduto.js";
 import AlertaMovimentacao from "./AlertaMovimentacao.js";
 import SuporteItem from "./SuporteItem.js";
 import SuporteMovimentacao from "./SuporteMovimentacao.js";
+import SuporteDevolucaoPendente from "./SuporteDevolucaoPendente.js";
 // Movimentação de Veículo -> Veículo e Usuário
 MovimentacaoVeiculo.belongsTo(Veiculo, {
   as: "veiculo",
@@ -347,6 +348,43 @@ Usuario.hasMany(SuporteMovimentacao, {
   as: "movimentacoesSuporte",
 });
 
+// Suporte Técnico - Devoluções pendentes (geradas por saídas de troca)
+SuporteItem.hasMany(SuporteDevolucaoPendente, {
+  foreignKey: "itemId",
+  as: "devolucoesPendentes",
+});
+SuporteDevolucaoPendente.belongsTo(SuporteItem, {
+  foreignKey: "itemId",
+  as: "item",
+});
+
+SuporteMovimentacao.hasOne(SuporteDevolucaoPendente, {
+  foreignKey: "movimentacaoOrigemId",
+  as: "devolucaoGerada",
+});
+SuporteDevolucaoPendente.belongsTo(SuporteMovimentacao, {
+  foreignKey: "movimentacaoOrigemId",
+  as: "movimentacaoOrigem",
+});
+
+SuporteMovimentacao.hasOne(SuporteDevolucaoPendente, {
+  foreignKey: "movimentacaoResolucaoId",
+  as: "devolucaoResolvida",
+});
+SuporteDevolucaoPendente.belongsTo(SuporteMovimentacao, {
+  foreignKey: "movimentacaoResolucaoId",
+  as: "movimentacaoResolucao",
+});
+
+SuporteDevolucaoPendente.belongsTo(Usuario, {
+  foreignKey: "criadoPorId",
+  as: "criadoPor",
+});
+Usuario.hasMany(SuporteDevolucaoPendente, {
+  foreignKey: "criadoPorId",
+  as: "devolucoesPendentesCriadas",
+});
+
 export {
   Usuario,
   Loja,
@@ -376,4 +414,5 @@ export {
   AlertaMovimentacao,
   SuporteItem,
   SuporteMovimentacao,
+  SuporteDevolucaoPendente,
 };

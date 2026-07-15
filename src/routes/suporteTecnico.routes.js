@@ -3,6 +3,7 @@ import {
   criarItem,
   desativarItem,
   editarItem,
+  listarDevolucoesPendentes,
   listarItens,
   listarMovimentacoes,
   registrarMovimentacao,
@@ -43,5 +44,7 @@ router.post(
   registrarLog("MOVIMENTAR_ITEM_SUPORTE", "SuporteMovimentacao"),
   registrarMovimentacao,
 );
+
+router.get("/devolucoes-pendentes", listarDevolucoesPendentes);
 
 export default router;
