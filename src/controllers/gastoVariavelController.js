@@ -39,6 +39,7 @@ export const criarGastoVariavel = async (req, res) => {
       modo,
       combustivel,
       limpeza,
+      data,
     } = req.body;
     const usuarioId = req.usuario?.id;
 
@@ -56,6 +57,14 @@ export const criarGastoVariavel = async (req, res) => {
     }
 
     const agora = new Date();
+    let dataAplicada = agora;
+    if (data) {
+      const dataInformada = new Date(`${data}T12:00:00`);
+      if (Number.isNaN(dataInformada.getTime())) {
+        return res.status(400).json({ error: "Data informada é inválida." });
+      }
+      dataAplicada = dataInformada;
+    }
 
     if (veiculoId) {
       const kmNumerico = Number(km);
@@ -132,8 +141,8 @@ export const criarGastoVariavel = async (req, res) => {
             nome,
             valor: valorNumerico,
             observacao: observacao || null,
-            dataInicio: agora,
-            dataFim: agora,
+            dataInicio: dataAplicada,
+            dataFim: dataAplicada,
             usuarioId,
             veiculoId,
           },
@@ -153,8 +162,8 @@ export const criarGastoVariavel = async (req, res) => {
       nome,
       valor: valorNumerico,
       observacao: observacao || null,
-      dataInicio: agora,
-      dataFim: agora,
+      dataInicio: dataAplicada,
+      dataFim: dataAplicada,
       usuarioId,
       veiculoId: null,
     });
