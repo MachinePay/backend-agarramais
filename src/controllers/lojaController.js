@@ -17,6 +17,7 @@ import {
   ManutencaoUsuario,
   Sangria,
   RegistroDinheiro,
+  GastoVariavel,
 } from "../models/index.js";
 
 const VALOR_FICHA_PADRAO_DEFAULT = 2.5;
@@ -282,6 +283,10 @@ export const deletarLoja = async (req, res) => {
         await Manutencao.destroy({ where: { lojaId: loja.id }, transaction: t });
 
         await Sangria.destroy({ where: { lojaId: loja.id }, transaction: t });
+        await GastoVariavel.destroy({
+          where: { lojaId: loja.id },
+          transaction: t,
+        });
         await RegistroDinheiro.destroy({
           where: { lojaId: loja.id },
           transaction: t,
