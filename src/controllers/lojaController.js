@@ -1,4 +1,23 @@
-import { Loja, Maquina, UsuarioLoja } from "../models/index.js";
+import { sequelize } from "../database/connection.js";
+import {
+  Loja,
+  Maquina,
+  UsuarioLoja,
+  Movimentacao,
+  MovimentacaoProduto,
+  AlertaMovimentacao,
+  AlertaIgnorado,
+  EstoqueLoja,
+  MovimentacaoEstoqueLoja,
+  MovimentacaoEstoqueLojaProduto,
+  GastoFixoLoja,
+  GastoTotalFixoLoja,
+  FechamentoMensalRelatorio,
+  Manutencao,
+  ManutencaoUsuario,
+  Sangria,
+  RegistroDinheiro,
+} from "../models/index.js";
 
 const VALOR_FICHA_PADRAO_DEFAULT = 2.5;
 
@@ -191,9 +210,87 @@ export const deletarLoja = async (req, res) => {
 
     // Verificar se já está inativa (segunda tentativa = hard delete)
     if (!loja.ativo) {
-      // Hard delete - deletar permanentemente
-      await Maquina.destroy({ where: { lojaId: loja.id } });
-      await loja.destroy();
+      // Hard delete - deletar permanentemente, incluindo registros dependentes
+      const maquinas = await Maquina.findAll({
+        where: { lojaId: loja.id },
+        attributes: ["id"],
+      });
+      const maquinaIds = maquinas.map((m) => m.id);
+
+      await sequelize.transaction(async (t) => {
+        const movimentacoes = await Movimentacao.findAll({
+          where: { maquinaId: maquinaIds },
+          attributes: ["id"],
+          transaction: t,
+        });
+        const movimentacaoIds = movimentacoes.map((m) => m.id);
+        await MovimentacaoProduto.destroy({
+          where: { movimentacaoId: movimentacaoIds },
+          transaction: t,
+        });
+        await Movimentacao.destroy({
+          where: { maquinaId: maquinaIds },
+          transaction: t,
+        });
+
+        await AlertaMovimentacao.destroy({
+          where: { lojaId: loja.id },
+          transaction: t,
+        });
+        await AlertaIgnorado.destroy({
+          where: { maquinaId: maquinaIds },
+          transaction: t,
+        });
+
+        const movimentacoesEstoque = await MovimentacaoEstoqueLoja.findAll({
+          where: { lojaId: loja.id },
+          attributes: ["id"],
+          transaction: t,
+        });
+        const movimentacaoEstoqueIds = movimentacoesEstoque.map((m) => m.id);
+        await MovimentacaoEstoqueLojaProduto.destroy({
+          where: { movimentacaoEstoqueLojaId: movimentacaoEstoqueIds },
+          transaction: t,
+        });
+        await MovimentacaoEstoqueLoja.destroy({
+          where: { lojaId: loja.id },
+          transaction: t,
+        });
+
+        await EstoqueLoja.destroy({ where: { lojaId: loja.id }, transaction: t });
+        await UsuarioLoja.destroy({ where: { lojaId: loja.id }, transaction: t });
+        await GastoFixoLoja.destroy({ where: { lojaId: loja.id }, transaction: t });
+        await GastoTotalFixoLoja.destroy({
+          where: { lojaId: loja.id },
+          transaction: t,
+        });
+        await FechamentoMensalRelatorio.destroy({
+          where: { lojaId: loja.id },
+          transaction: t,
+        });
+
+        const manutencoes = await Manutencao.findAll({
+          where: { lojaId: loja.id },
+          attributes: ["id"],
+          transaction: t,
+        });
+        const manutencaoIds = manutencoes.map((m) => m.id);
+        await ManutencaoUsuario.destroy({
+          where: { manutencaoId: manutencaoIds },
+          transaction: t,
+        });
+        await Manutencao.destroy({ where: { lojaId: loja.id }, transaction: t });
+
+        await Sangria.destroy({ where: { lojaId: loja.id }, transaction: t });
+        await RegistroDinheiro.destroy({
+          where: { lojaId: loja.id },
+          transaction: t,
+        });
+
+        await Maquina.destroy({ where: { lojaId: loja.id }, transaction: t });
+        await loja.destroy({ transaction: t });
+      });
+
       return res.json({ message: "Loja deletada permanentemente" });
     }
 
