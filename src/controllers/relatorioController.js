@@ -388,7 +388,14 @@ export const dashboardRelatorio = async (req, res) => {
         {
           model: Produto,
           as: "produto",
-          attributes: ["id", "nome", "codigo", "emoji", "custoUnitario"],
+          attributes: [
+            "id",
+            "nome",
+            "codigo",
+            "emoji",
+            "custoUnitario",
+            "preco",
+          ],
         },
         {
           model: Movimentacao,
@@ -410,7 +417,9 @@ export const dashboardRelatorio = async (req, res) => {
 
     const custoProdutosTotal = itensVendidos.reduce((acc, item) => {
       const qtd = item.quantidadeSaiu || 0;
-      const custo = parseFloat(item.produto?.custoUnitario || 0);
+      const custoUnitario = Number(item.produto?.custoUnitario || 0);
+      const custo =
+        custoUnitario > 0 ? custoUnitario : Number(item.produto?.preco || 0);
       return acc + qtd * custo;
     }, 0);
 
@@ -420,7 +429,7 @@ export const dashboardRelatorio = async (req, res) => {
         {
           model: Produto,
           as: "produto",
-          attributes: ["custoUnitario"],
+          attributes: ["custoUnitario", "preco"],
         },
         {
           model: Movimentacao,
@@ -447,7 +456,11 @@ export const dashboardRelatorio = async (req, res) => {
 
       const chaveData = new Date(dataColeta).toISOString().slice(0, 10);
       const qtd = Number(item.quantidadeSaiu || 0);
-      const custoUnitario = Number(item.produto?.custoUnitario || 0);
+      const custoUnitarioProduto = Number(item.produto?.custoUnitario || 0);
+      const custoUnitario =
+        custoUnitarioProduto > 0
+          ? custoUnitarioProduto
+          : Number(item.produto?.preco || 0);
       const custoItem = qtd * custoUnitario;
 
       custoProdutosPorDia.set(
@@ -1138,7 +1151,14 @@ export const gerarRelatorioImpressaoPorLoja = async ({
           {
             model: Produto,
             as: "produto",
-            attributes: ["id", "nome", "codigo", "emoji", "custoUnitario"],
+            attributes: [
+              "id",
+              "nome",
+              "codigo",
+              "emoji",
+              "custoUnitario",
+              "preco",
+            ],
           },
         ],
       },
