@@ -1068,6 +1068,53 @@ export const performanceMaquinas = async (req, res) => {
       order: [[fn("SUM", col("valorFaturado")), "DESC"]],
     });
 
+    const produtosPorMaquinaRaw = await MovimentacaoProduto.findAll({
+      attributes: [
+        [col("Movimentacao.maquinaId"), "maquinaId"],
+        [col("produto.nome"), "produtoNome"],
+        [col("produto.emoji"), "produtoEmoji"],
+        [fn("SUM", col("quantidadeSaiu")), "quantidade"],
+      ],
+      where: { quantidadeSaiu: { [Op.gt]: 0 } },
+      include: [
+        { model: Produto, as: "produto", attributes: [] },
+        {
+          model: Movimentacao,
+          attributes: [],
+          where: whereMovimentacao,
+          include: [
+            {
+              model: Maquina,
+              as: "maquina",
+              where: whereMaquina,
+              attributes: [],
+            },
+          ],
+        },
+      ],
+      group: [
+        "Movimentacao.maquinaId",
+        "produto.id",
+        "produto.nome",
+        "produto.emoji",
+      ],
+      raw: true,
+    });
+
+    const produtoPrincipalPorMaquina = {};
+    produtosPorMaquinaRaw.forEach((item) => {
+      const maquinaId = item.maquinaId;
+      const quantidade = parseInt(item.quantidade || 0);
+      const atual = produtoPrincipalPorMaquina[maquinaId];
+      if (!atual || quantidade > atual.quantidade) {
+        produtoPrincipalPorMaquina[maquinaId] = {
+          nome: item.produtoNome,
+          emoji: item.produtoEmoji,
+          quantidade,
+        };
+      }
+    });
+
     const resultado = performance.map((p) => ({
       maquina: {
         id: p.maquina.id,
@@ -1086,6 +1133,7 @@ export const performanceMaquinas = async (req, res) => {
           p.getDataValue("mediaFichasPremioGeral") || 0,
         ).toFixed(2),
       },
+      produtoPrincipal: produtoPrincipalPorMaquina[p.maquina.id] || null,
     }));
 
     res.json({
