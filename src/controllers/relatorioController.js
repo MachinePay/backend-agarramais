@@ -1034,7 +1034,7 @@ export const performanceMaquinas = async (req, res) => {
     const performance = await Movimentacao.findAll({
       attributes: [
         "maquinaId",
-        [fn("COUNT", col("id")), "totalMovimentacoes"],
+        [Sequelize.literal("COUNT(*)"), "totalMovimentacoes"],
         [fn("SUM", col("fichas")), "totalFichas"],
         [fn("SUM", col("valorFaturado")), "totalFaturamento"],
         [fn("SUM", col("sairam")), "totalSairam"],
