@@ -1056,7 +1056,15 @@ export const performanceMaquinas = async (req, res) => {
           ],
         },
       ],
-      group: ["maquinaId", "maquina.id", "maquina->loja.id"],
+      group: [
+        "maquinaId",
+        "maquina.id",
+        "maquina.codigo",
+        "maquina.nome",
+        "maquina.tipo",
+        "maquina->loja.id",
+        "maquina->loja.nome",
+      ],
       order: [[fn("SUM", col("valorFaturado")), "DESC"]],
     });
 
