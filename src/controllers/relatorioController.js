@@ -1067,6 +1067,7 @@ export const performanceMaquinas = async (req, res) => {
         nome: p.maquina.nome,
         tipo: p.maquina.tipo,
         loja: p.maquina.loja?.nome,
+        lojaId: p.maquina.loja?.id,
       },
       metricas: {
         totalMovimentacoes: parseInt(p.getDataValue("totalMovimentacoes")),
