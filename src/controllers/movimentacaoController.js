@@ -141,8 +141,11 @@ export const registrarMovimentacao = async (req, res) => {
     }
 
     // Calcular valor faturado: fichas + notas + digital
+    // valorFichaUnitario é salvo como snapshot para preservar o histórico
+    // caso o valor da ficha da máquina mude no futuro
+    const valorFichaUnitario = parseFloat(maquina.valorFicha) || 0;
     const valorFaturado =
-      (fichas ? fichas * parseFloat(maquina.valorFicha) : 0) +
+      (fichas ? fichas * valorFichaUnitario : 0) +
       (quantidade_notas_entrada ? parseFloat(quantidade_notas_entrada) : 0) +
       (valor_entrada_maquininha_pix
         ? parseFloat(valor_entrada_maquininha_pix)
@@ -200,6 +203,7 @@ export const registrarMovimentacao = async (req, res) => {
       contadorIn,
       contadorOut,
       valorFaturado,
+      valorFichaUnitario,
       observacoes,
       tipoOcorrencia: tipoOcorrencia || "Normal",
       retiradaEstoque: retiradaEstoque || false,
@@ -589,8 +593,18 @@ export const atualizarMovimentacao = async (req, res) => {
 
     const maquina = await Maquina.findByPk(movimentacao.maquinaId);
     if (maquina) {
+      // Preserva o valor histórico da ficha desta movimentação: se o valorFicha
+      // da máquina mudou depois que ela foi criada, editar campos como "fichas"
+      // não deve recalcular usando o preço atual, e sim o preço da época.
+      const valorFichaUnitarioHistorico =
+        movimentacao.valorFichaUnitario !== null &&
+        movimentacao.valorFichaUnitario !== undefined
+          ? parseFloat(movimentacao.valorFichaUnitario)
+          : parseFloat(maquina.valorFicha || 0);
+
+      updateData.valorFichaUnitario = valorFichaUnitarioHistorico;
       updateData.valorFaturado =
-        Number(updateData.fichas || 0) * parseFloat(maquina.valorFicha || 0) +
+        Number(updateData.fichas || 0) * valorFichaUnitarioHistorico +
         Number(updateData.quantidade_notas_entrada || 0) +
         Number(updateData.valor_entrada_maquininha_pix || 0);
     }

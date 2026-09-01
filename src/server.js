@@ -175,6 +175,48 @@ const startServer = async () => {
         CHECK (tipo IN ('retirada', 'devolucao', 'abastecimento'));
     `);
 
+    const colunasMovimentacoes =
+      await queryInterface.describeTable("movimentacoes");
+    if (!colunasMovimentacoes.valor_ficha_unitario) {
+      const { DataTypes } = await import("sequelize");
+      await queryInterface.addColumn(
+        "movimentacoes",
+        "valor_ficha_unitario",
+        {
+          type: DataTypes.DECIMAL(10, 2),
+          allowNull: true,
+        },
+      );
+      console.log(
+        "✅ Coluna valor_ficha_unitario adicionada às movimentações!",
+      );
+
+      // Backfill: reconstrói o valor unitário da ficha que estava em vigor em
+      // cada movimentação já existente, a partir do valorFaturado já salvo
+      // (fichas * valorFicha da época + notas + pix). Isso garante que meses
+      // antigos continuem "congelados" no valor da ficha de quando foram
+      // registrados, mesmo que o valorFicha da máquina mude depois.
+      await sequelize.query(`
+        UPDATE movimentacoes m
+        SET valor_ficha_unitario = CASE
+          WHEN m.fichas > 0 THEN
+            ROUND(
+              (
+                COALESCE(m."valorFaturado", 0)
+                - COALESCE(m.quantidade_notas_entrada, 0)
+                - COALESCE(m.valor_entrada_maquininha_pix, 0)
+              ) / m.fichas
+            , 2)
+          ELSE maq."valorFicha"
+        END
+        FROM maquinas maq
+        WHERE maq.id = m."maquinaId"
+      `);
+      console.log(
+        "✅ Backfill histórico de valor_ficha_unitario concluído!",
+      );
+    }
+
     const colunasGastoVariavel = await queryInterface.describeTable(
       "GastoVariavel",
     );

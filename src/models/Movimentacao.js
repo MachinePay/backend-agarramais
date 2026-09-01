@@ -86,6 +86,13 @@ const Movimentacao = sequelize.define(
       allowNull: true,
       comment: "Calculado automaticamente: fichas * valorFicha",
     },
+    valorFichaUnitario: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+      field: "valor_ficha_unitario",
+      comment:
+        "Snapshot do valorFicha da máquina no momento desta movimentação, para preservar o histórico caso o valor da ficha mude depois",
+    },
 
     // Retirada de Estoque
     retiradaEstoque: {

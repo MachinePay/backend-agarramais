@@ -1199,7 +1199,7 @@ export const gerarRelatorioImpressaoPorLoja = async ({
         model: Maquina,
         as: "maquina",
         where: { lojaId },
-        attributes: ["id", "codigo", "nome"],
+        attributes: ["id", "codigo", "nome", "valorFicha"],
       },
       {
         model: MovimentacaoProduto,
@@ -1436,6 +1436,7 @@ export const gerarRelatorioImpressaoPorLoja = async ({
           nome: mov.maquina.nome,
         },
         fichas: 0,
+        valorFichasReais: 0,
         totalSairam: 0,
         totalAbastecidas: 0,
         numMovimentacoes: 0,
@@ -1444,7 +1445,17 @@ export const gerarRelatorioImpressaoPorLoja = async ({
       };
     }
 
+    // Usa o valor da ficha registrado na própria movimentação (histórico),
+    // e não o valor atual da máquina, para não recalcular meses passados
+    // com um preço que só passou a valer depois.
+    const valorFichaHistoricoMov =
+      mov.valorFichaUnitario !== null && mov.valorFichaUnitario !== undefined
+        ? Number(mov.valorFichaUnitario)
+        : Number(mov.maquina.valorFicha ?? valorFichaPadraoLoja);
+
     dadosPorMaquina[maquinaId].fichas += mov.fichas || 0;
+    dadosPorMaquina[maquinaId].valorFichasReais +=
+      (mov.fichas || 0) * valorFichaHistoricoMov;
     dadosPorMaquina[maquinaId].totalSairam += ehRetiradaEstoque
       ? 0
       : mov.sairam || 0;
@@ -1520,13 +1531,10 @@ export const gerarRelatorioImpressaoPorLoja = async ({
       }))
       .sort((a, b) => b.quantidade - a.quantidade);
 
-    const valorFicha = m.maquina.valorFicha
-      ? Number(m.maquina.valorFicha)
-      : valorFichaPadraoLoja;
     const faturamentoMaquina =
       (valoresPorMaquina[m.maquina.id]?.dinheiro || 0) +
       (valoresPorMaquina[m.maquina.id]?.cartaoPixLiquido || 0) +
-      (m.fichas || 0) * valorFicha;
+      (m.valorFichasReais || 0);
     const lucroLiquido = faturamentoMaquina - custoProdutosSairam;
     const ticketPorPremio =
       Number(m.totalSairam || 0) > 0
@@ -1537,6 +1545,10 @@ export const gerarRelatorioImpressaoPorLoja = async ({
       maquina: m.maquina,
       totais: {
         fichas: m.fichas,
+        // Valor histórico das fichas (fichas × valorFicha vigente em cada
+        // movimentação da época), para uso em telas que precisam de uma
+        // estimativa baseada só em fichas sem recalcular com o preço atual.
+        valorFichasReais: Number((m.valorFichasReais || 0).toFixed(2)),
         produtosSairam: m.totalSairam,
         produtosEntraram: m.totalAbastecidas,
         movimentacoes: m.numMovimentacoes,
@@ -1613,18 +1625,13 @@ export const gerarRelatorioImpressaoPorLoja = async ({
       ? Number((valorTotalLojaBruto / Number(totalSairam || 0)).toFixed(2))
       : 0;
 
-  let valorMedioFicha = valorFichaPadraoLoja;
-  if (Object.values(dadosPorMaquina).length > 0) {
-    const somaValorFicha = Object.values(dadosPorMaquina).reduce((acc, m) => {
-      const v = m.maquina.valorFicha
-        ? Number(m.maquina.valorFicha)
-        : valorFichaPadraoLoja;
-      return acc + v;
-    }, 0);
-    valorMedioFicha = somaValorFicha / Object.values(dadosPorMaquina).length;
-  }
-
-  const valorFichasReais = totalFichas * valorMedioFicha;
+  // Soma o valor histórico (já calculado por movimentação com o valorFicha
+  // vigente em cada época) em vez de recalcular com o valorFicha atual da
+  // máquina/loja, para não distorcer meses passados após uma mudança de preço.
+  const valorFichasReais = Object.values(dadosPorMaquina).reduce(
+    (acc, m) => acc + (m.valorFichasReais || 0),
+    0,
+  );
   const valorTotal = valorTotalLojaBruto;
   const diferenca = valorFichasReais - valorTotal;
   let avisoFichas = null;
@@ -1656,9 +1663,7 @@ export const gerarRelatorioImpressaoPorLoja = async ({
     },
     totais: {
       fichas: totalFichas,
-      valorFichasTotal: Number(
-        (totalFichas * Number(valorFichaPadraoLoja || 0)).toFixed(2),
-      ),
+      valorFichasTotal: Number(valorFichasReais.toFixed(2)),
       produtosSairam: totalSairam,
       produtosEntraram: totalAbastecidas,
       movimentacoes: movimentacoes.length,
