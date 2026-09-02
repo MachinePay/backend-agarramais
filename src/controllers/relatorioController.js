@@ -1779,7 +1779,7 @@ export const relatorioImpressao = async (req, res) => {
 
 export const relatorioTodasLojas = async (req, res) => {
   try {
-    const { dataInicio, dataFim } = req.query;
+    const { dataInicio, dataFim, lojaIds } = req.query;
 
     if (!dataInicio || !dataFim) {
       return res
@@ -1787,7 +1787,18 @@ export const relatorioTodasLojas = async (req, res) => {
         .json({ error: "dataInicio e dataFim são obrigatórios" });
     }
 
-    const lojas = await Loja.findAll({ where: { ativo: true }, raw: true });
+    const whereLojas = { ativo: true };
+    if (lojaIds) {
+      const idsFiltrados = String(lojaIds)
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean);
+      if (idsFiltrados.length) {
+        whereLojas.id = { [Op.in]: idsFiltrados };
+      }
+    }
+
+    const lojas = await Loja.findAll({ where: whereLojas, raw: true });
 
     const respostas = await Promise.allSettled(
       lojas.map((loja) =>
