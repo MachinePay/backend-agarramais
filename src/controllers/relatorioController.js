@@ -1046,7 +1046,7 @@ export const performanceMaquinas = async (req, res) => {
           model: Maquina,
           as: "maquina",
           where: whereMaquina,
-          attributes: ["id", "codigo", "nome", "tipo"],
+          attributes: ["id", "codigo", "nome", "tipo", "valorFicha"],
           include: [
             {
               model: Loja,
@@ -1062,6 +1062,7 @@ export const performanceMaquinas = async (req, res) => {
         "maquina.codigo",
         "maquina.nome",
         "maquina.tipo",
+        "maquina.valorFicha",
         "maquina->loja.id",
         "maquina->loja.nome",
       ],
@@ -1121,6 +1122,7 @@ export const performanceMaquinas = async (req, res) => {
         codigo: p.maquina.codigo,
         nome: p.maquina.nome,
         tipo: p.maquina.tipo,
+        valorFicha: parseFloat(p.maquina.valorFicha || 0),
         loja: p.maquina.loja?.nome,
         lojaId: p.maquina.loja?.id,
       },
@@ -1434,6 +1436,7 @@ export const gerarRelatorioImpressaoPorLoja = async ({
           id: mov.maquina.id,
           codigo: mov.maquina.codigo,
           nome: mov.maquina.nome,
+          valorFicha: Number(mov.maquina.valorFicha ?? valorFichaPadraoLoja),
         },
         fichas: 0,
         valorFichasReais: 0,
