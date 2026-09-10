@@ -111,8 +111,8 @@ export const listarPecasSemDescricao = (quantidades, dimensoesPecas = {}) =>
   );
 
 // Sugestão determinística (sem IA) de embalagem a partir do volume total
-// necessário: escolhe a menor caixa do catálogo que comporte tudo, ou quantas
-// caixas da maior forem necessárias quando nenhuma única for suficiente.
+// necessário: prioriza sempre a MAIOR quantidade de volumes da MENOR caixa
+// do catálogo que comporte tudo, em vez de menos caixas grandes.
 export const sugerirEmpacotamentoPorVolume = (litrosNecessarios) => {
   if (!litrosNecessarios || litrosNecessarios <= 0) return null;
 
@@ -123,23 +123,14 @@ export const sugerirEmpacotamentoPorVolume = (litrosNecessarios) => {
     (a, b) => a.volumeLitros - b.volumeLitros,
   );
 
-  const caixaUnica = ordenadoPorVolume.find(
-    (caixa) => capacidadeUtilLitros(caixa) >= litrosNecessarios,
+  const menorCaixa = ordenadoPorVolume[0];
+  const quantidade = Math.max(
+    1,
+    Math.ceil(litrosNecessarios / capacidadeUtilLitros(menorCaixa)),
   );
-  if (caixaUnica) {
-    return {
-      nome: caixaUnica.nome,
-      quantidade: 1,
-      volumeNecessarioLitros: litrosNecessarios,
-    };
-  }
 
-  const maiorCaixa = ordenadoPorVolume[ordenadoPorVolume.length - 1];
-  const quantidade = Math.ceil(
-    litrosNecessarios / capacidadeUtilLitros(maiorCaixa),
-  );
   return {
-    nome: maiorCaixa.nome,
+    nome: menorCaixa.nome,
     quantidade,
     volumeNecessarioLitros: litrosNecessarios,
   };
