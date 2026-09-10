@@ -78,13 +78,18 @@ export const calcular = (req, res) => {
   }
 };
 
-const schemaAnaliseCaixas = {
+const schemaOpcaoEmbalagem = {
   type: "object",
   additionalProperties: false,
-  required: ["caixasSugeridas", "resumo"],
+  required: ["nomeOpcao", "caixas", "resumoOpcao"],
   properties: {
-    caixasSugeridas: {
+    nomeOpcao: {
+      type: "string",
+      description: "Nome curto da opcao, ex: 'Opcao 1 - 2 volumes'",
+    },
+    caixas: {
       type: "array",
+      description: "1 a 3 volumes/caixas que compoem essa opcao",
       items: {
         type: "object",
         additionalProperties: false,
@@ -100,6 +105,17 @@ const schemaAnaliseCaixas = {
         },
       },
     },
+    resumoOpcao: { type: "string" },
+  },
+};
+
+const schemaAnaliseCaixas = {
+  type: "object",
+  additionalProperties: false,
+  required: ["opcao1", "opcao2", "resumo"],
+  properties: {
+    opcao1: schemaOpcaoEmbalagem,
+    opcao2: schemaOpcaoEmbalagem,
     resumo: { type: "string" },
   },
 };
@@ -172,12 +188,30 @@ const chamarOpenAIParaAnalisarCaixas = async ({
       instructions: [
         "Voce e um especialista em logistica e embalagem de pedidos para uma empresa de maquinas de pelucia/capsula (Agarra Mais / Gira Kids).",
         "O motor de regras interno da empresa ja tentou classificar o pedido usando faixas de quantidade conhecidas, mas nao conseguiu decidir com confianca (resultado 'Personalizada') e/ou existem produtos fora do catalogo conhecido que precisam da sua analise.",
+        "",
+        "GLOSSARIO DE TAMANHOS - os itens '1pol', '2pol', '27mm', '32mm' e '45mm' sao TODOS bolinhas/capsulas plasticas esfericas (brinquedos de maquina de bolinha), vendidas e embaladas a granel, do menor para o maior:",
+        "- 1pol (1 polegada = ~25mm de diametro): a bolinha mais pequena do catalogo, tamanho de uma bolinha de gude pequena.",
+        "- 27mm de diametro: bolinha pequena, praticamente do mesmo tamanho da 1pol, do tamanho da ponta de um dedo (ponta do polegar).",
+        "- 32mm de diametro: bolinha pequena-media, um pouco maior que a 27mm, proxima ao tamanho de uma azeitona grande ou de uma bolinha de gude grande.",
+        "- 45mm de diametro: bolinha media-grande, proxima ao tamanho de uma bola de golfe (que tem ~42mm).",
+        "- 2pol (2 polegadas = ~50mm de diametro): a maior bolinha do catalogo, tamanho de uma bola de pingue-pongue grande, quase do tamanho de uma bola de bilhar/sinuca (~57mm).",
+        "Essas bolinhas sao esfericas e embaladas soltas dentro da caixa (a granel), entao sempre existe espaco vazio entre elas mesmo bem organizadas: ao estimar quantas cabem num volume, considere que bolinhas soltas ocupam na pratica cerca de 55% a 65% do volume interno da caixa (o resto e espaco vazio entre as esferas), nunca assuma 100% de aproveitamento do volume para elas.",
+        "'Cap 1' e 'Cap 2' sao as tampinhas plasticas finas e leves dos dispensers dessas bolinhas (Cap 1 para o tamanho 1pol, Cap 2 para o tamanho 2pol); ocupam pouquissimo volume e peso, podem ser encaixadas em qualquer espaco sobrando na caixa.",
+        "Os demais itens (Square/Globinho, GV Todas, Pedestal X, Pedestal Redondo, Hack, Cuba, Chiclete, Pelucia) sao pecas/acessorios de maquinas ou produtos avulsos, nao bolinhas: tendem a ser volumosos e/ou fragil (ex: globos de vidro, pedestais/estruturas de maquina), por isso o motor de regras ja classifica qualquer pedido com esses itens como 'Personalizada' — trate cada um com cautela, com base no peso unitario aproximado que aparece na lista de itens do pedido (itens mais pesados por unidade tendem a ser maiores/mais rigidos), e explique as suposicoes feitas na justificativa.",
+        "",
         "Seu trabalho e sugerir a(s) melhor(es) caixa(s) de papelao para esse pedido, preferindo sempre reaproveitar uma das caixas do catalogo padrao da empresa quando ela comportar os itens (por volume E por dimensao - o maior lado de um item individual deve caber dentro do menor lado util da caixa escolhida).",
         `Catalogo de caixas padrao ja usadas pela empresa:\n${listaCatalogoCaixas}`,
         "Quando nenhuma caixa do catalogo comportar tudo, proponha dividir em mais de uma caixa do catalogo (explique a divisao no campo itensAlocados) antes de propor uma caixa nova.",
         "So proponha uma caixa 'nova' (tipo=nova) quando nenhuma combinacao das caixas padrao for razoavel; nesse caso, sugira dimensoes no formato AxLxC em cm que comportem os itens com folga pequena.",
         "Sempre leve em conta as dimensoes AxLxC dos produtos personalizados informados (nao so o peso) para decidir se cabem em pe, deitados etc dentro da caixa.",
         "Se um produto personalizado nao tiver dimensoes informadas, assuma que ele e pequeno/medio (parecido com uma pelucia media) e mencione essa suposicao na justificativa.",
+        "",
+        "IMPORTANTE - voce deve gerar SEMPRE DUAS opcoes de embalagem diferentes entre si (opcao1 e opcao2), para o time comercial escolher:",
+        "- Cada opcao pode usar 1, 2 ou 3 volumes/caixas no total, de tamanhos iguais ou diferentes entre si dentro da mesma opcao.",
+        "- As duas opcoes precisam ser realmente distintas (numero de volumes diferente, e/ou tamanhos de caixa diferentes, e/ou forma de dividir os itens diferente) - nunca repita a mesma composicao nas duas.",
+        "- Um bom padrao e oferecer uma opcao mais compacta (menos volumes, possivelmente maiores) e outra mais fracionada (mais volumes, possivelmente menores), mas use seu julgamento tecnico para o que fizer mais sentido nesse pedido especifico.",
+        "- No campo resumoOpcao de cada opcao, explique rapidamente o raciocinio dessa opcao especifica.",
+        "- No campo resumo (geral), compare as duas opcoes em 2-3 frases e, se fizer sentido, diga qual delas voce recomendaria e por que.",
         "Responda sempre em portugues, de forma objetiva.",
         "Retorne apenas o JSON estruturado conforme o schema, sem texto adicional.",
       ].join("\n"),
