@@ -779,7 +779,7 @@ export const balançoSemanal = async (req, res) => {
   try {
     const { lojaId, dataInicio, dataFim } = req.query;
 
-    const fim = dataFim ? new Date(dataFim) : new Date();
+    const fim = dataFim ? new Date(`${dataFim}T23:59:59`) : new Date();
     const inicio = dataInicio
       ? new Date(dataInicio)
       : new Date(fim.getFullYear(), fim.getMonth(), 1);
@@ -1015,7 +1015,7 @@ export const performanceMaquinas = async (req, res) => {
   try {
     const { lojaId, dataInicio, dataFim } = req.query;
 
-    const fim = dataFim ? new Date(dataFim) : new Date();
+    const fim = dataFim ? new Date(`${dataFim}T23:59:59`) : new Date();
     const inicio = dataInicio
       ? new Date(dataInicio)
       : new Date(fim.getTime() - 30 * 24 * 60 * 60 * 1000);
