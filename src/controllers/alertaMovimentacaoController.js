@@ -2,7 +2,7 @@ import { AlertaMovimentacao, Maquina, Loja, Usuario } from "../models/index.js";
 
 export const criarAlertaMovimentacao = async (req, res) => {
   try {
-    const { maquinaId, observacao } = req.body;
+    const { maquinaId, observacao, dadosAbastecimento } = req.body;
     const usuarioId = req.usuario?.id;
 
     if (!maquinaId || !observacao?.trim()) {
@@ -21,6 +21,7 @@ export const criarAlertaMovimentacao = async (req, res) => {
       lojaId: maquina.lojaId,
       usuarioId,
       observacao: observacao.trim(),
+      dadosAbastecimento: dadosAbastecimento || null,
       status: "PENDENTE",
     });
 

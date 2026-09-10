@@ -37,6 +37,13 @@ const AlertaMovimentacao = sequelize.define(
       type: DataTypes.TEXT,
       allowNull: false,
     },
+    dadosAbastecimento: {
+      type: DataTypes.JSONB,
+      allowNull: true,
+      field: "dados_abastecimento",
+      comment:
+        "Snapshot do formulário de movimentação no momento em que o usuário optou por não registrar e enviar por WhatsApp, para permitir lançar a movimentação depois a partir do alerta",
+    },
     status: {
       type: DataTypes.ENUM("PENDENTE", "RESOLVIDO"),
       allowNull: false,
