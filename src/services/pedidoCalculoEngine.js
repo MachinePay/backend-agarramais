@@ -33,6 +33,118 @@ export const CATALOGO_CAIXAS = [
 const formatarDivisao = (valor) =>
   Number.isInteger(valor) ? `${valor}.0` : `${valor}`;
 
+// Campos que são bolinhas/cápsulas esféricas com diâmetro conhecido (mm).
+const DIAMETRO_MM_BOLINHA = {
+  qtd1pol: 25.4,
+  qtd27mm: 27,
+  qtd32mm: 32,
+  qtd45mm: 45,
+  qtd2pol: 50.8,
+};
+
+const volumeEsferaCm3 = (diametroMm) => {
+  const raioCm = diametroMm / 2 / 10;
+  return (4 / 3) * Math.PI * raioCm ** 3;
+};
+
+const VOLUME_UNITARIO_BOLINHA_CM3 = Object.fromEntries(
+  Object.entries(DIAMETRO_MM_BOLINHA).map(([chave, diametro]) => [
+    chave,
+    volumeEsferaCm3(diametro),
+  ]),
+);
+
+// Esferas soltas dentro de uma caixa nunca preenchem 100% do volume: ~55-65%
+// de aproveitamento real é o padrão físico de empacotamento aleatório de esferas.
+const FATOR_OCUPACAO_BOLINHAS = 0.6;
+
+// Margem de manuseio/fechamento: uma caixa nunca é usada até o limite exato do volume.
+const FATOR_APROVEITAMENTO_CAIXA = 0.85;
+
+// Itens sem tamanho físico conhecido no catálogo (só têm fórmula de preço/peso,
+// nunca dimensão) - o usuário precisa descrever a caixa AxLxC antes de calcular.
+export const CAMPOS_SEM_TAMANHO_CONHECIDO = [
+  "caps1pol",
+  "caps2pol",
+  "squareGlobinho",
+  "gvTodas",
+  "pedestalX",
+  "hack",
+  "cuba",
+  "pelucia",
+  "chiclete",
+  "pedestalRedondo",
+];
+
+// Volume real necessário (em litros) só para os itens que são bolinhas/cápsulas,
+// já descontando o espaço vazio entre as esferas.
+export const calcularVolumeBolinhasLitros = (quantidades) => {
+  let cm3 = 0;
+  for (const chave of Object.keys(VOLUME_UNITARIO_BOLINHA_CM3)) {
+    cm3 += (quantidades[chave] || 0) * VOLUME_UNITARIO_BOLINHA_CM3[chave];
+  }
+  return cm3 / FATOR_OCUPACAO_BOLINHAS / 1000;
+};
+
+// Volume (em litros) dos itens sem tamanho conhecido, a partir das dimensões
+// AxLxC (cm) que o usuário descreveu para cada um.
+export const calcularVolumePecasLitros = (quantidades, dimensoesPecas = {}) => {
+  let cm3 = 0;
+  for (const chave of CAMPOS_SEM_TAMANHO_CONHECIDO) {
+    const qtd = quantidades[chave] || 0;
+    if (qtd <= 0) continue;
+    const dim = dimensoesPecas[chave];
+    if (!dim || !dim.altura || !dim.largura || !dim.comprimento) continue;
+    cm3 += qtd * dim.altura * dim.largura * dim.comprimento;
+  }
+  return cm3 / 1000;
+};
+
+// Lista, dentre os campos sem tamanho conhecido, quais têm quantidade > 0 mas
+// ainda não tiveram suas dimensões descritas pelo usuário.
+export const listarPecasSemDescricao = (quantidades, dimensoesPecas = {}) =>
+  CAMPOS_SEM_TAMANHO_CONHECIDO.filter((chave) => (quantidades[chave] || 0) > 0).filter(
+    (chave) => {
+      const dim = dimensoesPecas[chave];
+      return !dim || !dim.altura || !dim.largura || !dim.comprimento;
+    },
+  );
+
+// Sugestão determinística (sem IA) de embalagem a partir do volume total
+// necessário: escolhe a menor caixa do catálogo que comporte tudo, ou quantas
+// caixas da maior forem necessárias quando nenhuma única for suficiente.
+export const sugerirEmpacotamentoPorVolume = (litrosNecessarios) => {
+  if (!litrosNecessarios || litrosNecessarios <= 0) return null;
+
+  const capacidadeUtilLitros = (caixa) =>
+    caixa.volumeLitros * FATOR_APROVEITAMENTO_CAIXA;
+
+  const ordenadoPorVolume = [...CATALOGO_CAIXAS].sort(
+    (a, b) => a.volumeLitros - b.volumeLitros,
+  );
+
+  const caixaUnica = ordenadoPorVolume.find(
+    (caixa) => capacidadeUtilLitros(caixa) >= litrosNecessarios,
+  );
+  if (caixaUnica) {
+    return {
+      nome: caixaUnica.nome,
+      quantidade: 1,
+      volumeNecessarioLitros: litrosNecessarios,
+    };
+  }
+
+  const maiorCaixa = ordenadoPorVolume[ordenadoPorVolume.length - 1];
+  const quantidade = Math.ceil(
+    litrosNecessarios / capacidadeUtilLitros(maiorCaixa),
+  );
+  return {
+    nome: maiorCaixa.nome,
+    quantidade,
+    volumeNecessarioLitros: litrosNecessarios,
+  };
+};
+
 const normalizarQuantidades = (quantidadesBrutas = {}) => {
   const quantidades = {};
   for (const { chave } of CAMPOS_PRODUTO) {
