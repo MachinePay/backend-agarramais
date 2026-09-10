@@ -2,7 +2,10 @@ import {
   CAMPOS_PRODUTO,
   CATALOGO_CAIXAS,
   calcularPedido,
-  precisaAnaliseIA,
+  calcularVolumeBolinhasLitros,
+  calcularVolumePecasLitros,
+  listarPecasSemDescricao,
+  sugerirEmpacotamentoPorVolume,
 } from "../services/pedidoCalculoEngine.js";
 
 const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
@@ -26,6 +29,25 @@ const extrairTextoResposta = (resposta) => {
   return textos.join("\n").trim();
 };
 
+const LABEL_POR_CHAVE = Object.fromEntries(
+  CAMPOS_PRODUTO.map(({ chave, label }) => [chave, label]),
+);
+
+const normalizarDimensoesPecas = (dimensoesBrutas = {}) => {
+  const dimensoes = {};
+  for (const { chave } of CAMPOS_PRODUTO) {
+    const dim = dimensoesBrutas?.[chave];
+    if (!dim) continue;
+    const altura = Number(dim.altura);
+    const largura = Number(dim.largura);
+    const comprimento = Number(dim.comprimento);
+    if (altura > 0 && largura > 0 && comprimento > 0) {
+      dimensoes[chave] = { altura, largura, comprimento };
+    }
+  }
+  return dimensoes;
+};
+
 const normalizarProdutosPersonalizados = (lista) => {
   if (!Array.isArray(lista)) return [];
 
@@ -47,15 +69,80 @@ const somarPesoProdutosPersonalizados = (produtosPersonalizados) =>
     return soma + item.pesoUnitario * item.quantidade;
   }, 0);
 
+const somarVolumeProdutosPersonalizadosLitros = (produtosPersonalizados) =>
+  produtosPersonalizados.reduce((soma, item) => {
+    if (!item.altura || !item.largura || !item.comprimento) return soma;
+    return soma + (item.altura * item.largura * item.comprimento * item.quantidade) / 1000;
+  }, 0);
+
+const formatarNomeCaixa = (empacotamento) => {
+  if (!empacotamento) return null;
+  return empacotamento.quantidade > 1
+    ? `${empacotamento.nome} x${empacotamento.quantidade}`
+    : empacotamento.nome;
+};
+
 export const calcular = (req, res) => {
   try {
-    const { quantidades, produtosPersonalizados } = req.body;
+    const { quantidades, produtosPersonalizados, dimensoesPecas } = req.body;
 
     const resultadoEngine = calcularPedido(quantidades);
+    const dimensoesPecasNormalizadas = normalizarDimensoesPecas(dimensoesPecas);
+
+    const pecasSemDescricao = listarPecasSemDescricao(
+      resultadoEngine.quantidades,
+      dimensoesPecasNormalizadas,
+    );
+    if (pecasSemDescricao.length > 0) {
+      return res.status(400).json({
+        error:
+          "Descreva o tamanho (Altura x Largura x Comprimento) dos itens abaixo antes de calcular - eles não têm um tamanho padrão cadastrado no sistema.",
+        pecasSemDescricao: pecasSemDescricao.map((chave) => LABEL_POR_CHAVE[chave]),
+      });
+    }
+
     const produtosCustom = normalizarProdutosPersonalizados(
       produtosPersonalizados,
     );
+    const produtosCustomSemDescricao = produtosCustom.filter(
+      (item) => !item.altura || !item.largura || !item.comprimento,
+    );
+    if (produtosCustomSemDescricao.length > 0) {
+      return res.status(400).json({
+        error:
+          "Descreva o tamanho (Altura x Largura x Comprimento) de todos os produtos personalizados antes de calcular.",
+        produtosSemDescricao: produtosCustomSemDescricao.map((item) => item.nome),
+      });
+    }
+
     const pesoProdutosCustom = somarPesoProdutosPersonalizados(produtosCustom);
+
+    const volumeBolinhasLitros = calcularVolumeBolinhasLitros(
+      resultadoEngine.quantidades,
+    );
+    const volumePecasLitros = calcularVolumePecasLitros(
+      resultadoEngine.quantidades,
+      dimensoesPecasNormalizadas,
+    );
+    const volumeProdutosCustomLitros = somarVolumeProdutosPersonalizadosLitros(
+      produtosCustom,
+    );
+    const volumeTotalLitros =
+      volumeBolinhasLitros + volumePecasLitros + volumeProdutosCustomLitros;
+
+    const legadoEhPersonalizada = resultadoEngine.caixaLegado.includes(
+      "Personalizada",
+    );
+    const precisaCalculoVolumetrico =
+      legadoEhPersonalizada || produtosCustom.length > 0;
+
+    const empacotamentoVolumetrico = precisaCalculoVolumetrico
+      ? sugerirEmpacotamentoPorVolume(volumeTotalLitros)
+      : null;
+
+    const caixaSugerida = precisaCalculoVolumetrico
+      ? formatarNomeCaixa(empacotamentoVolumetrico) || resultadoEngine.caixaLegado
+      : resultadoEngine.caixaLegado;
 
     return res.json({
       quantidades: resultadoEngine.quantidades,
@@ -64,17 +151,17 @@ export const calcular = (req, res) => {
       pesoEngine: resultadoEngine.pesoTotal,
       pesoProdutosPersonalizados: pesoProdutosCustom,
       caixaLegado: resultadoEngine.caixaLegado,
+      caixaSugerida,
+      volumeTotalLitros,
+      empacotamentoVolumetrico,
+      calculadaPorVolume: precisaCalculoVolumetrico,
       produtosPersonalizados: produtosCustom,
-      precisaAnaliseIA: precisaAnaliseIA(
-        resultadoEngine.caixaLegado,
-        produtosCustom,
-      ),
+      dimensoesPecas: dimensoesPecasNormalizadas,
+      podeRefinarComIA: precisaCalculoVolumetrico,
     });
   } catch (error) {
     console.error("Erro ao calcular pedido:", error);
-    return res
-      .status(500)
-      .json({ error: "Erro ao calcular pedido" });
+    return res.status(500).json({ error: "Erro ao calcular pedido" });
   }
 };
 
@@ -122,8 +209,10 @@ const schemaAnaliseCaixas = {
 
 const chamarOpenAIParaAnalisarCaixas = async ({
   quantidades,
+  dimensoesPecas,
   produtosPersonalizados,
-  caixaLegado,
+  volumeTotalLitros,
+  empacotamentoVolumetrico,
   pesoTotal,
 }) => {
   if (!process.env.OPENAI_API_KEY) {
@@ -143,20 +232,22 @@ const chamarOpenAIParaAnalisarCaixas = async ({
   const listaQuantidadesConhecidas = CAMPOS_PRODUTO.filter(
     ({ chave }) => quantidades[chave] > 0,
   )
-    .map(({ chave, label }) => `- ${label}: ${quantidades[chave]} unidades`)
+    .map(({ chave, label }) => {
+      const dim = dimensoesPecas?.[chave];
+      const dimTexto = dim
+        ? ` (unidade descrita pelo usuario: ${dim.altura}x${dim.largura}x${dim.comprimento} cm)`
+        : "";
+      return `- ${label}: ${quantidades[chave]} unidades${dimTexto}`;
+    })
     .join("\n");
 
   const listaProdutosPersonalizados = produtosPersonalizados.length
     ? produtosPersonalizados
         .map((item) => {
-          const dimensao =
-            item.altura && item.largura && item.comprimento
-              ? `${item.altura}x${item.largura}x${item.comprimento} cm (AxLxC) por unidade`
-              : "dimensoes nao informadas";
           const pesoTexto = item.pesoUnitario
             ? `${item.pesoUnitario} kg por unidade`
             : "peso nao informado";
-          return `- ${item.nome}: ${item.quantidade} unidades, ${dimensao}, ${pesoTexto}`;
+          return `- ${item.nome}: ${item.quantidade} unidades, ${item.altura}x${item.largura}x${item.comprimento} cm por unidade, ${pesoTexto}`;
         })
         .join("\n")
     : "Nenhum produto personalizado informado.";
@@ -166,14 +257,18 @@ const chamarOpenAIParaAnalisarCaixas = async ({
       `- ${caixa.nome} (Altura x Largura x Comprimento em cm, volume interno ~${caixa.volumeLitros.toFixed(1)} litros)`,
   ).join("\n");
 
+  const referenciaVolumetrica = empacotamentoVolumetrico
+    ? `Ja existe um calculo matematico (volume real das bolinhas esfericas + volume AxLxC descrito para os demais itens, com fator de ocupacao de esferas soltas de 60% e aproveitamento de caixa de 85%) apontando que esse pedido precisa de aproximadamente ${volumeTotalLitros.toFixed(1)} litros uteis, e que a opcao mais simples seria ${formatarNomeCaixa(empacotamentoVolumetrico)}. Use esse numero como ponto de partida confiavel - nao precisa recalcular do zero, apenas racionalize distribuicoes diferentes em cima dele.`
+    : `Volume total estimado do pedido: ${volumeTotalLitros.toFixed(1)} litros uteis (ja calculado matematicamente a partir do volume real dos itens).`;
+
   const pedido = [
-    `Resultado do motor de regras interno (baseado no catalogo conhecido) para os itens de catalogo: "${caixaLegado}".`,
     `Peso total estimado do pedido: ${pesoTotal.toFixed(2)} kg.`,
+    referenciaVolumetrica,
     "",
     "Itens de catalogo conhecido presentes no pedido:",
     listaQuantidadesConhecidas || "Nenhum item de catalogo conhecido.",
     "",
-    "Produtos personalizados (fora do catalogo conhecido, informados manualmente pelo usuario):",
+    "Produtos personalizados (fora do catalogo conhecido, informados manualmente pelo usuario, com dimensoes reais):",
     listaProdutosPersonalizados,
   ].join("\n");
 
@@ -187,7 +282,7 @@ const chamarOpenAIParaAnalisarCaixas = async ({
       model: MODELO_CALCULADORA,
       instructions: [
         "Voce e um especialista em logistica e embalagem de pedidos para uma empresa de maquinas de pelucia/capsula (Agarra Mais / Gira Kids).",
-        "O motor de regras interno da empresa ja tentou classificar o pedido usando faixas de quantidade conhecidas, mas nao conseguiu decidir com confianca (resultado 'Personalizada') e/ou existem produtos fora do catalogo conhecido que precisam da sua analise.",
+        "Um calculo matematico determinístico (fora do seu controle) ja estimou o volume real necessario para esse pedido, com base no volume fisico dos itens - isso ja esta no texto do pedido abaixo. NAO ignore esse numero e NAO proponha uma caixa com volume interno visivelmente menor que o volume util necessario informado: isso resultaria numa caixa que fisicamente nao fecha.",
         "",
         "GLOSSARIO DE TAMANHOS - os itens '1pol', '2pol', '27mm', '32mm' e '45mm' sao TODOS bolinhas/capsulas plasticas esfericas (brinquedos de maquina de bolinha), vendidas e embaladas a granel, do menor para o maior:",
         "- 1pol (1 polegada = ~25mm de diametro): a bolinha mais pequena do catalogo, tamanho de uma bolinha de gude pequena.",
@@ -195,21 +290,19 @@ const chamarOpenAIParaAnalisarCaixas = async ({
         "- 32mm de diametro: bolinha pequena-media, um pouco maior que a 27mm, proxima ao tamanho de uma azeitona grande ou de uma bolinha de gude grande.",
         "- 45mm de diametro: bolinha media-grande, proxima ao tamanho de uma bola de golfe (que tem ~42mm).",
         "- 2pol (2 polegadas = ~50mm de diametro): a maior bolinha do catalogo, tamanho de uma bola de pingue-pongue grande, quase do tamanho de uma bola de bilhar/sinuca (~57mm).",
-        "Essas bolinhas sao esfericas e embaladas soltas dentro da caixa (a granel), entao sempre existe espaco vazio entre elas mesmo bem organizadas: ao estimar quantas cabem num volume, considere que bolinhas soltas ocupam na pratica cerca de 55% a 65% do volume interno da caixa (o resto e espaco vazio entre as esferas), nunca assuma 100% de aproveitamento do volume para elas.",
-        "'Cap 1' e 'Cap 2' sao as tampinhas plasticas finas e leves dos dispensers dessas bolinhas (Cap 1 para o tamanho 1pol, Cap 2 para o tamanho 2pol); ocupam pouquissimo volume e peso, podem ser encaixadas em qualquer espaco sobrando na caixa.",
-        "Os demais itens (Square/Globinho, GV Todas, Pedestal X, Pedestal Redondo, Hack, Cuba, Chiclete, Pelucia) sao pecas/acessorios de maquinas ou produtos avulsos, nao bolinhas: tendem a ser volumosos e/ou fragil (ex: globos de vidro, pedestais/estruturas de maquina), por isso o motor de regras ja classifica qualquer pedido com esses itens como 'Personalizada' — trate cada um com cautela, com base no peso unitario aproximado que aparece na lista de itens do pedido (itens mais pesados por unidade tendem a ser maiores/mais rigidos), e explique as suposicoes feitas na justificativa.",
+        "'Cap 1' e 'Cap 2' sao as tampinhas plasticas finas e leves dos dispensers dessas bolinhas; ocupam pouquissimo volume e peso, podem ser encaixadas em qualquer espaco sobrando na caixa.",
+        "Os demais itens do catalogo (Square/Globinho, GV Todas, Pedestal X, Pedestal Redondo, Hack, Cuba, Chiclete, Pelucia), quando presentes, ja vem com as dimensoes AxLxC que o proprio usuario descreveu - use exatamente essas dimensoes, nao invente outras.",
         "",
-        "Seu trabalho e sugerir a(s) melhor(es) caixa(s) de papelao para esse pedido, preferindo sempre reaproveitar uma das caixas do catalogo padrao da empresa quando ela comportar os itens (por volume E por dimensao - o maior lado de um item individual deve caber dentro do menor lado util da caixa escolhida).",
+        "Seu trabalho e distribuir esse volume ja calculado em caixas de papelao reais, preferindo sempre reaproveitar uma das caixas do catalogo padrao da empresa quando ela comportar os itens (por volume E por dimensao - o maior lado de um item individual deve caber dentro do menor lado util da caixa escolhida).",
         `Catalogo de caixas padrao ja usadas pela empresa:\n${listaCatalogoCaixas}`,
         "Quando nenhuma caixa do catalogo comportar tudo, proponha dividir em mais de uma caixa do catalogo (explique a divisao no campo itensAlocados) antes de propor uma caixa nova.",
-        "So proponha uma caixa 'nova' (tipo=nova) quando nenhuma combinacao das caixas padrao for razoavel; nesse caso, sugira dimensoes no formato AxLxC em cm que comportem os itens com folga pequena.",
-        "Sempre leve em conta as dimensoes AxLxC dos produtos personalizados informados (nao so o peso) para decidir se cabem em pe, deitados etc dentro da caixa.",
-        "Se um produto personalizado nao tiver dimensoes informadas, assuma que ele e pequeno/medio (parecido com uma pelucia media) e mencione essa suposicao na justificativa.",
+        "So proponha uma caixa 'nova' (tipo=nova) quando nenhuma combinacao das caixas padrao for razoavel; nesse caso, sugira dimensoes no formato AxLxC em cm que comportem os itens com folga pequena, sempre com volume interno maior que o volume util necessario informado.",
         "",
         "IMPORTANTE - voce deve gerar SEMPRE DUAS opcoes de embalagem diferentes entre si (opcao1 e opcao2), para o time comercial escolher:",
         "- Cada opcao pode usar 1, 2 ou 3 volumes/caixas no total, de tamanhos iguais ou diferentes entre si dentro da mesma opcao.",
         "- As duas opcoes precisam ser realmente distintas (numero de volumes diferente, e/ou tamanhos de caixa diferentes, e/ou forma de dividir os itens diferente) - nunca repita a mesma composicao nas duas.",
         "- Um bom padrao e oferecer uma opcao mais compacta (menos volumes, possivelmente maiores) e outra mais fracionada (mais volumes, possivelmente menores), mas use seu julgamento tecnico para o que fizer mais sentido nesse pedido especifico.",
+        "- A soma dos volumes internos das caixas de CADA opcao precisa ser suficiente para o volume util necessario informado no inicio.",
         "- No campo resumoOpcao de cada opcao, explique rapidamente o raciocinio dessa opcao especifica.",
         "- No campo resumo (geral), compare as duas opcoes em 2-3 frases e, se fizer sentido, diga qual delas voce recomendaria e por que.",
         "Responda sempre em portugues, de forma objetiva.",
@@ -250,24 +343,33 @@ const chamarOpenAIParaAnalisarCaixas = async ({
 
 export const analisarComIA = async (req, res) => {
   try {
-    const { quantidades, produtosPersonalizados, caixaLegado, pesoTotal } =
-      req.body;
+    const {
+      quantidades,
+      dimensoesPecas,
+      produtosPersonalizados,
+      volumeTotalLitros,
+      empacotamentoVolumetrico,
+      pesoTotal,
+    } = req.body;
 
-    if (!caixaLegado || typeof pesoTotal !== "number") {
+    if (typeof volumeTotalLitros !== "number" || typeof pesoTotal !== "number") {
       return res.status(400).json({
-        error: "Envie caixaLegado e pesoTotal calculados previamente",
+        error: "Envie volumeTotalLitros e pesoTotal calculados previamente",
       });
     }
 
     const resultadoEngine = calcularPedido(quantidades);
+    const dimensoesPecasNormalizadas = normalizarDimensoesPecas(dimensoesPecas);
     const produtosCustom = normalizarProdutosPersonalizados(
       produtosPersonalizados,
     );
 
     const analise = await chamarOpenAIParaAnalisarCaixas({
       quantidades: resultadoEngine.quantidades,
+      dimensoesPecas: dimensoesPecasNormalizadas,
       produtosPersonalizados: produtosCustom,
-      caixaLegado,
+      volumeTotalLitros,
+      empacotamentoVolumetrico,
       pesoTotal,
     });
 
