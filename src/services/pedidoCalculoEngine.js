@@ -58,8 +58,9 @@ const VOLUME_UNITARIO_BOLINHA_CM3 = Object.fromEntries(
 // de aproveitamento real é o padrão físico de empacotamento aleatório de esferas.
 const FATOR_OCUPACAO_BOLINHAS = 0.6;
 
-// Margem de manuseio/fechamento: uma caixa nunca é usada até o limite exato do volume.
-const FATOR_APROVEITAMENTO_CAIXA = 0.85;
+// Prioridade do negócio: encher a caixa até a boca, usando todo o volume
+// interno disponível, em vez de reservar margem "de segurança".
+const FATOR_APROVEITAMENTO_CAIXA = 1.0;
 
 // Itens sem tamanho físico conhecido no catálogo (só têm fórmula de preço/peso,
 // nunca dimensão) - o usuário precisa descrever a caixa AxLxC antes de calcular.
