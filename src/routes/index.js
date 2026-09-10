@@ -27,6 +27,7 @@ import assistenteIaRoutes from "./assistenteIa.routes.js";
 import machinePayRoutes from "./machinePay.routes.js";
 import suporteTecnicoRoutes from "./suporteTecnico.routes.js";
 import transportadoraRoutes from "./transportadora.routes.js";
+import calculoPedidoRoutes from "./calculoPedido.routes.js";
 const router = express.Router();
 
 router.use("/auth", authRoutes);
@@ -62,5 +63,6 @@ router.use("/lista-compras-pendentes", listaComprasPendenteRoutes);
 router.use("/machine-pay", machinePayRoutes);
 router.use("/suporte-tecnico", suporteTecnicoRoutes);
 router.use("/transportadoras", transportadoraRoutes);
+router.use("/calculadora-pedidos", calculoPedidoRoutes);
 
 export default router;
