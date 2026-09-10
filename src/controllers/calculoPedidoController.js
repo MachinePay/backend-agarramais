@@ -130,19 +130,11 @@ export const calcular = (req, res) => {
     const volumeTotalLitros =
       volumeBolinhasLitros + volumePecasLitros + volumeProdutosCustomLitros;
 
-    const legadoEhPersonalizada = resultadoEngine.caixaLegado.includes(
-      "Personalizada",
+    // Grounding numerico sempre calculado (mesmo quando a regra legada bate
+    // certo) para a IA usar como referencia confiavel na analise sob demanda.
+    const empacotamentoVolumetrico = sugerirEmpacotamentoPorVolume(
+      volumeTotalLitros,
     );
-    const precisaCalculoVolumetrico =
-      legadoEhPersonalizada || produtosCustom.length > 0;
-
-    const empacotamentoVolumetrico = precisaCalculoVolumetrico
-      ? sugerirEmpacotamentoPorVolume(volumeTotalLitros)
-      : null;
-
-    const caixaSugerida = precisaCalculoVolumetrico
-      ? formatarNomeCaixa(empacotamentoVolumetrico) || resultadoEngine.caixaLegado
-      : resultadoEngine.caixaLegado;
 
     return res.json({
       quantidades: resultadoEngine.quantidades,
@@ -150,14 +142,10 @@ export const calcular = (req, res) => {
       pesoTotal: resultadoEngine.pesoTotal + pesoProdutosCustom,
       pesoEngine: resultadoEngine.pesoTotal,
       pesoProdutosPersonalizados: pesoProdutosCustom,
-      caixaLegado: resultadoEngine.caixaLegado,
-      caixaSugerida,
       volumeTotalLitros,
       empacotamentoVolumetrico,
-      calculadaPorVolume: precisaCalculoVolumetrico,
       produtosPersonalizados: produtosCustom,
       dimensoesPecas: dimensoesPecasNormalizadas,
-      podeRefinarComIA: precisaCalculoVolumetrico,
     });
   } catch (error) {
     console.error("Erro ao calcular pedido:", error);
