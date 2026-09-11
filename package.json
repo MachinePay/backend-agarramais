@@ -2,11 +2,11 @@
   "name": "agarra-mais-backend",
   "version": "1.0.0",
   "description": "Backend para gestão de máquinas de pelúcia Agarra Mais",
-  "main": "src/server.js",
+  "main": "src/index.js",
   "type": "module",
   "scripts": {
-    "dev": "nodemon src/server.js",
-    "start": "node src/server.js",
+    "dev": "nodemon src/index.js",
+    "start": "node src/index.js",
     "migrate": "node src/database/migrate.js",
     "seed": "node src/database/seed.js"
   },
