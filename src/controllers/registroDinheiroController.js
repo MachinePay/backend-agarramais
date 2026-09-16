@@ -9,6 +9,7 @@ import {
   Movimentacao,
   Maquina,
   Produto,
+  Loja,
 } from "../models/index.js";
 import {
   consultarFechamentoMachinePay,
@@ -338,8 +339,8 @@ const registroDinheiroController = {
             [Op.ne]: null,
           },
         },
-        attributes: ["id", "machinePayPosId", "nome", "codigo"],
-        raw: true,
+        attributes: ["id", "machinePayPosId", "nome", "codigo", "valorFicha", "lojaId"],
+        include: [{ model: Loja, as: "loja", attributes: ["id", "nome"] }],
       });
 
       if (!maquinas.length) {
@@ -366,6 +367,9 @@ const registroDinheiroController = {
               machinePayPosId: maquina.machinePayPosId,
               nome: maquina.nome,
               codigo: maquina.codigo,
+              valorFicha: Number(maquina.valorFicha || 0),
+              lojaId: maquina.lojaId,
+              loja: maquina.loja?.nome || null,
               ...dados,
             };
           } catch (err) {
