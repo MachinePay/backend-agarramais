@@ -333,6 +333,7 @@ const registroDinheiroController = {
 
       const maquinas = await Maquina.findAll({
         where: {
+          ativo: true,
           machinePayPosId: {
             [Op.ne]: null,
           },
