@@ -56,6 +56,13 @@ const Movimentacao = sequelize.define(
       defaultValue: 0,
       comment: "Quantidade final (totalPre - sairam + abastecidas)",
     },
+    origemTotalPre: {
+      type: DataTypes.STRING(20),
+      allowNull: true,
+      field: "origem_total_pre",
+      comment:
+        "Como o Total Pré foi definido: 'automatico' (via pulsos da Machine Pay) ou 'manual' (digitado pelo operador)",
+    },
 
     // US09 - Coleta de Fichas
     fichas: {

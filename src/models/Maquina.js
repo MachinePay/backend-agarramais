@@ -32,6 +32,19 @@ const Maquina = sequelize.define(
       field: "machine_pay_usr_id",
       comment: "ID do cliente/usr no painel Machine Pay para consulta de status",
     },
+    descontoAutomaticoMachinePay: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+      field: "desconto_automatico_machine_pay",
+      comment: "Se ativo, sugere o Total Pré da próxima coleta descontando pulsos pagos via Machine Pay",
+    },
+    valorDescontoMachinePay: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+      field: "valor_desconto_machine_pay",
+      comment: "Valor em R$ de cada pulso/ficha liberado por pagamento na Machine Pay",
+    },
     tipo: {
       type: DataTypes.STRING(50),
       allowNull: true,

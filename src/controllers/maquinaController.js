@@ -68,6 +68,8 @@ export const criarMaquina = async (req, res) => {
       nome,
       machinePayPosId,
       machinePayUsrId,
+      descontoAutomaticoMachinePay,
+      valorDescontoMachinePay,
       tipo,
       lojaId,
       capacidadePadrao,
@@ -99,6 +101,8 @@ export const criarMaquina = async (req, res) => {
       nome,
       machinePayPosId: machinePayPosId?.trim() || null,
       machinePayUsrId: machinePayUsrId?.trim() || null,
+      descontoAutomaticoMachinePay: descontoAutomaticoMachinePay ?? false,
+      valorDescontoMachinePay: valorDescontoMachinePay || null,
       tipo,
       lojaId,
       capacidadePadrao: capacidadePadrao || 100,
@@ -135,6 +139,8 @@ export const atualizarMaquina = async (req, res) => {
       nome,
       machinePayPosId,
       machinePayUsrId,
+      descontoAutomaticoMachinePay,
+      valorDescontoMachinePay,
       tipo,
       lojaId,
       capacidadePadrao,
@@ -169,6 +175,12 @@ export const atualizarMaquina = async (req, res) => {
         machinePayUsrId === undefined
           ? maquina.machinePayUsrId
           : machinePayUsrId?.trim() || null,
+      descontoAutomaticoMachinePay:
+        descontoAutomaticoMachinePay ?? maquina.descontoAutomaticoMachinePay,
+      valorDescontoMachinePay:
+        valorDescontoMachinePay === undefined
+          ? maquina.valorDescontoMachinePay
+          : valorDescontoMachinePay || null,
       tipo: tipo ?? maquina.tipo,
       lojaId: lojaId ?? maquina.lojaId,
       capacidadePadrao: capacidadePadrao ?? maquina.capacidadePadrao,

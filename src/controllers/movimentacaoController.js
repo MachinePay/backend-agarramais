@@ -8,8 +8,23 @@ import {
   Loja,
 } from "../models/index.js";
 import { Op } from "sequelize";
+import { consultarTransacoesMachinePay } from "../services/machinePayService.js";
 
 const movimentacoesEmAndamento = new Set();
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
+
+const formatarDataHoraBrasilia = (data) =>
+  new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  })
+    .format(data)
+    .replace(" ", "T");
 
 // US08, US09, US10 - Registrar movimentação completa
 export const registrarMovimentacao = async (req, res) => {
@@ -32,6 +47,7 @@ export const registrarMovimentacao = async (req, res) => {
       produtos, // Array de { produtoId, quantidadeSaiu, quantidadeAbastecida }
       quantidade_notas_entrada,
       valor_entrada_maquininha_pix,
+      origemTotalPre,
     } = req.body;
 
     // Validações
@@ -210,6 +226,7 @@ export const registrarMovimentacao = async (req, res) => {
       quantidade_notas_entrada: quantidade_notas_entrada ?? null,
       valor_entrada_maquininha_pix: valor_entrada_maquininha_pix ?? null,
       totalPos: totalPosCalculado,
+      origemTotalPre: origemTotalPre || null,
     });
 
     console.log("✅ [registrarMovimentacao] Movimentação criada:", {
@@ -951,5 +968,112 @@ export const problemaMaquina = async (req, res) => {
   } catch (error) {
     console.error("Erro ao buscar problema da máquina:", error);
     res.status(500).json({ error: "Erro ao buscar problema da máquina" });
+  }
+};
+
+// A cada esse número de dias, força uma conferência manual (o operador
+// conta fisicamente e digita) em vez de confiar cegamente nos pulsos da
+// Machine Pay — evita que um desvio não detectado (erro mecânico, pulso
+// perdido, etc) se acumule por tempo indefinido sem ninguém notar.
+const DIAS_CICLO_CONFERENCIA_MANUAL = 15;
+
+// GET /movimentacoes/sugestao-total-pre/:maquinaId
+//
+// Sugere o Total Pré da próxima coleta para máquinas com "desconto
+// automático via Machine Pay" ativado: a cada pagamento aprovado na Machine
+// Pay desde a última coleta, a máquina libera um pulso/ficha, então o total
+// esperado é o totalPos da última coleta menos 1 pulso pra cada
+// valorDescontoMachinePay recebido. Ex.: totalPos anterior 150, valor de
+// desconto R$30 — R$30 recebidos => sugestão 149; R$40 (ainda só 1 pulso
+// completo) => 149; R$60 (2 pulsos) => 148.
+//
+// A cada DIAS_CICLO_CONFERENCIA_MANUAL dias desde a última conferência
+// manual (uma movimentação com origemTotalPre = "manual"), devolve
+// modo: "forcar_manual" — o valor calculado ainda vem na resposta (pro
+// frontend comparar com o que o operador digitar e alertar se não bater),
+// mas não deve ser usado para travar/preencher o campo automaticamente.
+export const sugerirTotalPre = async (req, res) => {
+  try {
+    const { maquinaId } = req.params;
+    const maquina = await Maquina.findByPk(maquinaId);
+
+    if (!maquina) {
+      return res.status(404).json({ error: "Máquina não encontrada" });
+    }
+
+    if (!maquina.machinePayPosId) {
+      return res.json({ sugestaoDisponivel: false, motivo: "sem_pos_id" });
+    }
+
+    const valorDesconto = Number(maquina.valorDescontoMachinePay || 0);
+    if (!maquina.descontoAutomaticoMachinePay || valorDesconto <= 0) {
+      return res.json({
+        sugestaoDisponivel: false,
+        motivo: "desconto_desativado",
+      });
+    }
+
+    const ultimaMov = await Movimentacao.findOne({
+      where: { maquinaId },
+      order: [["dataColeta", "DESC"]],
+    });
+
+    if (!ultimaMov) {
+      return res.json({
+        sugestaoDisponivel: false,
+        motivo: "sem_movimentacao_anterior",
+        modo: "forcar_manual",
+      });
+    }
+
+    const ultimaConferenciaManual = await Movimentacao.findOne({
+      where: { maquinaId, origemTotalPre: "manual" },
+      order: [["dataColeta", "DESC"]],
+    });
+
+    const diasDesdeConferencia = ultimaConferenciaManual
+      ? (Date.now() - new Date(ultimaConferenciaManual.dataColeta).getTime()) /
+        DAY_IN_MS
+      : Infinity;
+    const modo =
+      diasDesdeConferencia >= DIAS_CICLO_CONFERENCIA_MANUAL
+        ? "forcar_manual"
+        : "auto";
+
+    const inicio = formatarDataHoraBrasilia(new Date(ultimaMov.dataColeta));
+    const fim = formatarDataHoraBrasilia(new Date());
+
+    const { transacoes } = await consultarTransacoesMachinePay({
+      posId: maquina.machinePayPosId,
+      inicio,
+      fim,
+    });
+
+    const totalRecebido = transacoes
+      .filter((transacao) => !transacao.jaDevolvido)
+      .reduce((soma, transacao) => soma + Number(transacao.valor || 0), 0);
+
+    const pulsos = Math.floor(totalRecebido / valorDesconto);
+    const totalPosAnterior = ultimaMov.totalPos || 0;
+    const sugestaoTotalPre = Math.max(0, totalPosAnterior - pulsos);
+
+    return res.json({
+      sugestaoDisponivel: true,
+      modo,
+      sugestaoTotalPre,
+      totalPosAnterior,
+      totalRecebidoDesdeUltimaMovimentacao: Number(totalRecebido.toFixed(2)),
+      pulsos,
+      valorDesconto,
+      ultimaMovimentacaoEm: ultimaMov.dataColeta,
+    });
+  } catch (error) {
+    console.error("Erro ao sugerir total pré via Machine Pay:", error);
+    res.status(502).json({
+      sugestaoDisponivel: false,
+      motivo: "erro_machine_pay",
+      modo: "forcar_manual",
+      error: error.message,
+    });
   }
 };

@@ -5,6 +5,7 @@ import {
   obterMovimentacao,
   atualizarMovimentacao,
   deletarMovimentacao,
+  sugerirTotalPre,
 } from "../controllers/movimentacaoController.js";
 import {
   autenticar,
@@ -15,6 +16,7 @@ import {
 const router = express.Router();
 
 router.get("/", autenticar, listarMovimentacoes);
+router.get("/sugestao-total-pre/:maquinaId", autenticar, sugerirTotalPre);
 router.get("/:id", autenticar, obterMovimentacao);
 router.post(
   "/",
