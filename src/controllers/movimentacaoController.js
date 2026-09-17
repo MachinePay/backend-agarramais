@@ -8,23 +8,10 @@ import {
   Loja,
 } from "../models/index.js";
 import { Op } from "sequelize";
-import { consultarTransacoesMachinePay } from "../services/machinePayService.js";
+import { calcularEstoqueRealMachinePay } from "../services/machinePayService.js";
 
 const movimentacoesEmAndamento = new Set();
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
-
-const formatarDataHoraBrasilia = (data) =>
-  new Intl.DateTimeFormat("sv-SE", {
-    timeZone: "America/Sao_Paulo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  })
-    .format(data)
-    .replace(" ", "T");
 
 // US08, US09, US10 - Registrar movimentação completa
 export const registrarMovimentacao = async (req, res) => {
@@ -1040,29 +1027,21 @@ export const sugerirTotalPre = async (req, res) => {
         ? "forcar_manual"
         : "auto";
 
-    const inicio = formatarDataHoraBrasilia(new Date(ultimaMov.dataColeta));
-    const fim = formatarDataHoraBrasilia(new Date());
-
-    const { transacoes } = await consultarTransacoesMachinePay({
-      posId: maquina.machinePayPosId,
-      inicio,
-      fim,
-    });
-
-    const totalRecebido = transacoes
-      .filter((transacao) => !transacao.jaDevolvido)
-      .reduce((soma, transacao) => soma + Number(transacao.valor || 0), 0);
-
-    const pulsos = Math.floor(totalRecebido / valorDesconto);
     const totalPosAnterior = ultimaMov.totalPos || 0;
-    const sugestaoTotalPre = Math.max(0, totalPosAnterior - pulsos);
+    const { estoqueReal, totalRecebidoDesdeUltimaMovimentacao, pulsos } =
+      await calcularEstoqueRealMachinePay({
+        posId: maquina.machinePayPosId,
+        valorDesconto,
+        totalPosAnterior,
+        dataUltimaMovimentacao: ultimaMov.dataColeta,
+      });
 
     return res.json({
       sugestaoDisponivel: true,
       modo,
-      sugestaoTotalPre,
+      sugestaoTotalPre: estoqueReal,
       totalPosAnterior,
-      totalRecebidoDesdeUltimaMovimentacao: Number(totalRecebido.toFixed(2)),
+      totalRecebidoDesdeUltimaMovimentacao,
       pulsos,
       valorDesconto,
       ultimaMovimentacaoEm: ultimaMov.dataColeta,

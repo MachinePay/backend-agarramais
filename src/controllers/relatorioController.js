@@ -81,6 +81,7 @@ import {
   GastoFixoLoja,
   GastoTotalFixoLoja,
 } from "../models/index.js";
+import { calcularEstoqueRealMachinePay } from "../services/machinePayService.js";
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 const VALOR_FICHA_PADRAO_DEFAULT = 2.5;
@@ -956,7 +957,45 @@ export const alertasEstoque = async (req, res) => {
         ],
       });
 
-      const estoqueAtual = ultimaMovimentacao ? ultimaMovimentacao.totalPos : 0;
+      const estoqueRegistrado = ultimaMovimentacao
+        ? ultimaMovimentacao.totalPos
+        : 0;
+      let estoqueAtual = estoqueRegistrado;
+      let machinePay = null;
+
+      // Máquina com desconto automático via Machine Pay: o totalPos
+      // registrado fica desatualizado assim que alguém paga na maquininha
+      // (cada pulso libera 1 unidade sem gerar uma nova movimentação). Usa
+      // o valor real pra decidir o alerta, mas mostra os dois números.
+      const valorDescontoMachinePay = Number(maquina.valorDescontoMachinePay || 0);
+      if (
+        maquina.descontoAutomaticoMachinePay &&
+        valorDescontoMachinePay > 0 &&
+        maquina.machinePayPosId &&
+        ultimaMovimentacao
+      ) {
+        try {
+          const { estoqueReal, totalRecebidoDesdeUltimaMovimentacao, pulsos } =
+            await calcularEstoqueRealMachinePay({
+              posId: maquina.machinePayPosId,
+              valorDesconto: valorDescontoMachinePay,
+              totalPosAnterior: estoqueRegistrado,
+              dataUltimaMovimentacao: ultimaMovimentacao.dataColeta,
+            });
+          estoqueAtual = estoqueReal;
+          machinePay = {
+            estoqueRegistrado,
+            totalRecebidoDesdeUltimaMovimentacao,
+            pulsos,
+          };
+        } catch (err) {
+          console.error(
+            `[alertasEstoque] Erro ao consultar Machine Pay da máquina ${maquina.id}:`,
+            err.message,
+          );
+        }
+      }
+
       const estoqueMinimo =
         (maquina.capacidadePadrao * maquina.percentualAlertaEstoque) / 100;
       const percentualAtual = (estoqueAtual / maquina.capacidadePadrao) * 100;
@@ -981,6 +1020,7 @@ export const alertasEstoque = async (req, res) => {
           },
           produtos: produtosUnicos,
           estoqueAtual,
+          machinePay,
           capacidadePadrao: maquina.capacidadePadrao,
           estoqueMinimo,
           percentualAtual: percentualAtual.toFixed(2),

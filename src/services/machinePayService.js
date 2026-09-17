@@ -633,6 +633,54 @@ export const consultarTransacoesMachinePay = async ({ posId, inicio, fim }) => {
   };
 };
 
+const formatarDataHoraBrasilia = (data) =>
+  new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  })
+    .format(data)
+    .replace(" ", "T");
+
+// Calcula o estoque real de uma máquina com "desconto automático via
+// Machine Pay": a cada pagamento aprovado desde a última coleta, a máquina
+// libera 1 pulso/ficha sem gerar uma nova movimentação, então o totalPos
+// registrado fica desatualizado. Usado tanto pela sugestão de Total Pré
+// (movimentacaoController) quanto pelos alertas de estoque
+// (relatorioController), pra não duplicar essa conta em dois lugares.
+export const calcularEstoqueRealMachinePay = async ({
+  posId,
+  valorDesconto,
+  totalPosAnterior,
+  dataUltimaMovimentacao,
+}) => {
+  const inicio = formatarDataHoraBrasilia(new Date(dataUltimaMovimentacao));
+  const fim = formatarDataHoraBrasilia(new Date());
+
+  const { transacoes } = await consultarTransacoesMachinePay({
+    posId,
+    inicio,
+    fim,
+  });
+
+  const totalRecebido = transacoes
+    .filter((transacao) => !transacao.jaDevolvido)
+    .reduce((soma, transacao) => soma + Number(transacao.valor || 0), 0);
+
+  const pulsos = Math.floor(totalRecebido / valorDesconto);
+  const estoqueReal = Math.max(0, totalPosAnterior - pulsos);
+
+  return {
+    estoqueReal,
+    totalRecebidoDesdeUltimaMovimentacao: Number(totalRecebido.toFixed(2)),
+    pulsos,
+  };
+};
+
 export const devolverPagamentoMachinePay = async ({ idwebhook }) => {
   const loginUrl = process.env.MACHINE_PAY_LOGIN_URL || DEFAULT_LOGIN_URL;
   const url = `${loginUrl}maquinas.php?acao=devolver&idwebhook=${encodeURIComponent(idwebhook)}`;
