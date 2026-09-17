@@ -340,13 +340,19 @@ const capturarValorPorLabel = (rowHtml, label) => {
 };
 
 const capturarPulsoMachinePay = (rowHtml) => {
-  const match = rowHtml.match(/<b[^>]*>\s*(Pulso[^<]*)<\/b>/i);
+  // O status do pulso/tarifador vem do <select id="pgNNNN"> da coluna
+  // Telemetrias (opções: "Consultado"/"Aguardando"/"Expirado ❌"), não de um
+  // <b>Pulso...</b> como a marcação antiga assumia.
+  const match = rowHtml.match(
+    /<option\s+selected\s+value="([^"]*)">([^<]*)<\/option>/i,
+  );
   if (!match) return { pulsoConsultado: false, pulsoStatus: "" };
 
-  const pulsoStatus = stripHtml(match[1]);
+  const valor = match[1];
+  const pulsoStatus = stripHtml(match[2]);
 
   return {
-    pulsoConsultado: /liberado/i.test(pulsoStatus),
+    pulsoConsultado: valor === "ok" || /consultado/i.test(pulsoStatus),
     pulsoStatus,
   };
 };
