@@ -646,37 +646,69 @@ const formatarDataHoraBrasilia = (data) =>
     .format(data)
     .replace(" ", "T");
 
+// Soma o valor recebido (pagamentos aprovados, excluindo devoluções) na
+// Machine Pay num intervalo. Centraliza a formatação de data (Brasília) e a
+// filtragem de devoluções usada tanto pelo cálculo de estoque real quanto
+// pela preservação de dados antes de um fechamento (ver
+// MachinePayColetaPendente em registroDinheiroController), pra não duplicar
+// essa conta em mais de um lugar.
+export const calcularTotalRecebidoMachinePay = async ({
+  posId,
+  inicio,
+  fim,
+}) => {
+  const inicioFormatado = formatarDataHoraBrasilia(new Date(inicio));
+  const fimFormatado = formatarDataHoraBrasilia(new Date(fim));
+
+  const { transacoes } = await consultarTransacoesMachinePay({
+    posId,
+    inicio: inicioFormatado,
+    fim: fimFormatado,
+  });
+
+  const total = transacoes
+    .filter((transacao) => !transacao.jaDevolvido)
+    .reduce((soma, transacao) => soma + Number(transacao.valor || 0), 0);
+
+  return Number(total.toFixed(2));
+};
+
 // Calcula o estoque real de uma máquina com "desconto automático via
 // Machine Pay": a cada pagamento aprovado desde a última coleta, a máquina
 // libera 1 pulso/ficha sem gerar uma nova movimentação, então o totalPos
 // registrado fica desatualizado. Usado tanto pela sugestão de Total Pré
 // (movimentacaoController) quanto pelos alertas de estoque
 // (relatorioController), pra não duplicar essa conta em dois lugares.
+//
+// `dataUltimaMovimentacao` deve ser o ponto de partida já ajustado pelo
+// chamador (a data da última movimentação, ou a data do fechamento mais
+// recente que já teve seu extrato preservado em MachinePayColetaPendente,
+// o que for mais recente) e `totalAcumuladoPendente` é o valor já
+// preservado de fechamentos anteriores que zeraram o extrato na Machine
+// Pay para o período anterior a essa data — ver registroDinheiroController.
 export const calcularEstoqueRealMachinePay = async ({
   posId,
   valorDesconto,
   totalPosAnterior,
   dataUltimaMovimentacao,
+  totalAcumuladoPendente = 0,
 }) => {
-  const inicio = formatarDataHoraBrasilia(new Date(dataUltimaMovimentacao));
-  const fim = formatarDataHoraBrasilia(new Date());
-
-  const { transacoes } = await consultarTransacoesMachinePay({
+  const totalRecebidoConsulta = await calcularTotalRecebidoMachinePay({
     posId,
-    inicio,
-    fim,
+    inicio: dataUltimaMovimentacao,
+    fim: new Date(),
   });
 
-  const totalRecebido = transacoes
-    .filter((transacao) => !transacao.jaDevolvido)
-    .reduce((soma, transacao) => soma + Number(transacao.valor || 0), 0);
+  const totalRecebido = Number(
+    (totalRecebidoConsulta + Number(totalAcumuladoPendente || 0)).toFixed(2),
+  );
 
   const pulsos = Math.floor(totalRecebido / valorDesconto);
   const estoqueReal = Math.max(0, totalPosAnterior - pulsos);
 
   return {
     estoqueReal,
-    totalRecebidoDesdeUltimaMovimentacao: Number(totalRecebido.toFixed(2)),
+    totalRecebidoDesdeUltimaMovimentacao: totalRecebido,
     pulsos,
   };
 };

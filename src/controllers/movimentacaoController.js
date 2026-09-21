@@ -6,6 +6,7 @@ import {
   Produto,
   EstoqueLoja,
   Loja,
+  MachinePayColetaPendente,
 } from "../models/index.js";
 import { Op } from "sequelize";
 import { calcularEstoqueRealMachinePay } from "../services/machinePayService.js";
@@ -215,6 +216,19 @@ export const registrarMovimentacao = async (req, res) => {
       totalPos: totalPosCalculado,
       origemTotalPre: origemTotalPre || null,
     });
+
+    // Essa movimentação passa a ser o novo marco de referência da Machine
+    // Pay pra essa máquina — qualquer valor preservado de um fechamento
+    // anterior (MachinePayColetaPendente) já está embutido no totalPre que
+    // acabou de ser lançado, então não deve mais entrar nas próximas contas.
+    try {
+      await MachinePayColetaPendente.destroy({ where: { maquinaId } });
+    } catch (limpezaError) {
+      console.error(
+        "[MachinePay] Erro ao limpar coleta pendente após nova movimentação:",
+        limpezaError,
+      );
+    }
 
     console.log("✅ [registrarMovimentacao] Movimentação criada:", {
       id: movimentacao.id,
@@ -1028,12 +1042,28 @@ export const sugerirTotalPre = async (req, res) => {
         : "auto";
 
     const totalPosAnterior = ultimaMov.totalPos || 0;
+
+    // Se algum fechamento mensal já zerou o extrato da Machine Pay desde
+    // essa coleta, o valor recebido naquele período foi preservado aqui —
+    // soma ele e usa o fim do fechamento como novo ponto de partida da
+    // consulta (senão a consulta ao vivo, que já não encontra mais nada
+    // antes disso na Machine Pay, ficaria incompleta).
+    const pendenteMachinePay = await MachinePayColetaPendente.findOne({
+      where: { maquinaId },
+    });
+    const dataInicioConsulta =
+      pendenteMachinePay?.dataReferencia &&
+      new Date(pendenteMachinePay.dataReferencia) > new Date(ultimaMov.dataColeta)
+        ? pendenteMachinePay.dataReferencia
+        : ultimaMov.dataColeta;
+
     const { estoqueReal, totalRecebidoDesdeUltimaMovimentacao, pulsos } =
       await calcularEstoqueRealMachinePay({
         posId: maquina.machinePayPosId,
         valorDesconto,
         totalPosAnterior,
-        dataUltimaMovimentacao: ultimaMov.dataColeta,
+        dataUltimaMovimentacao: dataInicioConsulta,
+        totalAcumuladoPendente: pendenteMachinePay?.totalAcumulado || 0,
       });
 
     return res.json({

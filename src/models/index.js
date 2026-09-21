@@ -27,6 +27,7 @@ import AlertaMovimentacao from "./AlertaMovimentacao.js";
 import SuporteItem from "./SuporteItem.js";
 import SuporteMovimentacao from "./SuporteMovimentacao.js";
 import SuporteDevolucaoPendente from "./SuporteDevolucaoPendente.js";
+import MachinePayColetaPendente from "./MachinePayColetaPendente.js";
 // Movimentação de Veículo -> Veículo e Usuário
 MovimentacaoVeiculo.belongsTo(Veiculo, {
   as: "veiculo",
@@ -385,6 +386,17 @@ Usuario.hasMany(SuporteDevolucaoPendente, {
   as: "devolucoesPendentesCriadas",
 });
 
+// Máquina -> Coleta pendente da Machine Pay (dados preservados de
+// fechamentos que já zeraram o extrato na Machine Pay)
+Maquina.hasOne(MachinePayColetaPendente, {
+  foreignKey: "maquinaId",
+  as: "coletaPendenteMachinePay",
+});
+MachinePayColetaPendente.belongsTo(Maquina, {
+  foreignKey: "maquinaId",
+  as: "maquina",
+});
+
 export {
   Usuario,
   Loja,
@@ -415,4 +427,5 @@ export {
   SuporteItem,
   SuporteMovimentacao,
   SuporteDevolucaoPendente,
+  MachinePayColetaPendente,
 };

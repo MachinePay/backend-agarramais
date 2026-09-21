@@ -80,6 +80,7 @@ import {
   GastoVariavel,
   GastoFixoLoja,
   GastoTotalFixoLoja,
+  MachinePayColetaPendente,
 } from "../models/index.js";
 import { calcularEstoqueRealMachinePay } from "../services/machinePayService.js";
 
@@ -975,12 +976,23 @@ export const alertasEstoque = async (req, res) => {
         ultimaMovimentacao
       ) {
         try {
+          const pendenteMachinePay = await MachinePayColetaPendente.findOne({
+            where: { maquinaId: maquina.id },
+          });
+          const dataInicioConsulta =
+            pendenteMachinePay?.dataReferencia &&
+            new Date(pendenteMachinePay.dataReferencia) >
+              new Date(ultimaMovimentacao.dataColeta)
+              ? pendenteMachinePay.dataReferencia
+              : ultimaMovimentacao.dataColeta;
+
           const { estoqueReal, totalRecebidoDesdeUltimaMovimentacao, pulsos } =
             await calcularEstoqueRealMachinePay({
               posId: maquina.machinePayPosId,
               valorDesconto: valorDescontoMachinePay,
               totalPosAnterior: estoqueRegistrado,
-              dataUltimaMovimentacao: ultimaMovimentacao.dataColeta,
+              dataUltimaMovimentacao: dataInicioConsulta,
+              totalAcumuladoPendente: pendenteMachinePay?.totalAcumulado || 0,
             });
           estoqueAtual = estoqueReal;
           machinePay = {

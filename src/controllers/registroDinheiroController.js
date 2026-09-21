@@ -10,10 +10,12 @@ import {
   Maquina,
   Produto,
   Loja,
+  MachinePayColetaPendente,
 } from "../models/index.js";
 import {
   consultarFechamentoMachinePay,
   fecharFechamentoMachinePay,
+  calcularTotalRecebidoMachinePay,
 } from "../services/machinePayService.js";
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
@@ -261,6 +263,67 @@ const calcularGastosPeriodo = async (lojaId, inicio, fim) => {
     gastoProdutosPeriodo,
     gastoTotalPeriodo,
   };
+};
+
+// O fechamento (fecharFechamentoMachinePay) zera o extrato da máquina na
+// Machine Pay para o período [inicio, fim]. Se a máquina tem "desconto
+// automático" ativado, esse extrato é usado depois (calcularEstoqueRealMachinePay)
+// pra saber quantos pulsos/fichas já saíram sozinhos desde a última
+// movimentação — então zerar sem guardar esse valor faz a próxima sugestão
+// de Total Pré perder a contagem do período que já foi fechado. Aqui a
+// gente soma o que seria perdido em MachinePayColetaPendente ANTES de
+// chamar o fechamento; o registro é apagado assim que a próxima
+// movimentação é lançada (ver registrarMovimentacao).
+const preservarTransacoesPendentesMachinePay = async ({
+  maquina,
+  fim,
+}) => {
+  const valorDesconto = Number(maquina.valorDescontoMachinePay || 0);
+  if (!maquina.descontoAutomaticoMachinePay || valorDesconto <= 0) return;
+
+  const [ultimaMov, pendenteExistente] = await Promise.all([
+    Movimentacao.findOne({
+      where: { maquinaId: maquina.id },
+      order: [["dataColeta", "DESC"]],
+    }),
+    MachinePayColetaPendente.findOne({ where: { maquinaId: maquina.id } }),
+  ]);
+
+  const inicioJanela = pendenteExistente?.dataReferencia
+    ? new Date(pendenteExistente.dataReferencia)
+    : ultimaMov?.dataColeta
+      ? new Date(ultimaMov.dataColeta)
+      : null;
+
+  // Sem movimentação anterior e sem acumulado pendente: não há nada que o
+  // fechamento vá zerar que já não tenha sido contabilizado numa coleta.
+  if (!inicioJanela) return;
+
+  const fimJanela = new Date(fim);
+  if (fimJanela <= inicioJanela) return;
+
+  const totalJanela = await calcularTotalRecebidoMachinePay({
+    posId: maquina.machinePayPosId,
+    inicio: inicioJanela,
+    fim: fimJanela,
+  });
+
+  const totalAcumulado = Number(
+    (Number(pendenteExistente?.totalAcumulado || 0) + totalJanela).toFixed(2),
+  );
+
+  if (pendenteExistente) {
+    await pendenteExistente.update({
+      totalAcumulado,
+      dataReferencia: fimJanela,
+    });
+  } else {
+    await MachinePayColetaPendente.create({
+      maquinaId: maquina.id,
+      totalAcumulado,
+      dataReferencia: fimJanela,
+    });
+  }
 };
 
 const registroDinheiroController = {
@@ -598,10 +661,33 @@ const registroDinheiroController = {
         if (!ehRegistroTotalLoja && maquina) {
           try {
             const maquinaFechamento = await Maquina.findByPk(maquina, {
-              attributes: ["id", "machinePayPosId"],
+              attributes: [
+                "id",
+                "machinePayPosId",
+                "descontoAutomaticoMachinePay",
+                "valorDescontoMachinePay",
+              ],
             });
 
             if (maquinaFechamento?.machinePayPosId) {
+              try {
+                await preservarTransacoesPendentesMachinePay({
+                  maquina: maquinaFechamento,
+                  fim,
+                });
+              } catch (preservarError) {
+                // Se não deu pra preservar o que seria perdido, não executa
+                // o fechamento agora — melhor deixar o extrato acumular na
+                // própria Machine Pay do que zerar e perder a contagem.
+                console.error(
+                  "[MachinePay] Erro ao preservar transações pendentes antes do fechamento:",
+                  preservarError,
+                );
+                throw new Error(
+                  "Não foi possível preservar as transações da Machine Pay antes do fechamento; fechamento não executado.",
+                );
+              }
+
               const resultadoFechamento = await fecharFechamentoMachinePay({
                 posId: maquinaFechamento.machinePayPosId,
                 inicio,
