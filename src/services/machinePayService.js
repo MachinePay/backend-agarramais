@@ -134,6 +134,50 @@ const parseStats = (html) => {
   };
 };
 
+// Percentual retido no "recebimento à parte" (ex.: poltronas do aeroporto,
+// parede interna) — repassado a quem administra o espaço.
+const PERCENTUAL_RETIDO_RECEBIMENTO_A_PARTE = 0.3;
+
+// Máquinas marcadas com "recebimento à parte" (Maquina.recebimentoAParteMachinePay)
+// têm o bruto vindo da Machine Pay recalculado antes de entrar no sistema:
+// tira o percentual retido, divide o restante ao meio, soma com metade do
+// percentual retido. Ex.: 30000 -> tira 30% (sobra 21000) -> divide por 2
+// (10500) -> soma com metade dos 30% (9000/2 = 4500) -> 15000.
+export const calcularRecebimentoAParteMachinePay = (valorBruto) => {
+  const valor = Number(valorBruto || 0);
+  const retido = valor * PERCENTUAL_RETIDO_RECEBIMENTO_A_PARTE;
+  const restante = valor - retido;
+
+  const parteRestante = restante / 2;
+  const parteRetida = retido / 2;
+
+  return Number((parteRestante + parteRetida).toFixed(2));
+};
+
+// Aplica o "recebimento à parte" em todo o resultado de
+// consultarFechamentoMachinePay (não só no bruto), escalando pix/débito/
+// crédito/taxas/líquido pelo mesmo fator do bruto — assim o resumo mostrado
+// no Registrar Dinheiro continua com os números batendo entre si, e
+// percentualTaxaMedia (proporção taxas/bruto) não muda.
+export const ajustarStatsParaRecebimentoAParte = (dados) => {
+  const brutoOriginal = Number(dados.brutoComTaxasMp || 0);
+  const brutoAjustado = calcularRecebimentoAParteMachinePay(brutoOriginal);
+  const fator = brutoOriginal > 0 ? brutoAjustado / brutoOriginal : 0;
+  const escalar = (valor) => Number((Number(valor || 0) * fator).toFixed(2));
+
+  return {
+    ...dados,
+    pix: escalar(dados.pix),
+    debito: escalar(dados.debito),
+    credito: escalar(dados.credito),
+    cartao: escalar(dados.cartao),
+    brutoComTaxasMp: brutoAjustado,
+    cartaoPix: brutoAjustado,
+    taxas: escalar(dados.taxas),
+    liquido: escalar(dados.liquido),
+  };
+};
+
 const formatInicio = (value) => String(value || "").slice(0, 10);
 const formatFim = (value) => {
   const texto = String(value || "");

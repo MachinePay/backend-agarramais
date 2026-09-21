@@ -16,6 +16,7 @@ import {
   consultarFechamentoMachinePay,
   fecharFechamentoMachinePay,
   calcularTotalRecebidoMachinePay,
+  ajustarStatsParaRecebimentoAParte,
 } from "../services/machinePayService.js";
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
@@ -338,7 +339,13 @@ const registroDinheiroController = {
       }
 
       const maquina = await Maquina.findByPk(maquinaId, {
-        attributes: ["id", "codigo", "nome", "machinePayPosId"],
+        attributes: [
+          "id",
+          "codigo",
+          "nome",
+          "machinePayPosId",
+          "recebimentoAParteMachinePay",
+        ],
       });
 
       if (!maquina) {
@@ -351,11 +358,15 @@ const registroDinheiroController = {
         });
       }
 
-      const dados = await consultarFechamentoMachinePay({
+      const dadosBrutos = await consultarFechamentoMachinePay({
         posId: maquina.machinePayPosId,
         inicio,
         fim,
       });
+
+      const dados = maquina.recebimentoAParteMachinePay
+        ? ajustarStatsParaRecebimentoAParte(dadosBrutos)
+        : dadosBrutos;
 
       return res.json({
         maquinaId: maquina.id,
@@ -402,7 +413,15 @@ const registroDinheiroController = {
             [Op.ne]: null,
           },
         },
-        attributes: ["id", "machinePayPosId", "nome", "codigo", "valorFicha", "lojaId"],
+        attributes: [
+          "id",
+          "machinePayPosId",
+          "nome",
+          "codigo",
+          "valorFicha",
+          "lojaId",
+          "recebimentoAParteMachinePay",
+        ],
         include: [{ model: Loja, as: "loja", attributes: ["id", "nome"] }],
       });
 
@@ -420,11 +439,14 @@ const registroDinheiroController = {
       const resultados = await Promise.all(
         maquinas.map(async (maquina) => {
           try {
-            const dados = await consultarFechamentoMachinePay({
+            const dadosBrutos = await consultarFechamentoMachinePay({
               posId: maquina.machinePayPosId,
               inicio,
               fim,
             });
+            const dados = maquina.recebimentoAParteMachinePay
+              ? ajustarStatsParaRecebimentoAParte(dadosBrutos)
+              : dadosBrutos;
             return {
               maquinaId: maquina.id,
               machinePayPosId: maquina.machinePayPosId,

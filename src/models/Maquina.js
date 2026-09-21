@@ -45,6 +45,13 @@ const Maquina = sequelize.define(
       field: "valor_desconto_machine_pay",
       comment: "Valor em R$ de cada pulso/ficha liberado por pagamento na Machine Pay",
     },
+    recebimentoAParteMachinePay: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+      field: "recebimento_a_parte_machine_pay",
+      comment: "Se ativo, o valor bruto da Machine Pay dessa máquina é recalculado (rateio de repasse) antes de aparecer no Registrar Dinheiro, Dashboard, Ranking e Relatórios",
+    },
     tipo: {
       type: DataTypes.STRING(50),
       allowNull: true,
