@@ -28,6 +28,7 @@ import SuporteItem from "./SuporteItem.js";
 import SuporteMovimentacao from "./SuporteMovimentacao.js";
 import SuporteDevolucaoPendente from "./SuporteDevolucaoPendente.js";
 import MachinePayColetaPendente from "./MachinePayColetaPendente.js";
+import PedidoNotaFiscal from "./PedidoNotaFiscal.js";
 // Movimentação de Veículo -> Veículo e Usuário
 MovimentacaoVeiculo.belongsTo(Veiculo, {
   as: "veiculo",
@@ -397,6 +398,16 @@ MachinePayColetaPendente.belongsTo(Maquina, {
   as: "maquina",
 });
 
+// Usuário -> Pedidos/Notas Fiscais (controle comercial)
+Usuario.hasMany(PedidoNotaFiscal, {
+  foreignKey: "usuarioId",
+  as: "pedidosNotasFiscais",
+});
+PedidoNotaFiscal.belongsTo(Usuario, {
+  foreignKey: "usuarioId",
+  as: "usuario",
+});
+
 export {
   Usuario,
   Loja,
@@ -428,4 +439,5 @@ export {
   SuporteMovimentacao,
   SuporteDevolucaoPendente,
   MachinePayColetaPendente,
+  PedidoNotaFiscal,
 };

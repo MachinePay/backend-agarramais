@@ -28,6 +28,7 @@ import machinePayRoutes from "./machinePay.routes.js";
 import suporteTecnicoRoutes from "./suporteTecnico.routes.js";
 import transportadoraRoutes from "./transportadora.routes.js";
 import calculoPedidoRoutes from "./calculoPedido.routes.js";
+import pedidoNotaFiscalRoutes from "./pedidoNotaFiscal.routes.js";
 const router = express.Router();
 
 router.use("/auth", authRoutes);
@@ -64,5 +65,6 @@ router.use("/machine-pay", machinePayRoutes);
 router.use("/suporte-tecnico", suporteTecnicoRoutes);
 router.use("/transportadoras", transportadoraRoutes);
 router.use("/calculadora-pedidos", calculoPedidoRoutes);
+router.use("/pedidos-notas-fiscais", pedidoNotaFiscalRoutes);
 
 export default router;
