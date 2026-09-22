@@ -51,7 +51,23 @@ const chamarNFeMail = async (path, params = {}) => {
     },
   });
 
-  const payload = await resposta.json().catch(() => null);
+  const textoBruto = await resposta.text();
+  let payload = null;
+  try {
+    payload = textoBruto ? JSON.parse(textoBruto) : null;
+  } catch {
+    payload = null;
+  }
+
+  // Log temporário de diagnóstico: mostra exatamente o que a NFeMail devolveu,
+  // já que o schema de resposta não é 100% documentado publicamente. Remover
+  // depois de confirmar o formato real.
+  console.log(
+    `[nfemailService] GET ${url.pathname}${url.search} -> status ${resposta.status}`,
+  );
+  console.log(
+    `[nfemailService] corpo bruto (até 1000 chars): ${textoBruto.slice(0, 1000)}`,
+  );
 
   if (!resposta.ok) {
     const mensagem =
