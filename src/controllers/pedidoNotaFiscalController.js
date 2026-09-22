@@ -3,6 +3,7 @@ import { PedidoNotaFiscal } from "../models/index.js";
 import {
   buscarNotaPorPedido,
   buscarNotasEmitidas,
+  buscarFreteETransportadoraPorChave,
 } from "../services/nfemailService.js";
 
 const camposEditaveis = [
@@ -174,6 +175,26 @@ const pedidoNotaFiscalController = {
       return res
         .status(error.status || 500)
         .json({ error: error.message || "Erro ao buscar notas na NFeMail." });
+    }
+  },
+
+  // Busca CIF/FOB e transportadora de UMA nota específica (via XML completo
+  // pela chave de acesso). Chamado quando o usuário escolhe uma nota no
+  // buscador, já que a listagem resumida não traz esses dois campos.
+  async buscarDetalheFreteNFeMail(req, res) {
+    try {
+      const { chave } = req.query;
+      if (!chave) {
+        return res.status(400).json({ error: "chave é obrigatória." });
+      }
+
+      const detalhe = await buscarFreteETransportadoraPorChave(chave);
+      return res.json(detalhe);
+    } catch (error) {
+      console.error("Erro ao buscar detalhe de frete na NFeMail:", error);
+      return res.status(error.status || 500).json({
+        error: error.message || "Erro ao buscar detalhe de frete na NFeMail.",
+      });
     }
   },
 

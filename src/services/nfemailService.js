@@ -209,4 +209,93 @@ export const buscarNotasEmitidas = async ({ page = 1, limit = 50 } = {}) => {
   return extrairLista(payload).map(normalizarNotaNFeMail).filter(Boolean);
 };
 
+// A listagem de /api/NotasFiscais não traz transportadora nem CIF/FOB — esses
+// dados só existem no XML completo da nota (tags <transp><modFrete> e
+// <transporta><xNome>, padrão do layout da NF-e). Busca o XML por chave de
+// acesso via /api/ArquivoXML e extrai só o que precisamos.
+const buscarXmlBrutoPorChave = async (chave) => {
+  if (typeof fetch !== "function") {
+    const erro = new Error(
+      "fetch nativo indisponível. Execute o backend em Node.js 18 ou superior.",
+    );
+    erro.status = 500;
+    throw erro;
+  }
+
+  const url = new URL("/api/ArquivoXML", NFEMAIL_API_BASE_URL);
+  url.searchParams.set("chave", chave);
+
+  const resposta = await fetch(url, {
+    method: "GET",
+    headers: { Authorization: montarAuthHeader() },
+  });
+
+  const textoBruto = await resposta.text();
+
+  // Log temporário de diagnóstico (mesmo esquema usado para /api/NotasFiscais):
+  // essa resposta pode vir como XML puro ou como JSON que embrulha o XML,
+  // e isso não está documentado publicamente.
+  console.log(
+    `[nfemailService] GET ${url.pathname}${url.search} -> status ${resposta.status}`,
+  );
+  console.log(
+    `[nfemailService] corpo bruto XML (até 1500 chars): ${textoBruto.slice(0, 1500)}`,
+  );
+
+  if (!resposta.ok) {
+    const erro = new Error("Falha ao buscar XML da nota na NFeMail");
+    erro.status = resposta.status;
+    throw erro;
+  }
+
+  // Pode vir como XML puro ou como JSON { xml: "<...>" } / { arquivo: "<...>" }.
+  let xml = textoBruto;
+  try {
+    const comoJson = JSON.parse(textoBruto);
+    xml =
+      comoJson?.xml ??
+      comoJson?.arquivo ??
+      comoJson?.conteudo ??
+      comoJson?.data ??
+      textoBruto;
+  } catch {
+    // não era JSON, segue com o texto bruto mesmo (provavelmente já é o XML)
+  }
+
+  return typeof xml === "string" ? xml : null;
+};
+
+// modFrete (grupo <transp> da NF-e): 0/3 = por conta do remetente (CIF),
+// 1/4 = por conta do destinatário (FOB), 2 = terceiros, 9 = sem transporte.
+const extrairFreteETransportadoraDoXml = (xml) => {
+  if (!xml || typeof xml !== "string") {
+    return { tipoFrete: null, transportadora: null };
+  }
+
+  const modFreteMatch = xml.match(/<modFrete>\s*(\d)\s*<\/modFrete>/i);
+  const modFrete = modFreteMatch ? modFreteMatch[1] : null;
+
+  let tipoFrete = null;
+  if (modFrete === "0" || modFrete === "3") tipoFrete = "CIF";
+  else if (modFrete === "1" || modFrete === "4") tipoFrete = "FOB";
+
+  const transportadoraMatch = xml.match(
+    /<transporta>[\s\S]*?<xNome>([^<]+)<\/xNome>/i,
+  );
+  const transportadora = transportadoraMatch
+    ? transportadoraMatch[1].trim()
+    : null;
+
+  return { tipoFrete, transportadora };
+};
+
+// Busca CIF/FOB e transportadora para UMA nota específica (pelo XML completo).
+// Não é chamado para a listagem inteira (custaria uma requisição por nota) —
+// só quando o usuário escolhe uma nota específica na tela.
+export const buscarFreteETransportadoraPorChave = async (chave) => {
+  if (!chave) return { tipoFrete: null, transportadora: null };
+  const xml = await buscarXmlBrutoPorChave(chave);
+  return extrairFreteETransportadoraDoXml(xml);
+};
+
 export const nfemailCredenciaisConfiguradas = credenciaisConfiguradas;

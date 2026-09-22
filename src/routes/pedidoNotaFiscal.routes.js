@@ -17,6 +17,10 @@ router.post(
 );
 router.get("/", pedidoNotaFiscalController.listar);
 router.get("/nfemail/notas", pedidoNotaFiscalController.buscarNotasNFeMail);
+router.get(
+  "/nfemail/detalhe-frete",
+  pedidoNotaFiscalController.buscarDetalheFreteNFeMail,
+);
 router.put(
   "/:id",
   registrarLog("ATUALIZAR_PEDIDO_NOTA_FISCAL", "PedidoNotaFiscal"),
