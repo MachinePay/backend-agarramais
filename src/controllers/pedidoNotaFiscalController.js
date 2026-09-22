@@ -1,8 +1,8 @@
 import { Op } from "sequelize";
 import { PedidoNotaFiscal } from "../models/index.js";
 import {
-  buscarNotasRecebidas,
   buscarNotaPorPedido,
+  buscarNotasEmitidas,
 } from "../services/nfemailService.js";
 
 const camposEditaveis = [
@@ -161,11 +161,11 @@ const pedidoNotaFiscalController = {
   // teveCotacao/dataCotacao, que são controle interno do time comercial.
   async sincronizarNFeMail(req, res) {
     try {
-      const { numeroPedido, dataInicial, dataFinal } = req.body || {};
+      const { numeroPedido, page, limit } = req.body || {};
 
       const notas = numeroPedido
         ? await buscarNotaPorPedido(numeroPedido)
-        : await buscarNotasRecebidas({ dataInicial, dataFinal });
+        : await buscarNotasEmitidas({ page, limit });
 
       if (notas.length === 0) {
         return res.json({ atualizados: 0, criados: 0, notasEncontradas: 0 });

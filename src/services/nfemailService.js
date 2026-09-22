@@ -119,4 +119,14 @@ export const buscarNotaPorPedido = async (numeroPedido) => {
   return lista.map(normalizarNotaNFeMail).filter(Boolean);
 };
 
+// Lista as notas fiscais EMITIDAS pela empresa (notas de venda para os
+// clientes) via /api/NotasFiscais, paginado. Diferente de NFeRecebidas, que
+// traz notas de COMPRA recebidas de fornecedores — por isso não serve para
+// o fluxo comercial de "nota emitida para o cliente X no pedido Y".
+export const buscarNotasEmitidas = async ({ page = 1, limit = 50 } = {}) => {
+  const payload = await chamarNFeMail("/api/NotasFiscais", { page, limit });
+  const lista = Array.isArray(payload) ? payload : payload?.dados || [];
+  return lista.map(normalizarNotaNFeMail).filter(Boolean);
+};
+
 export const nfemailCredenciaisConfiguradas = credenciaisConfiguradas;
