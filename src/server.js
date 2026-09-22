@@ -156,6 +156,53 @@ const startServer = async () => {
       console.log("✅ Coluna Machine Pay Usr ID adicionada às máquinas!");
     }
 
+    if (!colunasMaquinas.desconto_automatico_machine_pay) {
+      const { DataTypes } = await import("sequelize");
+      await queryInterface.addColumn(
+        "maquinas",
+        "desconto_automatico_machine_pay",
+        {
+          type: DataTypes.BOOLEAN,
+          allowNull: false,
+          defaultValue: false,
+        },
+      );
+      console.log(
+        "✅ Coluna desconto_automatico_machine_pay adicionada às máquinas!",
+      );
+    }
+
+    if (!colunasMaquinas.valor_desconto_machine_pay) {
+      const { DataTypes } = await import("sequelize");
+      await queryInterface.addColumn(
+        "maquinas",
+        "valor_desconto_machine_pay",
+        {
+          type: DataTypes.DECIMAL(10, 2),
+          allowNull: true,
+        },
+      );
+      console.log(
+        "✅ Coluna valor_desconto_machine_pay adicionada às máquinas!",
+      );
+    }
+
+    if (!colunasMaquinas.recebimento_a_parte_machine_pay) {
+      const { DataTypes } = await import("sequelize");
+      await queryInterface.addColumn(
+        "maquinas",
+        "recebimento_a_parte_machine_pay",
+        {
+          type: DataTypes.BOOLEAN,
+          allowNull: false,
+          defaultValue: false,
+        },
+      );
+      console.log(
+        "✅ Coluna recebimento_a_parte_machine_pay adicionada às máquinas!",
+      );
+    }
+
     await sequelize.query(`
       ALTER TYPE "enum_usuarios_role" ADD VALUE IF NOT EXISTS 'MACHINEPAY';
     `);
