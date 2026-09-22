@@ -18,6 +18,7 @@ const camposEditaveis = [
   "dataCotacao",
   "valorNota",
   "chaveAcessoNFe",
+  "origemDados",
   "observacoes",
 ];
 
@@ -42,9 +43,9 @@ const pedidoNotaFiscalController = {
       }
 
       const registro = await PedidoNotaFiscal.create({
+        origemDados: "MANUAL",
         ...payload,
         usuarioId: req.usuario?.id || null,
-        origemDados: "MANUAL",
       });
 
       return res.status(201).json(registro);
@@ -156,6 +157,26 @@ const pedidoNotaFiscalController = {
     }
   },
 
+  // Busca somente leitura das notas emitidas na NFeMail, para o usuário
+  // escolher manualmente qual delas corresponde a um pedido (o campo
+  // "número do pedido" costuma vir vazio direto da NFeMail, então o
+  // casamento automático por numeroPedido não é confiável aqui).
+  async buscarNotasNFeMail(req, res) {
+    try {
+      const { page, limit } = req.query;
+      const notas = await buscarNotasEmitidas({
+        page: page ? Number(page) : 1,
+        limit: limit ? Number(limit) : 50,
+      });
+      return res.json({ notas });
+    } catch (error) {
+      console.error("Erro ao buscar notas na NFeMail:", error);
+      return res
+        .status(error.status || 500)
+        .json({ error: error.message || "Erro ao buscar notas na NFeMail." });
+    }
+  },
+
   // Preenche numeroNota/dataNota/tipoFrete/transportadora/valorNota a partir
   // da NFeMail, casando pelo numeroPedido. Nunca sobrescreve numeroColeta ou
   // teveCotacao/dataCotacao, que são controle interno do time comercial.
@@ -168,14 +189,23 @@ const pedidoNotaFiscalController = {
         : await buscarNotasEmitidas({ page, limit });
 
       if (notas.length === 0) {
-        return res.json({ atualizados: 0, criados: 0, notasEncontradas: 0 });
+        return res.json({
+          atualizados: 0,
+          criados: 0,
+          semNumeroPedido: 0,
+          notasEncontradas: 0,
+        });
       }
 
       let atualizados = 0;
       let criados = 0;
+      let semNumeroPedido = 0;
 
       for (const nota of notas) {
-        if (!nota.numeroPedido) continue;
+        if (!nota.numeroPedido) {
+          semNumeroPedido += 1;
+          continue;
+        }
 
         const existente = await PedidoNotaFiscal.findOne({
           where: { numeroPedido: nota.numeroPedido },
@@ -207,7 +237,12 @@ const pedidoNotaFiscalController = {
         }
       }
 
-      return res.json({ atualizados, criados, notasEncontradas: notas.length });
+      return res.json({
+        atualizados,
+        criados,
+        semNumeroPedido,
+        notasEncontradas: notas.length,
+      });
     } catch (error) {
       console.error("Erro ao sincronizar com a NFeMail:", error);
       return res

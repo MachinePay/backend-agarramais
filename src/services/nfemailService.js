@@ -80,19 +80,83 @@ const chamarNFeMail = async (path, params = {}) => {
   return payload;
 };
 
-// A NFeMail não documenta publicamente o schema exato de resposta; esta
-// normalização é tolerante a variações de nome de campo e deve ser ajustada
-// assim que houver uma API key real para validar o primeiro retorno.
+// Converte datas nos formatos observados na API da NFeMail (ex.: "22-09-2026"
+// ou "22-09-2026 14:27:00", padrão DD-MM-AAAA) para "AAAA-MM-DD" (aceito
+// pelas colunas DATEONLY do nosso banco). Se já vier em formato ISO, mantém.
+const normalizarDataNFeMail = (valor) => {
+  if (!valor) return null;
+  const texto = String(valor).trim();
+
+  const matchBr = texto.match(/^(\d{2})-(\d{2})-(\d{4})/);
+  if (matchBr) {
+    const [, dia, mes, ano] = matchBr;
+    return `${ano}-${mes}-${dia}`;
+  }
+
+  const matchIso = texto.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (matchIso) return matchIso[1];
+
+  return texto;
+};
+
+// Extrai a lista de registros de respostas cujo formato exato não é
+// documentado publicamente pela NFeMail. Observado até agora em
+// /api/NotasFiscais: { "ListaNotaFiscal": [...] }.
+const extrairLista = (payload) => {
+  if (Array.isArray(payload)) return payload;
+  if (!payload || typeof payload !== "object") return [];
+
+  const chavesConhecidas = [
+    "ListaNotaFiscal",
+    "ListaNFeRecebidas",
+    "dados",
+    "notas",
+    "lista",
+    "data",
+    "result",
+    "records",
+  ];
+  for (const chave of chavesConhecidas) {
+    if (Array.isArray(payload[chave])) return payload[chave];
+  }
+
+  return [];
+};
+
+// Campos observados em /api/NotasFiscais (payload real, em 2026-09):
+// nfe_numero, ped_numero, nom_razaosocial, nom_fantasia, nfe_chave,
+// val_total, dat_emissao (DD-MM-AAAA). ped_numero costuma vir vazio quando o
+// número do pedido não é preenchido na hora de emitir a nota na NFeMail —
+// nesse caso o casamento automático por numeroPedido não encontra o registro
+// e a nota fica só disponível para vínculo manual.
+// Transportadora e tipo de frete (CIF/FOB) NÃO aparecem nessa listagem
+// resumida; ficam nulos até serem preenchidos manualmente.
 export const normalizarNotaNFeMail = (raw) => {
   if (!raw || typeof raw !== "object") return null;
 
-  const numeroNota = raw.numero ?? raw.numeroNota ?? raw.nNF ?? null;
+  const numeroNota = raw.nfe_numero ?? raw.numero ?? raw.numeroNota ?? raw.nNF ?? null;
+  const numeroPedidoBruto =
+    raw.ped_numero ??
+    raw.pedido ??
+    raw.numeroPedido ??
+    raw.codigoPedido ??
+    raw.codPedido ??
+    null;
   const numeroPedido =
-    raw.pedido ?? raw.numeroPedido ?? raw.codigoPedido ?? raw.codPedido ?? null;
+    numeroPedidoBruto != null && String(numeroPedidoBruto).trim() !== ""
+      ? String(numeroPedidoBruto).trim()
+      : null;
   const clienteNome =
-    raw.cliente ?? raw.nomeCliente ?? raw.destinatario ?? raw.razaoSocial ?? null;
-  const dataNota =
-    raw.dataEmissao ?? raw.data ?? raw.dhEmi ?? raw.emissao ?? null;
+    raw.nom_razaosocial ??
+    raw.nom_fantasia ??
+    raw.cliente ??
+    raw.nomeCliente ??
+    raw.destinatario ??
+    raw.razaoSocial ??
+    null;
+  const dataNota = normalizarDataNFeMail(
+    raw.dat_emissao ?? raw.dataEmissao ?? raw.data ?? raw.dhEmi ?? raw.emissao ?? null,
+  );
   const transportadora =
     raw.transportadora ?? raw.transportadoraNome ?? raw.nomeTransportadora ?? null;
   const tipoFreteRaw = raw.tipoFrete ?? raw.frete ?? raw.modFrete ?? null;
@@ -103,13 +167,16 @@ export const normalizarNotaNFeMail = (raw) => {
         ? "CIF"
         : null
     : null;
-  const valorNota = raw.valor ?? raw.valorTotal ?? raw.vNF ?? null;
-  const chaveAcessoNFe = raw.chave ?? raw.chaveAcesso ?? raw.chNFe ?? null;
+  const valorNota = raw.val_total ?? raw.valor ?? raw.valorTotal ?? raw.vNF ?? null;
+  const chaveAcessoNFe =
+    raw.nfe_chave ?? raw.chave ?? raw.chaveAcesso ?? raw.chNFe ?? null;
+  const cnpjCliente = raw.num_cnpj ?? raw.cpfCnpj ?? raw.cnpj ?? null;
 
   return {
     numeroNota: numeroNota != null ? String(numeroNota) : null,
-    numeroPedido: numeroPedido != null ? String(numeroPedido) : null,
-    clienteNome: clienteNome != null ? String(clienteNome) : null,
+    numeroPedido,
+    clienteNome: clienteNome != null ? String(clienteNome).trim() : null,
+    cnpjCliente: cnpjCliente != null ? String(cnpjCliente) : null,
     dataNota,
     transportadora,
     tipoFrete,
@@ -123,16 +190,14 @@ export const buscarNotasRecebidas = async ({ dataInicial, dataFinal } = {}) => {
     dataInicial,
     dataFinal,
   });
-  const lista = Array.isArray(payload) ? payload : payload?.dados || [];
-  return lista.map(normalizarNotaNFeMail).filter(Boolean);
+  return extrairLista(payload).map(normalizarNotaNFeMail).filter(Boolean);
 };
 
 export const buscarNotaPorPedido = async (numeroPedido) => {
   const payload = await chamarNFeMail("/api/NotasFiscais", {
     pedido: numeroPedido,
   });
-  const lista = Array.isArray(payload) ? payload : payload?.dados || [];
-  return lista.map(normalizarNotaNFeMail).filter(Boolean);
+  return extrairLista(payload).map(normalizarNotaNFeMail).filter(Boolean);
 };
 
 // Lista as notas fiscais EMITIDAS pela empresa (notas de venda para os
@@ -141,8 +206,7 @@ export const buscarNotaPorPedido = async (numeroPedido) => {
 // o fluxo comercial de "nota emitida para o cliente X no pedido Y".
 export const buscarNotasEmitidas = async ({ page = 1, limit = 50 } = {}) => {
   const payload = await chamarNFeMail("/api/NotasFiscais", { page, limit });
-  const lista = Array.isArray(payload) ? payload : payload?.dados || [];
-  return lista.map(normalizarNotaNFeMail).filter(Boolean);
+  return extrairLista(payload).map(normalizarNotaNFeMail).filter(Boolean);
 };
 
 export const nfemailCredenciaisConfiguradas = credenciaisConfiguradas;
