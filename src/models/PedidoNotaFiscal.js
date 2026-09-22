@@ -55,6 +55,10 @@ const PedidoNotaFiscal = sequelize.define(
       type: DataTypes.DATEONLY,
       allowNull: true,
     },
+    numeroCotacao: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+    },
     valorNota: {
       type: DataTypes.DECIMAL(12, 2),
       allowNull: true,

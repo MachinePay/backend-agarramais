@@ -296,6 +296,24 @@ const startServer = async () => {
       console.log("✅ Coluna categoria adicionada a suporte_movimentacoes!");
     }
 
+    const colunasPedidosNotasFiscais = await queryInterface.describeTable(
+      "pedidos_notas_fiscais",
+    );
+    if (!colunasPedidosNotasFiscais.numeroCotacao) {
+      const { DataTypes } = await import("sequelize");
+      await queryInterface.addColumn(
+        "pedidos_notas_fiscais",
+        "numeroCotacao",
+        {
+          type: DataTypes.STRING(50),
+          allowNull: true,
+        },
+      );
+      console.log(
+        "✅ Coluna numeroCotacao adicionada a pedidos_notas_fiscais!",
+      );
+    }
+
     const { Usuario } = await import("./models/index.js");
     const adminEmail = process.env.ADMIN_EMAIL || "admin@agarramais.com";
     const adminExistente = await Usuario.findOne({

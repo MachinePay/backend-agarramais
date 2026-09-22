@@ -17,6 +17,7 @@ const camposEditaveis = [
   "numeroColeta",
   "teveCotacao",
   "dataCotacao",
+  "numeroCotacao",
   "valorNota",
   "chaveAcessoNFe",
   "origemDados",
