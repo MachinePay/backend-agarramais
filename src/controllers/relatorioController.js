@@ -667,8 +667,13 @@ export const buscarAlertasDeInconsistencia = async (req, res) => {
   console.log("--- INICIANDO ALERTAS DE INCONSISTÊNCIA ---");
   try {
     // const usuarioId = req.usuario?.id; // Pode ser usado se necessário no futuro
+    // Alertas gerais (Dashboard): lojas de teste ficam de fora.
+    const lojaIdSemTeste = await filtroLojaIdSemTeste();
     const maquinas = await Maquina.findAll({
-      where: { ativo: true },
+      where: {
+        ativo: true,
+        ...(lojaIdSemTeste ? { lojaId: lojaIdSemTeste } : {}),
+      },
       include: [{ model: Loja, as: "loja", attributes: ["nome"] }],
     });
     const alertas = [];
@@ -937,6 +942,10 @@ export const alertasEstoque = async (req, res) => {
 
     if (lojaId) {
       whereMaquina.lojaId = lojaId;
+    } else {
+      // Alertas gerais (Dashboard): lojas de teste ficam de fora.
+      const semTeste = await filtroLojaIdSemTeste();
+      if (semTeste) whereMaquina.lojaId = semTeste;
     }
 
     const maquinas = await Maquina.findAll({
@@ -2146,8 +2155,13 @@ export const relatorioTodasLojas = async (req, res) => {
 // --- ALERTAS DE MOVIMENTAÇÃO OUT ---
 export const alertasMovimentacaoOut = async (req, res) => {
   try {
+    // Alertas gerais (Dashboard): lojas de teste ficam de fora.
+    const lojaIdSemTeste = await filtroLojaIdSemTeste();
     const maquinas = await Maquina.findAll({
-      where: { ativo: true },
+      where: {
+        ativo: true,
+        ...(lojaIdSemTeste ? { lojaId: lojaIdSemTeste } : {}),
+      },
       include: [{ model: Loja, as: "loja", attributes: ["nome"] }],
     });
     const alertas = [];
@@ -2221,8 +2235,13 @@ export const alertasMovimentacaoOut = async (req, res) => {
 // --- ALERTAS DE MOVIMENTAÇÃO IN ---
 export const alertasMovimentacaoIn = async (req, res) => {
   try {
+    // Alertas gerais (Dashboard): lojas de teste ficam de fora.
+    const lojaIdSemTeste = await filtroLojaIdSemTeste();
     const maquinas = await Maquina.findAll({
-      where: { ativo: true },
+      where: {
+        ativo: true,
+        ...(lojaIdSemTeste ? { lojaId: lojaIdSemTeste } : {}),
+      },
       include: [{ model: Loja, as: "loja", attributes: ["nome"] }],
     });
     const alertas = [];
@@ -2292,8 +2311,13 @@ export const alertasMovimentacaoIn = async (req, res) => {
 // --- ALERTAS DE PELÚCIA SAINDO FORA DO ESPERADO ---
 export const alertasBomDesempenho = async (req, res) => {
   try {
+    // Alertas gerais (Dashboard): lojas de teste ficam de fora.
+    const lojaIdSemTeste = await filtroLojaIdSemTeste();
     const maquinas = await Maquina.findAll({
-      where: { ativo: true },
+      where: {
+        ativo: true,
+        ...(lojaIdSemTeste ? { lojaId: lojaIdSemTeste } : {}),
+      },
       include: [{ model: Loja, as: "loja", attributes: ["nome"] }],
     });
     const alertas = [];
