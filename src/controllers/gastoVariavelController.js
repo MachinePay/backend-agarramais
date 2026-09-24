@@ -6,6 +6,7 @@ import {
   Veiculo,
   Usuario,
 } from "../models/index.js";
+import { filtroLojaIdSemTeste, pedeSemLojasTeste } from "../utils/lojasTeste.js";
 
 function getCombustivelLabel(valor) {
   switch (String(valor)) {
@@ -236,7 +237,12 @@ export const listarGastosVariaveis = async (req, res) => {
   try {
     const { lojaId, dataInicio, dataFim, nome, veiculoId } = req.query;
     const where = {};
-    if (lojaId) where.lojaId = lojaId;
+    if (lojaId) {
+      where.lojaId = lojaId;
+    } else if (pedeSemLojasTeste(req)) {
+      const semTeste = await filtroLojaIdSemTeste();
+      if (semTeste) where.lojaId = semTeste;
+    }
     if (nome) where.nome = nome;
     if (veiculoId) where.veiculoId = veiculoId;
     if (dataInicio) {

@@ -120,6 +120,7 @@ export const criarLoja = async (req, res) => {
       responsavel,
       telefone,
       valorFichaPadrao,
+      teste,
     } = req.body;
 
     if (!nome) {
@@ -143,6 +144,7 @@ export const criarLoja = async (req, res) => {
       valorFichaPadrao: valorFichaNormalizado.informado
         ? valorFichaNormalizado.valor
         : VALOR_FICHA_PADRAO_DEFAULT,
+      teste: Boolean(teste),
     });
 
     res.locals.entityId = loja.id;
@@ -171,6 +173,7 @@ export const atualizarLoja = async (req, res) => {
       telefone,
       ativo,
       valorFichaPadrao,
+      teste,
     } = req.body;
 
     const valorFichaNormalizado = normalizarValorFichaPadrao(valorFichaPadrao);
@@ -191,6 +194,7 @@ export const atualizarLoja = async (req, res) => {
         ? valorFichaNormalizado.valor
         : loja.valorFichaPadrao,
       ativo: ativo ?? loja.ativo,
+      teste: teste ?? loja.teste,
     });
 
     res.json(loja);

@@ -18,6 +18,11 @@ import {
   calcularTotalRecebidoMachinePay,
   ajustarStatsParaRecebimentoAParte,
 } from "../services/machinePayService.js";
+import {
+  filtroLojaIdSemTeste,
+  obterIdsLojasTeste,
+  pedeSemLojasTeste,
+} from "../utils/lojasTeste.js";
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 
@@ -406,12 +411,15 @@ const registroDinheiroController = {
         });
       }
 
+      // Total geral (Dashboard / Ranking): lojas de teste ficam de fora.
+      const lojaIdSemTeste = await filtroLojaIdSemTeste();
       const maquinas = await Maquina.findAll({
         where: {
           ativo: true,
           machinePayPosId: {
             [Op.ne]: null,
           },
+          ...(lojaIdSemTeste ? { lojaId: lojaIdSemTeste } : {}),
         },
         attributes: [
           "id",
@@ -754,7 +762,19 @@ const registroDinheiroController = {
 
   async listar(req, res) {
     try {
+      const where = {};
+      if (pedeSemLojasTeste(req)) {
+        const idsTeste = await obterIdsLojasTeste();
+        if (idsTeste.length) {
+          where[Op.and] = [
+            sequelizeWhere(cast(col("lojaId"), "text"), {
+              [Op.notIn]: idsTeste,
+            }),
+          ];
+        }
+      }
       const registros = await RegistroDinheiro.findAll({
+        where,
         order: [["createdAt", "DESC"]],
       });
       return res.json(registros);

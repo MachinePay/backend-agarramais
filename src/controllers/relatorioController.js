@@ -7,7 +7,10 @@ export const rankingLucroBrutoLojas = async (req, res) => {
         .status(400)
         .json({ error: "dataInicio e dataFim são obrigatórios" });
     }
-    const lojas = await Loja.findAll({ where: { ativo: true }, raw: true });
+    const lojas = await Loja.findAll({
+      where: { ativo: true, teste: false },
+      raw: true,
+    });
     const respostas = await Promise.allSettled(
       lojas.map((loja) =>
         gerarRelatorioImpressaoPorLoja({
@@ -83,6 +86,7 @@ import {
   MachinePayColetaPendente,
 } from "../models/index.js";
 import { calcularEstoqueRealMachinePay } from "../services/machinePayService.js";
+import { filtroLojaIdSemTeste } from "../utils/lojasTeste.js";
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 const VALOR_FICHA_PADRAO_DEFAULT = 2.5;
@@ -293,7 +297,13 @@ export const dashboardRelatorio = async (req, res) => {
     };
 
     const whereMaquina = {};
-    if (lojaId) whereMaquina.lojaId = lojaId;
+    if (lojaId) {
+      whereMaquina.lojaId = lojaId;
+    } else {
+      // Visão geral (todas as lojas): lojas de teste ficam de fora.
+      const semTeste = await filtroLojaIdSemTeste();
+      if (semTeste) whereMaquina.lojaId = semTeste;
+    }
 
     // --- QUERY 1: TOTAIS GERAIS ---
     const totaisRaw = await Movimentacao.findAll({
@@ -807,6 +817,9 @@ export const balançoSemanal = async (req, res) => {
 
     if (lojaId) {
       includeMaquina.where = { lojaId };
+    } else {
+      const semTeste = await filtroLojaIdSemTeste();
+      if (semTeste) includeMaquina.where = { lojaId: semTeste };
     }
 
     const movimentacoes = await Movimentacao.findAll({
@@ -1081,6 +1094,9 @@ export const performanceMaquinas = async (req, res) => {
     const whereMaquina = {};
     if (lojaId) {
       whereMaquina.lojaId = lojaId;
+    } else {
+      const semTeste = await filtroLojaIdSemTeste();
+      if (semTeste) whereMaquina.lojaId = semTeste;
     }
 
     const performance = await Movimentacao.findAll({
@@ -1851,6 +1867,11 @@ export const relatorioTodasLojas = async (req, res) => {
       if (idsFiltrados.length) {
         whereLojas.id = { [Op.in]: idsFiltrados };
       }
+    }
+    // Sem seleção explícita = "todas as lojas": lojas de teste ficam de
+    // fora. Se a loja de teste foi escolhida na lista, ela entra.
+    if (!whereLojas.id) {
+      whereLojas.teste = false;
     }
 
     const lojas = await Loja.findAll({ where: whereLojas, raw: true });

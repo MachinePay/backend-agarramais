@@ -144,6 +144,17 @@ const startServer = async () => {
       console.log("✅ Coluna CompactPay adicionada às máquinas!");
     }
 
+    const colunasLojas = await queryInterface.describeTable("lojas");
+    if (!colunasLojas.teste) {
+      const { DataTypes } = await import("sequelize");
+      await queryInterface.addColumn("lojas", "teste", {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+      });
+      console.log("✅ Coluna de loja de teste adicionada às lojas!");
+    }
+
     // Criar admin padrão se não existir
     if (!colunasMaquinas.jogadas_boas_por_pelucia) {
       const { DataTypes } = await import("sequelize");

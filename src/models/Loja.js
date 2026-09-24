@@ -43,6 +43,13 @@ const Loja = sequelize.define(
       type: DataTypes.BOOLEAN,
       defaultValue: true,
     },
+    teste: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+      comment:
+        "Loja de teste: não entra no Dashboard, Relatório de todas as lojas, Ranking de máquinas e Gráficos",
+    },
   },
   {
     tableName: "lojas",
