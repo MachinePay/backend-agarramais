@@ -32,6 +32,13 @@ const Maquina = sequelize.define(
       field: "machine_pay_usr_id",
       comment: "ID do cliente/usr no painel Machine Pay para consulta de status",
     },
+    compactPayId: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+      unique: true,
+      field: "compact_pay_id",
+      comment: "ID da máquina (id_hardware) no CompactPay",
+    },
     descontoAutomaticoMachinePay: {
       type: DataTypes.BOOLEAN,
       allowNull: false,

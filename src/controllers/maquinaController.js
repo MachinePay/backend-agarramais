@@ -68,6 +68,7 @@ export const criarMaquina = async (req, res) => {
       nome,
       machinePayPosId,
       machinePayUsrId,
+      compactPayId,
       descontoAutomaticoMachinePay,
       valorDescontoMachinePay,
       recebimentoAParteMachinePay,
@@ -97,11 +98,23 @@ export const criarMaquina = async (req, res) => {
       return res.status(400).json({ error: "Código de máquina já existe" });
     }
 
+    if (compactPayId?.trim()) {
+      const usoCompactPay = await Maquina.findOne({
+        where: { compactPayId: compactPayId.trim() },
+      });
+      if (usoCompactPay) {
+        return res.status(400).json({
+          error: `ID da CompactPay já está vinculado à máquina ${usoCompactPay.codigo}`,
+        });
+      }
+    }
+
     const maquina = await Maquina.create({
       codigo,
       nome,
       machinePayPosId: machinePayPosId?.trim() || null,
       machinePayUsrId: machinePayUsrId?.trim() || null,
+      compactPayId: compactPayId?.trim() || null,
       descontoAutomaticoMachinePay: descontoAutomaticoMachinePay ?? false,
       valorDescontoMachinePay: valorDescontoMachinePay || null,
       recebimentoAParteMachinePay: recebimentoAParteMachinePay ?? false,
@@ -141,6 +154,7 @@ export const atualizarMaquina = async (req, res) => {
       nome,
       machinePayPosId,
       machinePayUsrId,
+      compactPayId,
       descontoAutomaticoMachinePay,
       valorDescontoMachinePay,
       recebimentoAParteMachinePay,
@@ -167,6 +181,17 @@ export const atualizarMaquina = async (req, res) => {
       }
     }
 
+    if (compactPayId?.trim() && compactPayId.trim() !== maquina.compactPayId) {
+      const usoCompactPay = await Maquina.findOne({
+        where: { compactPayId: compactPayId.trim() },
+      });
+      if (usoCompactPay && usoCompactPay.id !== maquina.id) {
+        return res.status(400).json({
+          error: `ID da CompactPay já está vinculado à máquina ${usoCompactPay.codigo}`,
+        });
+      }
+    }
+
     await maquina.update({
       codigo: codigo ?? maquina.codigo,
       nome: nome ?? maquina.nome,
@@ -178,6 +203,10 @@ export const atualizarMaquina = async (req, res) => {
         machinePayUsrId === undefined
           ? maquina.machinePayUsrId
           : machinePayUsrId?.trim() || null,
+      compactPayId:
+        compactPayId === undefined
+          ? maquina.compactPayId
+          : compactPayId?.trim() || null,
       descontoAutomaticoMachinePay:
         descontoAutomaticoMachinePay ?? maquina.descontoAutomaticoMachinePay,
       valorDescontoMachinePay:

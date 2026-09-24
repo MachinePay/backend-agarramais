@@ -134,6 +134,16 @@ const startServer = async () => {
       console.log("✅ Coluna Machine Pay adicionada às máquinas!");
     }
 
+    if (!colunasMaquinas.compact_pay_id) {
+      const { DataTypes } = await import("sequelize");
+      await queryInterface.addColumn("maquinas", "compact_pay_id", {
+        type: DataTypes.STRING(50),
+        allowNull: true,
+        unique: true,
+      });
+      console.log("✅ Coluna CompactPay adicionada às máquinas!");
+    }
+
     // Criar admin padrão se não existir
     if (!colunasMaquinas.jogadas_boas_por_pelucia) {
       const { DataTypes } = await import("sequelize");
