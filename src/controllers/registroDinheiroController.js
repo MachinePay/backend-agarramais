@@ -638,6 +638,28 @@ const registroDinheiroController = {
         observacoes,
       };
 
+      // Proteção contra clique duplo / reenvio: recusa um registro idêntico
+      // (mesma loja, máquina, período e valores) criado há pouco.
+      const registroDuplicado = await RegistroDinheiro.findOne({
+        where: {
+          lojaId: dadosRegistro.lojaId,
+          maquinaId: dadosRegistro.maquinaId,
+          registrarTotalLoja: dadosRegistro.registrarTotalLoja,
+          inicio: inicioPeriodo,
+          fim: fimPeriodo,
+          valorDinheiro: dadosRegistro.valorDinheiro,
+          valorCartaoPix: dadosRegistro.valorCartaoPix,
+          createdAt: { [Op.gte]: new Date(Date.now() - 2 * 60 * 1000) },
+        },
+      });
+
+      if (registroDuplicado) {
+        return res.status(409).json({
+          error:
+            "Esse registro já foi salvo agora há pouco (possível clique duplo).",
+        });
+      }
+
       const transaction = await sequelize.transaction();
 
       try {
