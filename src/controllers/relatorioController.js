@@ -280,6 +280,13 @@ const calcularGastoVariavelPeriodo = async (lojaId, inicio, fim) => {
   return Number(total || 0);
 };
 
+// Data só com dia ("YYYY-MM-DD") vira meia-noite no horário local (Brasília,
+// ver src/index.js), e não meia-noite UTC como faz o new Date() puro.
+const parseDataLocal = (valor) =>
+  /^\d{4}-\d{2}-\d{2}$/.test(String(valor))
+    ? new Date(`${valor}T00:00:00`)
+    : new Date(valor);
+
 // --- DASHBOARD GERAL ---
 export const dashboardRelatorio = async (req, res) => {
   try {
@@ -798,7 +805,7 @@ export const balançoSemanal = async (req, res) => {
 
     const fim = dataFim ? new Date(`${dataFim}T23:59:59`) : new Date();
     const inicio = dataInicio
-      ? new Date(dataInicio)
+      ? parseDataLocal(dataInicio)
       : new Date(fim.getFullYear(), fim.getMonth(), 1);
 
     const whereMovimentacao = {
@@ -1091,7 +1098,7 @@ export const performanceMaquinas = async (req, res) => {
 
     const fim = dataFim ? new Date(`${dataFim}T23:59:59`) : new Date();
     const inicio = dataInicio
-      ? new Date(dataInicio)
+      ? parseDataLocal(dataInicio)
       : new Date(fim.getTime() - 30 * 24 * 60 * 60 * 1000);
 
     const whereMovimentacao = {
@@ -1234,8 +1241,10 @@ export const gerarRelatorioImpressaoPorLoja = async ({
   dataInicio,
   dataFim,
 }) => {
-  const inicio = new Date(dataInicio);
-  const fim = new Date(dataFim);
+  // "YYYY-MM-DD" puro vira meia-noite UTC no new Date() (21:00 do dia
+  // anterior em Brasília) e puxava o fechamento do mês anterior pro período.
+  const inicio = parseDataLocal(dataInicio);
+  const fim = parseDataLocal(dataFim);
   fim.setHours(23, 59, 59, 999);
 
   const loja = await Loja.findByPk(lojaId);
