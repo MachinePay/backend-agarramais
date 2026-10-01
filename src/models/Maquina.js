@@ -59,6 +59,13 @@ const Maquina = sequelize.define(
       field: "recebimento_a_parte_machine_pay",
       comment: "Se ativo, o valor bruto da Machine Pay dessa máquina é recalculado (rateio de repasse) antes de aparecer no Registrar Dinheiro, Dashboard, Ranking e Relatórios",
     },
+    geradoraDinheiro: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+      field: "geradora_dinheiro",
+      comment: "Se ativo, a máquina aparece na lista do Registrar Dinheiro",
+    },
     tipo: {
       type: DataTypes.STRING(50),
       allowNull: true,

@@ -224,6 +224,40 @@ const startServer = async () => {
       );
     }
 
+    if (!colunasMaquinas.geradora_dinheiro) {
+      const { DataTypes } = await import("sequelize");
+      await queryInterface.addColumn("maquinas", "geradora_dinheiro", {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+      });
+      console.log("✅ Coluna geradora_dinheiro adicionada às máquinas!");
+
+      // Marca as máquinas que já apareciam no Registrar Dinheiro pela regra
+      // antiga (nome TAKEBALL, nome com "poltrona" ou loja do aeroporto)
+      const { Op } = await import("sequelize");
+      const { Maquina, Loja } = await import("./models/index.js");
+      const lojasAeroporto = await Loja.findAll({
+        where: { nome: { [Op.iLike]: "%aeroporto%" } },
+        attributes: ["id"],
+      });
+      const [qtdMarcadas] = await Maquina.update(
+        { geradoraDinheiro: true },
+        {
+          where: {
+            [Op.or]: [
+              { nome: { [Op.iLike]: "%takeball" } },
+              { nome: { [Op.iLike]: "%poltrona%" } },
+              { lojaId: lojasAeroporto.map((l) => l.id) },
+            ],
+          },
+        },
+      );
+      console.log(
+        `✅ ${qtdMarcadas} máquina(s) marcadas como geradoras de dinheiro!`,
+      );
+    }
+
     await sequelize.query(`
       ALTER TYPE "enum_usuarios_role" ADD VALUE IF NOT EXISTS 'MACHINEPAY';
     `);
