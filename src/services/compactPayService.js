@@ -344,29 +344,6 @@ export const calcularTotalRecebidoCompactPay = async ({
   return Number(total.toFixed(2));
 };
 
-// Equivalente a calcularEstoqueRealMachinePay: cada valorDesconto recebido
-// desde a última coleta libera 1 pulso/prêmio sem gerar movimentação.
-export const calcularEstoqueRealCompactPay = async ({
-  compactPayId,
-  valorDesconto,
-  totalPosAnterior,
-  dataUltimaMovimentacao,
-}) => {
-  const totalRecebido = await calcularTotalRecebidoCompactPay({
-    compactPayId,
-    inicio: dataUltimaMovimentacao,
-    fim: new Date(),
-  });
-
-  const pulsos = Math.floor(totalRecebido / valorDesconto);
-
-  return {
-    estoqueReal: Math.max(0, totalPosAnterior - pulsos),
-    totalRecebidoDesdeUltimaMovimentacao: totalRecebido,
-    pulsos,
-  };
-};
-
 // Libera crédito remoto na placa (o CompactPay registra como TESTE, não
 // entra no faturamento). O comando pode ir direto ou entrar na fila se a
 // placa estiver processando outro pagamento.

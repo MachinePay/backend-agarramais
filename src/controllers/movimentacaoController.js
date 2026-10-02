@@ -9,8 +9,7 @@ import {
   MachinePayColetaPendente,
 } from "../models/index.js";
 import { Op } from "sequelize";
-import { calcularEstoqueRealMachinePay } from "../services/machinePayService.js";
-import { calcularEstoqueRealCompactPay } from "../services/compactPayService.js";
+import { calcularEstoqueRealPagamentos } from "../services/estoquePagamentosService.js";
 
 const movimentacoesEmAndamento = new Set();
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
@@ -1003,10 +1002,8 @@ export const sugerirTotalPre = async (req, res) => {
       return res.status(404).json({ error: "Máquina não encontrada" });
     }
 
-    // Máquina só com CompactPay usa o extrato de lá (ver
-    // calcularEstoqueRealCompactPay); com os dois IDs vale a Machine Pay.
-    const usaCompactPay = !maquina.machinePayPosId && !!maquina.compactPayId;
-    if (!maquina.machinePayPosId && !usaCompactPay) {
+    // Machine Pay e/ou CompactPay (máquina com os dois IDs soma as duas).
+    if (!maquina.machinePayPosId?.trim() && !maquina.compactPayId?.trim()) {
       return res.json({ sugestaoDisponivel: false, motivo: "sem_pos_id" });
     }
 
@@ -1047,41 +1044,25 @@ export const sugerirTotalPre = async (req, res) => {
 
     const totalPosAnterior = ultimaMov.totalPos || 0;
 
-    // Se algum fechamento mensal já zerou o extrato da Machine Pay desde
-    // essa coleta, o valor recebido naquele período foi preservado aqui —
-    // soma ele e usa o fim do fechamento como novo ponto de partida da
-    // consulta (senão a consulta ao vivo, que já não encontra mais nada
-    // antes disso na Machine Pay, ficaria incompleta).
-    // (O fechamento da CompactPay não apaga as vendas, então lá não existe
-    // acumulado pendente — a consulta parte direto da última coleta.)
-    const pendenteMachinePay = usaCompactPay
-      ? null
-      : await MachinePayColetaPendente.findOne({ where: { maquinaId } });
-    const dataInicioConsulta =
-      pendenteMachinePay?.dataReferencia &&
-      new Date(pendenteMachinePay.dataReferencia) > new Date(ultimaMov.dataColeta)
-        ? pendenteMachinePay.dataReferencia
-        : ultimaMov.dataColeta;
-
-    const { estoqueReal, totalRecebidoDesdeUltimaMovimentacao, pulsos } =
-      usaCompactPay
-        ? await calcularEstoqueRealCompactPay({
-            compactPayId: maquina.compactPayId,
-            valorDesconto,
-            totalPosAnterior,
-            dataUltimaMovimentacao: dataInicioConsulta,
-          })
-        : await calcularEstoqueRealMachinePay({
-            posId: maquina.machinePayPosId,
-            valorDesconto,
-            totalPosAnterior,
-            dataUltimaMovimentacao: dataInicioConsulta,
-            totalAcumuladoPendente: pendenteMachinePay?.totalAcumulado || 0,
-          });
+    const {
+      fonte,
+      estoqueReal,
+      totalRecebidoDesdeUltimaMovimentacao,
+      totalMachinePay,
+      totalCompactPay,
+      pulsos,
+    } = await calcularEstoqueRealPagamentos({
+      maquina,
+      valorDesconto,
+      totalPosAnterior,
+      dataUltimaColeta: ultimaMov.dataColeta,
+    });
 
     return res.json({
       sugestaoDisponivel: true,
-      fonte: usaCompactPay ? "compactPay" : "machinePay",
+      fonte,
+      totalMachinePay,
+      totalCompactPay,
       modo,
       sugestaoTotalPre: estoqueReal,
       totalPosAnterior,

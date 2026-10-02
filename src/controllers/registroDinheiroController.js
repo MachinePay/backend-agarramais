@@ -336,6 +336,88 @@ const preservarTransacoesPendentesMachinePay = async ({
   }
 };
 
+// Consulta o que a máquina recebeu no período na Machine Pay e/ou na
+// CompactPay e devolve no formato de consultarFechamentoMachinePay. Máquina
+// com os dois IDs soma as duas (cada uma também vem separada em
+// `machinePay`/`compactPay`). `valorFaturamento` é o valor usado no
+// Ranking/Dashboard/Relatórios: bruto da Machine Pay + total da CompactPay
+// (digital + físico contado pela placa). Se só uma das duas responder, usa
+// a que respondeu e lista a falha em `erros`; se nenhuma responder, lança.
+const round2 = (valor) => Number(Number(valor || 0).toFixed(2));
+
+const consultarPagamentosMaquina = async (maquina, inicio, fim) => {
+  const posId = maquina.machinePayPosId?.trim();
+  const compactPayId = maquina.compactPayId?.trim();
+  const erros = [];
+
+  const [machinePay, compactPay] = await Promise.all([
+    posId
+      ? consultarFechamentoMachinePay({ posId, inicio, fim })
+          .then((dados) =>
+            maquina.recebimentoAParteMachinePay
+              ? ajustarStatsParaRecebimentoAParte(dados)
+              : dados,
+          )
+          .catch((err) => {
+            erros.push({ fonte: "machinePay", erro: err.message });
+            return null;
+          })
+      : null,
+    compactPayId
+      ? consultarFechamentoCompactPay({ compactPayId, inicio, fim }).catch(
+          (err) => {
+            erros.push({ fonte: "compactPay", erro: err.message });
+            return null;
+          },
+        )
+      : null,
+  ]);
+
+  if (!machinePay && !compactPay) {
+    throw new Error(
+      erros.map((item) => item.erro).join(" | ") ||
+        "Máquina sem ID da Machine Pay ou da CompactPay.",
+    );
+  }
+
+  const mp = machinePay || {};
+  const cp = compactPay || {};
+  const bruto = round2(
+    Number(mp.brutoComTaxasMp || 0) + Number(cp.brutoComTaxasMp || 0),
+  );
+  const taxas = round2(mp.taxas);
+  const fonte =
+    posId && compactPayId ? "ambos" : posId ? "machinePay" : "compactPay";
+
+  return {
+    fonte,
+    machinePayPosId: posId || null,
+    compactPayId: compactPayId || null,
+    pix: round2(Number(mp.pix || 0) + Number(cp.pix || 0)),
+    debito: round2(mp.debito),
+    credito: round2(mp.credito),
+    cartao: round2(Number(mp.cartao || 0) + Number(cp.cartao || 0)),
+    app: round2(cp.app),
+    brutoComTaxasMp: bruto,
+    cartaoPix: bruto,
+    taxas,
+    liquido: round2(Number(mp.liquido || 0) + Number(cp.liquido || 0)),
+    percentualTaxaMedia:
+      compactPay && bruto > 0
+        ? Number(((taxas / bruto) * 100).toFixed(4))
+        : Number(mp.percentualTaxaMedia || 0),
+    fisico: round2(cp.fisico),
+    valorFaturamento: round2(
+      Number(mp.brutoComTaxasMp || 0) + Number(cp.total || 0),
+    ),
+    valorMachinePay: round2(mp.brutoComTaxasMp),
+    valorCompactPay: round2(cp.total),
+    machinePay,
+    compactPay,
+    erros,
+  };
+};
+
 const registroDinheiroController = {
   async consultarMachinePay(req, res) {
     try {
@@ -362,45 +444,17 @@ const registroDinheiroController = {
         return res.status(404).json({ error: "Máquina não encontrada." });
       }
 
-      // Máquina só com CompactPay: mesmo formato de resposta, pra o
-      // Registrar Dinheiro e os Relatórios tratarem igual.
-      if (!maquina.machinePayPosId && maquina.compactPayId) {
-        const dados = await consultarFechamentoCompactPay({
-          compactPayId: maquina.compactPayId,
-          inicio,
-          fim,
-        });
-        return res.json({
-          maquinaId: maquina.id,
-          fonte: "compactPay",
-          compactPayId: maquina.compactPayId,
-          inicio,
-          fim,
-          ...dados,
-        });
-      }
-
-      if (!maquina.machinePayPosId) {
+      if (!maquina.machinePayPosId && !maquina.compactPayId) {
         return res.status(400).json({
           error:
             "Esta máquina ainda não possui ID da Machine Pay nem da CompactPay cadastrado.",
         });
       }
 
-      const dadosBrutos = await consultarFechamentoMachinePay({
-        posId: maquina.machinePayPosId,
-        inicio,
-        fim,
-      });
-
-      const dados = maquina.recebimentoAParteMachinePay
-        ? ajustarStatsParaRecebimentoAParte(dadosBrutos)
-        : dadosBrutos;
+      const dados = await consultarPagamentosMaquina(maquina, inicio, fim);
 
       return res.json({
         maquinaId: maquina.id,
-        fonte: "machinePay",
-        machinePayPosId: maquina.machinePayPosId,
         inicio,
         fim,
         ...dados,
@@ -438,7 +492,7 @@ const registroDinheiroController = {
 
       // Total geral (Dashboard / Ranking / Relatórios): lojas de teste
       // ficam de fora. Inclui as máquinas da CompactPay (cada item vem com
-      // `fonte`); uma máquina com os dois IDs conta só pela Machine Pay.
+      // `fonte`); máquina com os dois IDs soma as duas (fonte "ambos").
       const lojaIdSemTeste = await filtroLojaIdSemTeste();
       const maquinas = await Maquina.findAll({
         where: {
@@ -464,87 +518,58 @@ const registroDinheiroController = {
 
       const resultados = await Promise.all(
         maquinas.map(async (maquina) => {
-          const base = {
-            maquinaId: maquina.id,
-            nome: maquina.nome,
-            codigo: maquina.codigo,
-            valorFicha: Number(maquina.valorFicha || 0),
-            lojaId: maquina.lojaId,
-            loja: maquina.loja?.nome || null,
-          };
-          const posId = maquina.machinePayPosId?.trim();
-          const compactPayId = maquina.compactPayId?.trim();
-
           try {
-            if (posId) {
-              const dadosBrutos = await consultarFechamentoMachinePay({
-                posId,
-                inicio,
-                fim,
-              });
-              const dados = maquina.recebimentoAParteMachinePay
-                ? ajustarStatsParaRecebimentoAParte(dadosBrutos)
-                : dadosBrutos;
-              return {
-                ...base,
-                fonte: "machinePay",
-                machinePayPosId: posId,
-                ...dados,
-                valorFaturamento: Number(dados.brutoComTaxasMp || 0),
-              };
-            }
-
-            if (compactPayId) {
-              const dados = await consultarFechamentoCompactPay({
-                compactPayId,
-                inicio,
-                fim,
-              });
-              // No faturamento da máquina entra também o físico que a placa
-              // contou (noteiro/moedeiro) — é o que a máquina recebeu.
-              return {
-                ...base,
-                fonte: "compactPay",
-                compactPayId,
-                ...dados,
-                valorFaturamento: Number(dados.total || 0),
-              };
-            }
+            const dados = await consultarPagamentosMaquina(maquina, inicio, fim);
+            dados.erros.forEach((item) =>
+              console.error(
+                `[PagamentosDigitais] Erro ao consultar ${item.fonte} da máquina ${maquina.id}:`,
+                item.erro,
+              ),
+            );
+            return {
+              maquinaId: maquina.id,
+              nome: maquina.nome,
+              codigo: maquina.codigo,
+              valorFicha: Number(maquina.valorFicha || 0),
+              lojaId: maquina.lojaId,
+              loja: maquina.loja?.nome || null,
+              ...dados,
+            };
           } catch (err) {
             console.error(
-              `[PagamentosDigitais] Erro ao consultar máquina ${maquina.id} (${posId ? `MP pos ${posId}` : `CompactPay ${compactPayId}`}):`,
+              `[PagamentosDigitais] Erro ao consultar máquina ${maquina.id}:`,
               err.message,
             );
+            return null;
           }
-          return null;
         }),
       );
 
       const maquinasComDados = resultados.filter(Boolean);
-      const somar = (lista, campo) =>
-        Number(
-          lista
-            .reduce((acc, item) => acc + Number(item[campo] || 0), 0)
-            .toFixed(2),
+      const somar = (campo) =>
+        round2(
+          maquinasComDados.reduce(
+            (acc, item) => acc + Number(item[campo] || 0),
+            0,
+          ),
         );
-      const maquinasMachinePay = maquinasComDados.filter(
-        (item) => item.fonte === "machinePay",
-      );
-      const maquinasCompactPay = maquinasComDados.filter(
-        (item) => item.fonte === "compactPay",
-      );
 
       return res.json({
-        totalBrutoComTaxasMp: somar(maquinasComDados, "valorFaturamento"),
-        totalPix: somar(maquinasComDados, "pix"),
-        totalCartao: somar(maquinasComDados, "cartao"),
-        totalLiquido: somar(maquinasComDados, "liquido"),
-        totalMachinePay: somar(maquinasMachinePay, "valorFaturamento"),
-        totalCompactPay: somar(maquinasCompactPay, "valorFaturamento"),
-        totalFisicoCompactPay: somar(maquinasCompactPay, "fisico"),
+        totalBrutoComTaxasMp: somar("valorFaturamento"),
+        totalPix: somar("pix"),
+        totalCartao: somar("cartao"),
+        totalLiquido: somar("liquido"),
+        totalMachinePay: somar("valorMachinePay"),
+        totalCompactPay: somar("valorCompactPay"),
+        totalFisicoCompactPay: somar("fisico"),
+        totalAppCompactPay: somar("app"),
         maquinaCount: maquinasComDados.length,
-        maquinaCountMachinePay: maquinasMachinePay.length,
-        maquinaCountCompactPay: maquinasCompactPay.length,
+        maquinaCountMachinePay: maquinasComDados.filter(
+          (item) => item.machinePayPosId,
+        ).length,
+        maquinaCountCompactPay: maquinasComDados.filter(
+          (item) => item.compactPayId,
+        ).length,
         maquinas: maquinasComDados,
       });
     } catch (err) {
@@ -775,10 +800,8 @@ const registroDinheiroController = {
               ],
             });
 
-            if (
-              !maquinaFechamento?.machinePayPosId &&
-              maquinaFechamento?.compactPayId
-            ) {
+            // Máquina com os dois IDs fecha nos dois sistemas.
+            if (maquinaFechamento?.compactPayId?.trim()) {
               try {
                 const resultado = await fecharFechamentoCompactPay({
                   compactPayId: maquinaFechamento.compactPayId,

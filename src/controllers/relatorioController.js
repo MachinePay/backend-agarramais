@@ -83,10 +83,8 @@ import {
   GastoVariavel,
   GastoFixoLoja,
   GastoTotalFixoLoja,
-  MachinePayColetaPendente,
 } from "../models/index.js";
-import { calcularEstoqueRealMachinePay } from "../services/machinePayService.js";
-import { calcularEstoqueRealCompactPay } from "../services/compactPayService.js";
+import { calcularEstoqueRealPagamentos } from "../services/estoquePagamentosService.js";
 import { filtroLojaIdSemTeste } from "../utils/lojasTeste.js";
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
@@ -994,7 +992,7 @@ export const alertasEstoque = async (req, res) => {
       let estoqueAtual = estoqueRegistrado;
       let machinePay = null;
 
-      // Máquina com desconto automático via Machine Pay: o totalPos
+      // Máquina com desconto automático via Machine Pay/CompactPay: o totalPos
       // registrado fica desatualizado assim que alguém paga na maquininha
       // (cada pulso libera 1 unidade sem gerar uma nova movimentação). Usa
       // o valor real pra decidir o alerta, mas mostra os dois números.
@@ -1006,51 +1004,23 @@ export const alertasEstoque = async (req, res) => {
         ultimaMovimentacao
       ) {
         try {
-          if (!maquina.machinePayPosId) {
-            const { estoqueReal, totalRecebidoDesdeUltimaMovimentacao, pulsos } =
-              await calcularEstoqueRealCompactPay({
-                compactPayId: maquina.compactPayId,
-                valorDesconto: valorDescontoMachinePay,
-                totalPosAnterior: estoqueRegistrado,
-                dataUltimaMovimentacao: ultimaMovimentacao.dataColeta,
-              });
-            estoqueAtual = estoqueReal;
-            machinePay = {
-              fonte: "compactPay",
-              estoqueRegistrado,
-              totalRecebidoDesdeUltimaMovimentacao,
-              pulsos,
-            };
-          } else {
-            const pendenteMachinePay = await MachinePayColetaPendente.findOne({
-              where: { maquinaId: maquina.id },
+          const { fonte, estoqueReal, totalRecebidoDesdeUltimaMovimentacao, pulsos } =
+            await calcularEstoqueRealPagamentos({
+              maquina,
+              valorDesconto: valorDescontoMachinePay,
+              totalPosAnterior: estoqueRegistrado,
+              dataUltimaColeta: ultimaMovimentacao.dataColeta,
             });
-            const dataInicioConsulta =
-              pendenteMachinePay?.dataReferencia &&
-              new Date(pendenteMachinePay.dataReferencia) >
-                new Date(ultimaMovimentacao.dataColeta)
-                ? pendenteMachinePay.dataReferencia
-                : ultimaMovimentacao.dataColeta;
-
-            const { estoqueReal, totalRecebidoDesdeUltimaMovimentacao, pulsos } =
-              await calcularEstoqueRealMachinePay({
-                posId: maquina.machinePayPosId,
-                valorDesconto: valorDescontoMachinePay,
-                totalPosAnterior: estoqueRegistrado,
-                dataUltimaMovimentacao: dataInicioConsulta,
-                totalAcumuladoPendente: pendenteMachinePay?.totalAcumulado || 0,
-              });
-            estoqueAtual = estoqueReal;
-            machinePay = {
-              fonte: "machinePay",
-              estoqueRegistrado,
-              totalRecebidoDesdeUltimaMovimentacao,
-              pulsos,
-            };
-          }
+          estoqueAtual = estoqueReal;
+          machinePay = {
+            fonte,
+            estoqueRegistrado,
+            totalRecebidoDesdeUltimaMovimentacao,
+            pulsos,
+          };
         } catch (err) {
           console.error(
-            `[alertasEstoque] Erro ao consultar Machine Pay da máquina ${maquina.id}:`,
+            `[alertasEstoque] Erro ao consultar Machine Pay/CompactPay da máquina ${maquina.id}:`,
             err.message,
           );
         }
