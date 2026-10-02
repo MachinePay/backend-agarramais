@@ -212,7 +212,8 @@ export const validarId = async (req, res) => {
 
 // Total recebido na CompactPay por máquina num período (dias YYYY-MM-DD),
 // usado pelo campo "CompactPay" e pelo ranking de máquinas dos Relatórios.
-// Soma só pagamentos reais: testes e devolvidos ficam de fora.
+// Soma só pagamentos reais (inclusive os do app Agarra): testes,
+// devolvidos e lançamentos manuais do painel ficam de fora.
 export const consultarTotais = async (req, res) => {
   try {
     const hoje = hojeBrasilia();
@@ -241,19 +242,43 @@ export const consultarTotais = async (req, res) => {
             inicio,
             fim,
           });
-          return { ...base, total: dados.total, quantidade: dados.quantidade };
+          return {
+            ...base,
+            total: dados.total,
+            totalPix: dados.totalPix,
+            totalCartao: dados.totalCartao,
+            totalFisico: dados.totalFisico,
+            totalApp: dados.totalApp,
+            quantidade: dados.quantidade,
+          };
         } catch (error) {
-          return { ...base, total: 0, quantidade: 0, erro: error.message };
+          return {
+            ...base,
+            total: 0,
+            totalPix: 0,
+            totalCartao: 0,
+            totalFisico: 0,
+            totalApp: 0,
+            quantidade: 0,
+            erro: error.message,
+          };
         }
       }),
     );
 
+    const somar = (campo) =>
+      Number(
+        resultados.reduce((soma, item) => soma + item[campo], 0).toFixed(2),
+      );
+
     res.json({
       inicio,
       fim,
-      total: Number(
-        resultados.reduce((soma, item) => soma + item.total, 0).toFixed(2),
-      ),
+      total: somar("total"),
+      totalPix: somar("totalPix"),
+      totalCartao: somar("totalCartao"),
+      totalFisico: somar("totalFisico"),
+      totalApp: somar("totalApp"),
       quantidade: resultados.reduce((soma, item) => soma + item.quantidade, 0),
       maquinas: resultados,
     });

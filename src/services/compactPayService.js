@@ -149,8 +149,38 @@ export const verificarOnlineCompactPay = async ({ compactPayId }) => {
   };
 };
 
+const ehPagamentoAppAgarra = (venda) =>
+  String(venda.provider || "").toLowerCase() === "agarramais_app" ||
+  String(venda.payment_type || "").toLowerCase() === "pagamento_app_agarra" ||
+  /aplicativo agarra/i.test(String(venda.descricao || ""));
+
+// Crédito lançado à mão pelo painel do CompactPay não é dinheiro recebido,
+// então não conta como faturamento. Já o pagamento feito pelo app Agarra
+// conta aqui (o CompactPay deixa ele fora do faturamento dele, mas pra
+// gente é dinheiro que a máquina recebeu) e vem separado em `totalApp`.
+const contaComoFaturamento = (venda) => {
+  const provider = String(venda.provider || "").toLowerCase();
+  const paymentType = String(venda.payment_type || "").toLowerCase();
+  const descricao = String(venda.descricao || "").toLowerCase();
+  if (provider === "manual" || paymentType === "lancamento_painel") return false;
+  return !/lancado pelo painel/.test(descricao);
+};
+
+const classificarForma = (venda) => {
+  if (venda.kind === "pagamento_fisico") return "fisico";
+  if (ehPagamentoAppAgarra(venda)) return "app";
+  if (venda.card_brand) return "cartao";
+  return "pix";
+};
+
 // `inicio`/`fim` no formato YYYY-MM-DD (dias em horário de Brasília — o
 // CompactPay já trata o fim como o dia inteiro).
+//
+// O total é somado a partir da lista de vendas (e não do `resumo`), porque
+// o `resumo` do CompactPay zera o período depois que ele recebe um
+// fechamento, enquanto as vendas continuam vindo (marcadas como
+// `fechado`). Assim o valor de um mês já fechado continua aparecendo no
+// Ranking/Dashboard/Relatórios.
 export const consultarTransacoesCompactPay = async ({
   compactPayId,
   inicio,
@@ -186,21 +216,154 @@ export const consultarTransacoesCompactPay = async ({
       descricao: venda.descricao || "",
       jaDevolvido,
       podeDevolver: Boolean(venda.can_refund) && !jaDevolvido,
+      forma: classificarForma(venda),
+      contaFaturamento: !venda.is_test && contaComoFaturamento(venda),
+      fechado: Boolean(venda.fechado),
     };
   });
 
-  // Teste e devolvido não contam como faturamento.
-  const reais = transacoes.filter((t) => !t.isTeste && !t.jaDevolvido);
+  // Teste, devolvido e lançamento manual do painel não contam como
+  // faturamento.
+  const reais = transacoes.filter((t) => t.contaFaturamento && !t.jaDevolvido);
+  const somar = (lista) =>
+    Number(lista.reduce((soma, t) => soma + t.valor, 0).toFixed(2));
 
   return {
     inicio: inicio || null,
     fim: fim || null,
     transacoes,
-    total: Number(
-      reais.reduce((soma, t) => soma + t.valor, 0).toFixed(2),
-    ),
+    total: somar(reais),
+    totalPix: somar(reais.filter((t) => t.forma === "pix")),
+    totalCartao: somar(reais.filter((t) => t.forma === "cartao")),
+    totalFisico: somar(reais.filter((t) => t.forma === "fisico")),
+    totalApp: somar(reais.filter((t) => t.forma === "app")),
     quantidade: reais.length,
     resumo: dados?.resumo || null,
+  };
+};
+
+// Mesmo formato de consultarFechamentoMachinePay, pra o Registrar Dinheiro
+// e os totais (Dashboard/Ranking/Relatórios) tratarem as duas iguais. O
+// CompactPay não informa taxa por venda, então taxas = 0 e líquido = bruto.
+// `brutoComTaxasMp`/`cartaoPix` é só o digital (Pix + cartão + app Agarra),
+// igual na
+// Machine Pay; o físico (noteiro/moedeiro contado pela placa) vem à parte
+// em `fisico`, porque esse dinheiro é recolhido e registrado como
+// "Dinheiro" no Registrar Dinheiro.
+export const consultarFechamentoCompactPay = async ({
+  compactPayId,
+  inicio,
+  fim,
+}) => {
+  const dados = await consultarTransacoesCompactPay({
+    compactPayId,
+    inicio: String(inicio).slice(0, 10),
+    fim: String(fim).slice(0, 10),
+  });
+  const digital = Number(
+    (dados.totalPix + dados.totalCartao + dados.totalApp).toFixed(2),
+  );
+
+  return {
+    pix: dados.totalPix,
+    debito: 0,
+    credito: 0,
+    cartao: dados.totalCartao,
+    app: dados.totalApp,
+    brutoComTaxasMp: digital,
+    cartaoPix: digital,
+    taxas: 0,
+    liquido: digital,
+    percentualTaxaMedia: 0,
+    fisico: dados.totalFisico,
+    total: dados.total,
+    quantidade: dados.quantidade,
+  };
+};
+
+// Registra o fechamento do período no CompactPay (equivalente ao
+// fecharFechamentoMachinePay). Diferente da Machine Pay, isso não apaga as
+// vendas: elas só passam a sair marcadas como "fechado", então não é
+// preciso preservar nada antes. Se o período já tinha fechamento lá (409),
+// devolve jaExistia em vez de erro.
+export const fecharFechamentoCompactPay = async ({ compactPayId, inicio, fim }) => {
+  const params = new URLSearchParams({
+    data_inicio: String(inicio).slice(0, 10),
+    data_fim: String(fim).slice(0, 10),
+  });
+
+  try {
+    const fechamento = await fetchCompactPay(
+      `/maquinas/${idPath(compactPayId)}/fechamentos?${params}`,
+      { method: "POST" },
+    );
+    return {
+      concluido: true,
+      jaExistia: false,
+      fechamentoId: fechamento?.id ?? null,
+      totalPagamentos: Number(fechamento?.total_pagamentos || 0),
+    };
+  } catch (error) {
+    if (/ja existe fechamento/i.test(error.message || "")) {
+      return { concluido: true, jaExistia: true, fechamentoId: null };
+    }
+    throw error;
+  }
+};
+
+const dataBrasilia = (data) =>
+  new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Sao_Paulo" }).format(
+    new Date(data),
+  );
+
+// Total recebido (faturamento real) entre dois instantes. A API do
+// CompactPay só filtra por dia, então busca os dias inteiros e corta pelo
+// horário aqui.
+export const calcularTotalRecebidoCompactPay = async ({
+  compactPayId,
+  inicio,
+  fim,
+}) => {
+  const inicioData = new Date(inicio);
+  const fimData = new Date(fim);
+
+  const { transacoes } = await consultarTransacoesCompactPay({
+    compactPayId,
+    inicio: dataBrasilia(inicioData),
+    fim: dataBrasilia(fimData),
+  });
+
+  const total = transacoes
+    .filter((t) => t.contaFaturamento && !t.jaDevolvido)
+    .filter((t) => {
+      const data = t.data ? new Date(t.data) : null;
+      return !data || (data > inicioData && data <= fimData);
+    })
+    .reduce((soma, t) => soma + t.valor, 0);
+
+  return Number(total.toFixed(2));
+};
+
+// Equivalente a calcularEstoqueRealMachinePay: cada valorDesconto recebido
+// desde a última coleta libera 1 pulso/prêmio sem gerar movimentação.
+export const calcularEstoqueRealCompactPay = async ({
+  compactPayId,
+  valorDesconto,
+  totalPosAnterior,
+  dataUltimaMovimentacao,
+}) => {
+  const totalRecebido = await calcularTotalRecebidoCompactPay({
+    compactPayId,
+    inicio: dataUltimaMovimentacao,
+    fim: new Date(),
+  });
+
+  const pulsos = Math.floor(totalRecebido / valorDesconto);
+
+  return {
+    estoqueReal: Math.max(0, totalPosAnterior - pulsos),
+    totalRecebidoDesdeUltimaMovimentacao: totalRecebido,
+    pulsos,
   };
 };
 
