@@ -29,6 +29,8 @@ import SuporteMovimentacao from "./SuporteMovimentacao.js";
 import SuporteDevolucaoPendente from "./SuporteDevolucaoPendente.js";
 import MachinePayColetaPendente from "./MachinePayColetaPendente.js";
 import PedidoNotaFiscal from "./PedidoNotaFiscal.js";
+import CreditoRemotoLink from "./CreditoRemotoLink.js";
+import CreditoRemotoEnvio from "./CreditoRemotoEnvio.js";
 // Movimentação de Veículo -> Veículo e Usuário
 MovimentacaoVeiculo.belongsTo(Veiculo, {
   as: "veiculo",
@@ -408,6 +410,28 @@ PedidoNotaFiscal.belongsTo(Usuario, {
   as: "usuario",
 });
 
+// Link de crédito remoto -> Envios (cada crédito mandado pelo link)
+CreditoRemotoLink.hasMany(CreditoRemotoEnvio, {
+  foreignKey: "linkId",
+  as: "envios",
+});
+CreditoRemotoEnvio.belongsTo(CreditoRemotoLink, {
+  foreignKey: "linkId",
+  as: "link",
+});
+CreditoRemotoEnvio.belongsTo(Maquina, {
+  foreignKey: "maquinaId",
+  as: "maquina",
+});
+CreditoRemotoLink.belongsTo(Maquina, {
+  foreignKey: "maquinaId",
+  as: "maquina",
+});
+CreditoRemotoLink.belongsTo(Usuario, {
+  foreignKey: "criadoPorId",
+  as: "criadoPor",
+});
+
 export {
   Usuario,
   Loja,
@@ -440,4 +464,6 @@ export {
   SuporteDevolucaoPendente,
   MachinePayColetaPendente,
   PedidoNotaFiscal,
+  CreditoRemotoLink,
+  CreditoRemotoEnvio,
 };

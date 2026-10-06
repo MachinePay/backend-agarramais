@@ -49,7 +49,7 @@ app.use(
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Link-Token"],
   }),
 );
 app.use(morgan("dev"));
@@ -368,6 +368,40 @@ const startServer = async () => {
         "✅ Coluna numeroCotacao adicionada a pedidos_notas_fiscais!",
       );
     }
+
+    const colunasCreditoRemoto = await queryInterface.describeTable(
+      "credito_remoto_links",
+    );
+    if (!colunasCreditoRemoto.token_cifrado) {
+      const { DataTypes } = await import("sequelize");
+      await queryInterface.addColumn("credito_remoto_links", "token_cifrado", {
+        type: DataTypes.TEXT,
+        allowNull: true,
+      });
+    }
+    if (!colunasCreditoRemoto.maquina_id) {
+      const { DataTypes } = await import("sequelize");
+      await queryInterface.addColumn("credito_remoto_links", "maquina_id", {
+        type: DataTypes.UUID,
+        allowNull: true,
+        references: { model: "maquinas", key: "id" },
+      });
+    }
+
+    // Barreira final do link de crédito remoto: o próprio Postgres recusa
+    // qualquer gravação em que o valor usado passe do limite.
+    await sequelize.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = 'check_credito_remoto_limite'
+        ) THEN
+          ALTER TABLE credito_remoto_links
+            ADD CONSTRAINT check_credito_remoto_limite
+            CHECK (usado_centavos >= 0 AND usado_centavos <= limite_centavos AND limite_centavos > 0);
+        END IF;
+      END $$;
+    `);
 
     const { Usuario } = await import("./models/index.js");
     const adminEmail = process.env.ADMIN_EMAIL || "admin@agarramais.com";

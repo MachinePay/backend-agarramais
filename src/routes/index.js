@@ -30,6 +30,7 @@ import suporteTecnicoRoutes from "./suporteTecnico.routes.js";
 import transportadoraRoutes from "./transportadora.routes.js";
 import calculoPedidoRoutes from "./calculoPedido.routes.js";
 import pedidoNotaFiscalRoutes from "./pedidoNotaFiscal.routes.js";
+import creditoRemotoRoutes from "./creditoRemoto.routes.js";
 const router = express.Router();
 
 router.use("/auth", authRoutes);
@@ -68,5 +69,6 @@ router.use("/suporte-tecnico", suporteTecnicoRoutes);
 router.use("/transportadoras", transportadoraRoutes);
 router.use("/calculadora-pedidos", calculoPedidoRoutes);
 router.use("/pedidos-notas-fiscais", pedidoNotaFiscalRoutes);
+router.use("/credito-remoto", creditoRemotoRoutes);
 
 export default router;
