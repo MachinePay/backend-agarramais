@@ -133,7 +133,11 @@ export const consultarLinkPublico = async (req, res) => {
 
     const situacao = calcularSituacao(link);
     if (situacao !== "ativo") {
-      return res.status(410).json({ error: "Este link expirou.", situacao });
+      return res.status(410).json({
+        error: "Este link expirou.",
+        situacao,
+        descricao: link.descricao,
+      });
     }
 
     const maquinas = await listarMaquinasDoLink(link);
