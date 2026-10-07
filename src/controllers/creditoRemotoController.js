@@ -20,7 +20,7 @@ const FORMATO_TOKEN = /^[A-Za-z0-9_-]{43}$/;
 const FORMATO_UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const MENSAGEM_LINK_INVALIDO = "Link inválido ou expirado.";
+const MENSAGEM_LINK_INVALIDO = "Voucher inválido ou expirado.";
 
 const gerarToken = () => crypto.randomBytes(32).toString("base64url");
 
@@ -167,7 +167,7 @@ export const consultarLinkPublico = async (req, res) => {
     const situacao = calcularSituacao(link);
     if (situacao !== "ativo") {
       return res.status(410).json({
-        error: "Este link expirou.",
+        error: "Este voucher expirou.",
         situacao,
         descricao: link.descricao,
       });
@@ -187,7 +187,7 @@ export const consultarLinkPublico = async (req, res) => {
     });
   } catch (error) {
     console.error("[CreditoRemoto] Erro ao consultar link:", error);
-    res.status(500).json({ error: "Erro ao carregar o link." });
+    res.status(500).json({ error: "Erro ao carregar o voucher." });
   }
 };
 
@@ -289,7 +289,7 @@ export const enviarCreditoPublico = async (req, res) => {
         return res.status(404).json({ error: MENSAGEM_LINK_INVALIDO });
       }
       if (calcularSituacao(link) !== "ativo") {
-        return res.status(410).json({ error: "Este link expirou." });
+        return res.status(410).json({ error: "Este voucher expirou." });
       }
       const restante = centavosParaReais(
         link.limiteCentavos - link.usadoCentavos,
@@ -386,7 +386,7 @@ export const listarLinks = async (req, res) => {
     });
   } catch (error) {
     console.error("[CreditoRemoto] Erro ao listar links:", error);
-    res.status(500).json({ error: "Erro ao listar links." });
+    res.status(500).json({ error: "Erro ao listar vouchers." });
   }
 };
 
@@ -410,7 +410,7 @@ export const criarLink = async (req, res) => {
       quantidade > QUANTIDADE_MAXIMA_POR_LOTE
     ) {
       return res.status(400).json({
-        error: `Quantidade deve ser de 1 a ${QUANTIDADE_MAXIMA_POR_LOTE} links.`,
+        error: `Quantidade deve ser de 1 a ${QUANTIDADE_MAXIMA_POR_LOTE} vouchers.`,
       });
     }
     if (maquinaId && lojaIdsRecebidos.length) {
@@ -420,7 +420,7 @@ export const criarLink = async (req, res) => {
     }
 
     if (!descricao) {
-      return res.status(400).json({ error: "Informe para quem é o link." });
+      return res.status(400).json({ error: "Informe para quem é o voucher." });
     }
     if (
       !Number.isFinite(limiteReais) ||
@@ -499,7 +499,7 @@ export const criarLink = async (req, res) => {
     });
   } catch (error) {
     console.error("[CreditoRemoto] Erro ao criar link:", error);
-    res.status(500).json({ error: "Erro ao criar link." });
+    res.status(500).json({ error: "Erro ao criar voucher." });
   }
 };
 
@@ -507,14 +507,14 @@ export const bloquearLink = async (req, res) => {
   try {
     const link = await CreditoRemotoLink.findByPk(req.params.id);
     if (!link) {
-      return res.status(404).json({ error: "Link não encontrado." });
+      return res.status(404).json({ error: "Voucher não encontrado." });
     }
 
     await link.update({ ativo: false, revogadoEm: link.revogadoEm || new Date() });
     res.json(resumoLink(link));
   } catch (error) {
     console.error("[CreditoRemoto] Erro ao bloquear link:", error);
-    res.status(500).json({ error: "Erro ao bloquear link." });
+    res.status(500).json({ error: "Erro ao bloquear voucher." });
   }
 };
 
@@ -522,20 +522,20 @@ export const obterTokenLink = async (req, res) => {
   try {
     const link = await CreditoRemotoLink.findByPk(req.params.id);
     if (!link) {
-      return res.status(404).json({ error: "Link não encontrado." });
+      return res.status(404).json({ error: "Voucher não encontrado." });
     }
 
     const token = decifrarToken(link.tokenCifrado);
     if (!token || hashToken(token) !== link.tokenHash) {
       return res
         .status(400)
-        .json({ error: "Este link não pode ser copiado de novo. Gere outro." });
+        .json({ error: "Este voucher não pode ser copiado de novo. Gere outro." });
     }
 
     res.json({ token });
   } catch (error) {
     console.error("[CreditoRemoto] Erro ao obter link:", error);
-    res.status(500).json({ error: "Erro ao obter link." });
+    res.status(500).json({ error: "Erro ao obter voucher." });
   }
 };
 
@@ -566,7 +566,7 @@ export const obterTokensLote = async (req, res) => {
     res.json({ loteId: req.params.loteId, links: ativos });
   } catch (error) {
     console.error("[CreditoRemoto] Erro ao obter lote:", error);
-    res.status(500).json({ error: "Erro ao obter os links do lote." });
+    res.status(500).json({ error: "Erro ao obter os vouchers do lote." });
   }
 };
 
