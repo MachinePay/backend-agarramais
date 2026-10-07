@@ -31,6 +31,7 @@ import MachinePayColetaPendente from "./MachinePayColetaPendente.js";
 import PedidoNotaFiscal from "./PedidoNotaFiscal.js";
 import CreditoRemotoLink from "./CreditoRemotoLink.js";
 import CreditoRemotoEnvio from "./CreditoRemotoEnvio.js";
+import CorreiosPostagem from "./CorreiosPostagem.js";
 // Movimentação de Veículo -> Veículo e Usuário
 MovimentacaoVeiculo.belongsTo(Veiculo, {
   as: "veiculo",
@@ -432,6 +433,12 @@ CreditoRemotoLink.belongsTo(Usuario, {
   as: "criadoPor",
 });
 
+// Postagens VIPP (aba Correios) -> usuário que gravou
+CorreiosPostagem.belongsTo(Usuario, {
+  foreignKey: "usuarioId",
+  as: "usuario",
+});
+
 export {
   Usuario,
   Loja,
@@ -466,4 +473,5 @@ export {
   PedidoNotaFiscal,
   CreditoRemotoLink,
   CreditoRemotoEnvio,
+  CorreiosPostagem,
 };

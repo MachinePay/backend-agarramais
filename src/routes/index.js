@@ -31,6 +31,7 @@ import transportadoraRoutes from "./transportadora.routes.js";
 import calculoPedidoRoutes from "./calculoPedido.routes.js";
 import pedidoNotaFiscalRoutes from "./pedidoNotaFiscal.routes.js";
 import creditoRemotoRoutes from "./creditoRemoto.routes.js";
+import correiosRoutes from "./correios.routes.js";
 const router = express.Router();
 
 router.use("/auth", authRoutes);
@@ -70,5 +71,6 @@ router.use("/transportadoras", transportadoraRoutes);
 router.use("/calculadora-pedidos", calculoPedidoRoutes);
 router.use("/pedidos-notas-fiscais", pedidoNotaFiscalRoutes);
 router.use("/credito-remoto", creditoRemotoRoutes);
+router.use("/correios", correiosRoutes);
 
 export default router;
