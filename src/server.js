@@ -388,6 +388,17 @@ const startServer = async () => {
       });
     }
 
+    if (!colunasCreditoRemoto.loja_ids) {
+      await sequelize.query(
+        "ALTER TABLE credito_remoto_links ADD COLUMN loja_ids UUID[]",
+      );
+    }
+    if (!colunasCreditoRemoto.lote_id) {
+      await sequelize.query(
+        "ALTER TABLE credito_remoto_links ADD COLUMN lote_id UUID",
+      );
+    }
+
     // Barreira final do link de crédito remoto: o próprio Postgres recusa
     // qualquer gravação em que o valor usado passe do limite.
     await sequelize.query(`

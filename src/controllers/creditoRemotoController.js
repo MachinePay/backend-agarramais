@@ -4,6 +4,7 @@ import { sequelize } from "../database/connection.js";
 import {
   CreditoRemotoLink,
   CreditoRemotoEnvio,
+  Loja,
   Maquina,
   Usuario,
 } from "../models/index.js";
@@ -12,6 +13,7 @@ import { enviarCreditosMqttMachinePay } from "../services/machinePayService.js";
 const LIMITE_PADRAO_REAIS = 150;
 const LIMITE_MAXIMO_REAIS = 10000;
 const VALOR_MINIMO_ENVIO_CENTAVOS = 100;
+const QUANTIDADE_MAXIMA_POR_LOTE = 50;
 
 // 32 bytes aleatórios em base64url = 43 caracteres.
 const FORMATO_TOKEN = /^[A-Za-z0-9_-]{43}$/;
@@ -64,14 +66,41 @@ const whereMaquinasMachinePay = {
   machinePayPosId: { [Op.ne]: null },
 };
 
-// Link sem máquina fixa = máquinas com "GRU" maiúsculo como palavra inteira
-// (\m e \M são as bordas de palavra do Postgres) — sem isso "Grua" de
-// qualquer loja também entraria na lista. Link com máquina fixa (ex.: link
-// de teste) = só aquela máquina.
-const whereMaquinasDoLink = (link) =>
-  link?.maquinaId
-    ? { ...whereMaquinasMachinePay, id: link.maquinaId }
-    : { ...whereMaquinasMachinePay, nome: { [Op.regexp]: "\\mGRU\\M" } };
+// Onde o link vale:
+// - máquina fixa (ex.: link de teste) = só aquela máquina;
+// - lojas escolhidas = máquinas Machine Pay ativas dessas lojas;
+// - nenhum dos dois = máquinas com "GRU" maiúsculo como palavra inteira
+//   (\m e \M são as bordas de palavra do Postgres) — sem isso "Grua" de
+//   qualquer loja também entraria na lista.
+const whereMaquinasDoLink = (link) => {
+  if (link?.maquinaId) return { ...whereMaquinasMachinePay, id: link.maquinaId };
+  if (link?.lojaIds?.length) {
+    return { ...whereMaquinasMachinePay, lojaId: { [Op.in]: link.lojaIds } };
+  }
+  return { ...whereMaquinasMachinePay, nome: { [Op.regexp]: "\\mGRU\\M" } };
+};
+
+const listarLojasMachinePay = async () => {
+  const lojas = await Loja.findAll({
+    where: { ativo: true },
+    attributes: ["id", "nome"],
+    include: [
+      {
+        model: Maquina,
+        as: "maquinas",
+        where: whereMaquinasMachinePay,
+        attributes: ["id"],
+        required: true,
+      },
+    ],
+    order: [["nome", "ASC"]],
+  });
+  return lojas.map((loja) => ({
+    id: loja.id,
+    nome: loja.nome,
+    qtdMaquinas: loja.maquinas.length,
+  }));
+};
 
 const listarMaquinasDoLink = (link) =>
   Maquina.findAll({
@@ -88,7 +117,7 @@ const calcularSituacao = (link) => {
   return "ativo";
 };
 
-const resumoLink = (link) => ({
+const resumoLink = (link, nomesLojas = new Map()) => ({
   id: link.id,
   descricao: link.descricao,
   limite: centavosParaReais(link.limiteCentavos),
@@ -100,6 +129,10 @@ const resumoLink = (link) => ({
   revogadoEm: link.revogadoEm,
   situacao: calcularSituacao(link),
   maquina: link.maquinaId ? link.maquina?.nome || "Máquina removida" : null,
+  lojas: link.maquinaId
+    ? []
+    : (link.lojaIds || []).map((id) => nomesLojas.get(id) || "Loja removida"),
+  loteId: link.loteId || null,
   podeCopiar: Boolean(link.tokenCifrado),
   createdAt: link.createdAt,
   criadoPor: link.criadoPor?.nome || null,
@@ -338,9 +371,13 @@ export const listarLinks = async (req, res) => {
         order: [["nome", "ASC"]],
       }),
     ]);
+    const todasLojas = await Loja.findAll({ attributes: ["id", "nome"] });
+    const nomesLojas = new Map(todasLojas.map((loja) => [loja.id, loja.nome]));
+    const lojasMachinePay = await listarLojasMachinePay();
 
     res.json({
-      links: links.map(resumoLink),
+      links: links.map((link) => resumoLink(link, nomesLojas)),
+      lojasMachinePay,
       maquinasPermitidas: maquinasGru.map((maquina) => maquina.nome),
       maquinasMachinePay: maquinasMachinePay.map((maquina) => ({
         id: maquina.id,
@@ -362,6 +399,25 @@ export const criarLink = async (req, res) => {
     const limiteCentavos = Math.round(limiteReais * 100);
     const expiraEm = req.body?.expiraEm ? new Date(req.body.expiraEm) : null;
     const maquinaId = req.body?.maquinaId || null;
+    const lojaIdsRecebidos = Array.isArray(req.body?.lojaIds)
+      ? [...new Set(req.body.lojaIds.map(String))]
+      : [];
+    const quantidade = Number(req.body?.quantidade ?? 1);
+
+    if (
+      !Number.isInteger(quantidade) ||
+      quantidade < 1 ||
+      quantidade > QUANTIDADE_MAXIMA_POR_LOTE
+    ) {
+      return res.status(400).json({
+        error: `Quantidade deve ser de 1 a ${QUANTIDADE_MAXIMA_POR_LOTE} links.`,
+      });
+    }
+    if (maquinaId && lojaIdsRecebidos.length) {
+      return res
+        .status(400)
+        .json({ error: "Escolha uma máquina OU lojas, não os dois." });
+    }
 
     if (!descricao) {
       return res.status(400).json({ error: "Informe para quem é o link." });
@@ -392,19 +448,55 @@ export const criarLink = async (req, res) => {
       }
     }
 
-    const token = gerarToken();
-    const link = await CreditoRemotoLink.create({
-      descricao,
-      tokenHash: hashToken(token),
-      tokenCifrado: cifrarToken(token),
-      maquinaId: maquina?.id || null,
-      limiteCentavos,
-      expiraEm,
-      criadoPorId: req.usuario.id,
-    });
-    link.maquina = maquina;
+    let lojas = [];
+    if (lojaIdsRecebidos.length) {
+      const validas = (await listarLojasMachinePay()).filter((loja) =>
+        lojaIdsRecebidos.includes(loja.id),
+      );
+      if (validas.length !== lojaIdsRecebidos.length) {
+        return res.status(400).json({
+          error: "Loja inválida: precisa estar ativa e ter máquina com ID Machine Pay.",
+        });
+      }
+      lojas = validas;
+    }
 
-    res.status(201).json({ ...resumoLink(link), token });
+    const loteId = crypto.randomUUID();
+    const criados = await sequelize.transaction(async (transaction) => {
+      const lista = [];
+      for (let indice = 1; indice <= quantidade; indice += 1) {
+        const token = gerarToken();
+        const link = await CreditoRemotoLink.create(
+          {
+            descricao:
+              quantidade > 1
+                ? `${descricao.slice(0, 140)} #${indice}/${quantidade}`
+                : descricao,
+            tokenHash: hashToken(token),
+            tokenCifrado: cifrarToken(token),
+            maquinaId: maquina?.id || null,
+            lojaIds: lojas.length ? lojas.map((loja) => loja.id) : null,
+            loteId,
+            limiteCentavos,
+            expiraEm,
+            criadoPorId: req.usuario.id,
+          },
+          { transaction },
+        );
+        link.maquina = maquina;
+        lista.push({ link, token });
+      }
+      return lista;
+    });
+
+    const nomesLojas = new Map(lojas.map((loja) => [loja.id, loja.nome]));
+    res.status(201).json({
+      loteId,
+      links: criados.map(({ link, token }) => ({
+        ...resumoLink(link, nomesLojas),
+        token,
+      })),
+    });
   } catch (error) {
     console.error("[CreditoRemoto] Erro ao criar link:", error);
     res.status(500).json({ error: "Erro ao criar link." });
@@ -444,6 +536,37 @@ export const obterTokenLink = async (req, res) => {
   } catch (error) {
     console.error("[CreditoRemoto] Erro ao obter link:", error);
     res.status(500).json({ error: "Erro ao obter link." });
+  }
+};
+
+// Links ativos de um lote, com token — pra imprimir os QR Codes de novo.
+export const obterTokensLote = async (req, res) => {
+  try {
+    if (!FORMATO_UUID.test(String(req.params.loteId))) {
+      return res.status(400).json({ error: "Lote inválido." });
+    }
+    const links = await CreditoRemotoLink.findAll({
+      where: { loteId: req.params.loteId },
+      include: [{ model: Maquina, as: "maquina", attributes: ["nome"] }],
+      order: [["createdAt", "ASC"]],
+    });
+    const todasLojas = await Loja.findAll({ attributes: ["id", "nome"] });
+    const nomesLojas = new Map(todasLojas.map((loja) => [loja.id, loja.nome]));
+
+    const ativos = links
+      .filter((link) => calcularSituacao(link) === "ativo")
+      .map((link) => {
+        const token = decifrarToken(link.tokenCifrado);
+        return token && hashToken(token) === link.tokenHash
+          ? { ...resumoLink(link, nomesLojas), token }
+          : null;
+      })
+      .filter(Boolean);
+
+    res.json({ loteId: req.params.loteId, links: ativos });
+  } catch (error) {
+    console.error("[CreditoRemoto] Erro ao obter lote:", error);
+    res.status(500).json({ error: "Erro ao obter os links do lote." });
   }
 };
 

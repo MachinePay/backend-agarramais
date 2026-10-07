@@ -47,6 +47,18 @@ const CreditoRemotoLink = sequelize.define(
       },
       comment: "Se preenchido, o link só envia para esta máquina (ex.: link de teste). Vazio = máquinas GRU",
     },
+    lojaIds: {
+      type: DataTypes.ARRAY(DataTypes.UUID),
+      allowNull: true,
+      field: "loja_ids",
+      comment: "Se preenchido (e sem máquina fixa), o link vale nas máquinas Machine Pay dessas lojas",
+    },
+    loteId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      field: "lote_id",
+      comment: "Links criados juntos (ex.: 10 vouchers de R$ 5) compartilham o mesmo lote",
+    },
     limiteCentavos: {
       type: DataTypes.INTEGER,
       allowNull: false,

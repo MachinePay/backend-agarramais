@@ -15,6 +15,8 @@ module.exports = {
         allowNull: true,
         references: { model: "maquinas", key: "id" },
       },
+      loja_ids: { type: Sequelize.ARRAY(Sequelize.UUID), allowNull: true },
+      lote_id: { type: Sequelize.UUID, allowNull: true },
       limite_centavos: { type: Sequelize.INTEGER, allowNull: false },
       usado_centavos: {
         type: Sequelize.INTEGER,

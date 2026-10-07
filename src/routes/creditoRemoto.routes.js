@@ -6,6 +6,7 @@ import {
   criarLink,
   bloquearLink,
   obterTokenLink,
+  obterTokensLote,
   listarEnviosLink,
 } from "../controllers/creditoRemotoController.js";
 import { autenticar, autorizarRole } from "../middlewares/auth.js";
@@ -74,6 +75,12 @@ router.get(
   autenticar,
   autorizarRole("ADMIN"),
   obterTokenLink,
+);
+router.get(
+  "/lotes/:loteId/tokens",
+  autenticar,
+  autorizarRole("ADMIN"),
+  obterTokensLote,
 );
 router.get(
   "/links/:id/envios",
