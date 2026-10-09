@@ -114,7 +114,11 @@ async function resolverContasMonitoradas() {
     );
   }
 
-  return { usrs: [...usrs], totalCadastradas: maquinas.length };
+  return {
+    usrs: [...usrs],
+    totalCadastradas: maquinas.length,
+    posIdsAgarramais: new Set(maquinas.map((m) => String(m.machinePayPosId).trim())),
+  };
 }
 
 let coletaEmAndamento = null;
@@ -148,7 +152,7 @@ async function executarColeta() {
     );
   }
 
-  const { usrs, totalCadastradas } = await resolverContasMonitoradas();
+  const { usrs, totalCadastradas, posIdsAgarramais } = await resolverContasMonitoradas();
   if (!usrs.length) {
     throw new MachinePayServiceError(
       400,
@@ -163,6 +167,9 @@ async function executarColeta() {
   for (const usrId of usrs) {
     const html = await listarMaquinasCadastradas({ usrId });
     for (const leitura of parsearPainelMaquinas(html)) {
+      // A conta da Machine Pay pode ter leitores de outros clientes: só
+      // guardamos os que têm o POS ID cadastrado numa máquina da Agarramais.
+      if (!posIdsAgarramais.has(leitura.posId)) continue;
       if (vistos.has(leitura.posId)) continue;
       vistos.add(leitura.posId);
       leituras.push({ ...leitura, nomePonto: leitura.nomePonto?.slice(0, 255) || null });
@@ -172,7 +179,7 @@ async function executarColeta() {
   if (!leituras.length) {
     throw new MachinePayServiceError(
       502,
-      "Nenhuma máquina encontrada no painel Machine Pay (layout alterado ou sessão expirada)",
+      "Nenhuma máquina da Agarramais encontrada no painel Machine Pay (confira o POS ID no cadastro das máquinas; ou o layout do painel mudou / sessão expirou)",
     );
   }
 
