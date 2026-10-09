@@ -28,6 +28,10 @@ import SuporteItem from "./SuporteItem.js";
 import SuporteMovimentacao from "./SuporteMovimentacao.js";
 import SuporteDevolucaoPendente from "./SuporteDevolucaoPendente.js";
 import MachinePayColetaPendente from "./MachinePayColetaPendente.js";
+import MachinePayStatus from "./MachinePayStatus.js";
+import MachinePayDiario from "./MachinePayDiario.js";
+import MachinePayEvento from "./MachinePayEvento.js";
+import MachinePayConta from "./MachinePayConta.js";
 import PedidoNotaFiscal from "./PedidoNotaFiscal.js";
 import CreditoRemotoLink from "./CreditoRemotoLink.js";
 import CreditoRemotoEnvio from "./CreditoRemotoEnvio.js";
@@ -470,6 +474,10 @@ export {
   SuporteMovimentacao,
   SuporteDevolucaoPendente,
   MachinePayColetaPendente,
+  MachinePayStatus,
+  MachinePayDiario,
+  MachinePayEvento,
+  MachinePayConta,
   PedidoNotaFiscal,
   CreditoRemotoLink,
   CreditoRemotoEnvio,

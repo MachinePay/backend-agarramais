@@ -7,11 +7,29 @@ import {
   enviarCreditosMqtt,
   listarMaquinasMachinePay,
 } from "../controllers/machinePayController.js";
+import {
+  obterResumo,
+  listarMaquinasMonitor,
+  rankingQuedas,
+  serieDiaria,
+  detalharMaquinaMonitor,
+  listarEventos,
+  coletarAgora,
+} from "../controllers/machinePayMonitorController.js";
 import { autenticar, autorizarRole } from "../middlewares/auth.js";
 
 const router = express.Router();
 
 router.use(autenticar, autorizarRole("ADMIN", "MACHINEPAY"));
+
+// ---- Monitoramento dos leitores (página "Machine Pay") ----
+router.get("/monitor/resumo", obterResumo);
+router.get("/monitor/maquinas", listarMaquinasMonitor);
+router.get("/monitor/maquinas/:posId", detalharMaquinaMonitor);
+router.get("/monitor/ranking-quedas", rankingQuedas);
+router.get("/monitor/serie-diaria", serieDiaria);
+router.get("/monitor/eventos", listarEventos);
+router.post("/monitor/coletar", coletarAgora);
 
 router.get("/maquinas", listarMaquinasMachinePay);
 router.get("/status", consultarStatusMaquinas);

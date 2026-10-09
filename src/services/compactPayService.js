@@ -376,3 +376,58 @@ export const devolverPagamentoCompactPay = async ({
     devolvidoEm: normalizarDataUtc(resultado?.refunded_at),
   };
 };
+
+// ---- Monitoramento das placas (página "CompactPay") ----
+// O próprio CompactPay já guarda o histórico (quedas com diagnóstico, saúde,
+// alertas), então aqui só repassamos — sem coleta nem tabela local.
+
+export { normalizarDataUtc };
+
+export const listarSaudeCompactPay = async () => {
+  const dados = await fetchCompactPay("/maquinas/saude");
+  return dados?.maquinas || [];
+};
+
+export const listarAlertasCompactPay = async () => {
+  const dados = await fetchCompactPay("/maquinas/alertas");
+  return dados?.alertas || [];
+};
+
+// Lista padrão com o faturamento do dia de cada placa.
+export const listarResumoDiaCompactPay = async () => {
+  const dados = await fetchCompactPay("/maquinas?periodo=dia");
+  return Array.isArray(dados) ? dados : [];
+};
+
+// `dataInicio`/`dataFim` em UTC sem fuso (o CompactPay compara com
+// created_at, que é UTC "naive").
+export const listarQuedasCompactPay = async ({
+  compactPayId,
+  dataInicio,
+  dataFim,
+  limit = 500,
+} = {}) => {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (compactPayId) params.set("maquina_id", String(compactPayId).trim());
+  if (dataInicio) params.set("data_inicio", dataInicio);
+  if (dataFim) params.set("data_fim", dataFim);
+  const dados = await fetchCompactPay(`/maquinas/quedas?${params}`);
+  return { quedas: dados?.quedas || [], total: Number(dados?.total || 0) };
+};
+
+// Log técnico da placa. No CompactPay é restrito a admin: se o usuário de
+// integração não for admin, a API responde 403 (repassado como erro).
+export const listarEventosDispositivoCompactPay = async ({
+  compactPayId,
+  limit = 100,
+}) => {
+  const dados = await fetchCompactPay(
+    `/maquinas/${idPath(compactPayId)}/eventos-dispositivo?limit=${limit}`,
+  );
+  return (dados?.eventos || []).map((evento) => ({
+    id: evento.id,
+    data: normalizarDataUtc(evento.created_at),
+    descricao: evento.descricao || "",
+    pulsoStatus: evento.pulse_status || "",
+  }));
+};

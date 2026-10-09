@@ -898,3 +898,47 @@ export const enviarCreditosMqttMachinePay = async ({ posId, creditos = 1 }) => {
     resposta: json || text.slice(0, 500),
   };
 };
+
+// ---- Monitoramento dos leitores (página "Machine Pay") ----
+
+export class MachinePayServiceError extends Error {
+  constructor(status, message) {
+    super(message);
+    this.name = "MachinePayServiceError";
+    this.status = status;
+  }
+}
+
+const baseUrlPainel = () => {
+  const url = process.env.MACHINE_PAY_LOGIN_URL || DEFAULT_LOGIN_URL;
+  return url.endsWith("/") ? url : `${url}/`;
+};
+
+// Listagem "Dispositivos Cadastrados" (acao=maquinas) de uma conta; o HTML é
+// interpretado por machinePayPainelParser.js.
+export const listarMaquinasCadastradas = async ({ usrId } = {}) => {
+  const query = usrId ? `&usr=${encodeURIComponent(usrId)}` : "";
+  try {
+    const { body } = await fetchMachinePay(
+      `${baseUrlPainel()}maquinas.php?acao=maquinas${query}`,
+    );
+    return body;
+  } catch (error) {
+    throw new MachinePayServiceError(
+      502,
+      `Falha ao listar máquinas na Machine Pay: ${error.message}`,
+    );
+  }
+};
+
+// O extrato de um caixa (acao=stats&posid=) lista os pagamentos com
+// mostrar_mp('<idPagamento>', <usrDoCliente>) — dá o dono do posId sem saber
+// o usr de antemão. Só funciona se o caixa teve pagamento no período padrão.
+export const descobrirUsrPorExtrato = async (posId) => {
+  if (!posId) return null;
+  const { body } = await fetchMachinePay(
+    `${baseUrlPainel()}maquinas.php?acao=stats&posid=${encodeURIComponent(posId)}`,
+  );
+  const match = body.match(/mostrar_mp\('[^']*'\s*,\s*(\d+)\s*\)/);
+  return match ? match[1] : null;
+};

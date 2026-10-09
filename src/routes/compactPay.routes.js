@@ -9,11 +9,21 @@ import {
   validarId,
   verificarOnline,
 } from "../controllers/compactPayController.js";
+import {
+  listarEventosPlaca,
+  listarQuedas,
+  obterPainel,
+} from "../controllers/compactPayMonitorController.js";
 import { autenticar, autorizarRole } from "../middlewares/auth.js";
 
 const router = express.Router();
 
 router.use(autenticar, autorizarRole("ADMIN", "MACHINEPAY"));
+
+// ---- Monitoramento das placas (página "CompactPay") ----
+router.get("/monitor/painel", obterPainel);
+router.get("/monitor/quedas", listarQuedas);
+router.get("/monitor/maquinas/:compactPayId/eventos", listarEventosPlaca);
 
 router.get("/maquinas", listarMaquinasCompactPay);
 router.get("/status", consultarStatusMaquinas);

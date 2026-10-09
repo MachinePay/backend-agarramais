@@ -7,6 +7,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { sequelize } from "./database/connection.js";
 import routes from "./routes/index.js";
+import { iniciarMonitorMachinePay } from "./jobs/machinePayMonitor.js";
 
 dotenv.config();
 
@@ -437,6 +438,8 @@ const startServer = async () => {
       console.log(`🚀 Servidor rodando na porta ${PORT}`);
       console.log(`📍 http://localhost:${PORT}`);
       console.log(`🏥 Health check: http://localhost:${PORT}/health`);
+
+      iniciarMonitorMachinePay();
 
       // Agendar limpeza automática de dados antigos apenas quando explicitamente habilitada
       if (process.env.NODE_ENV === "production" && dataRetentionEnabled) {
