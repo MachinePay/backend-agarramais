@@ -51,3 +51,24 @@ test("extrai status, quedas e dados de cada leitor", () => {
 test("HTML sem máquinas devolve lista vazia", () => {
   assert.deepEqual(parsearPainelMaquinas("<script>top.location='desconectado.php'</script>"), []);
 });
+
+test("leitor Relé em modo POST: status pelo ícone wifi, versão e modo", () => {
+  const relé = (ligada) => `
+<tr><td class="td_ops acao" onclick="mnu_op_maq(2001,8147637329025815);">
+<div style="display: inline-flex;"><i class="fa fa-wifi ${ligada ? "maq_on" : "maq_off"}" style="color:green;"></i><span style="background:green;">ok</span></div></td>
+<td><span>V. 1.00</span><div style="font-size: 12px;">Versão Relé</div><span>363 à vencer</span></td>
+<td onclick="stats(101363598);"><span>Grua Gigante GRU - Mezanino</span><span><img src="cliente-empresa.png">AGARRAMAIS</span><span>Caixa: 101363598</span></td>
+<td class="maq-telemetria-cell" data-vendas-hoje="25"><span>Vendas/Dia</span><span>R$ 440,00</span><img alt="Consultado"><span>POST 2 segundos</span></td></tr>`;
+
+  const [ligada] = parsearPainelMaquinas(relé(true));
+  assert.equal(ligada.online, true);
+  assert.equal(ligada.quedasHoje, 0);
+  assert.equal(ligada.versao, "1.00");
+  assert.equal(ligada.tipoVersao, "Relé");
+  assert.equal(ligada.modoResposta, "POST");
+  assert.equal(ligada.diasVencer, 363);
+
+  assert.equal(parsearPainelMaquinas(relé(false))[0].online, false);
+  // Sem indicador ON/OFF, a consulta de telemetria decide.
+  assert.equal(parsearPainelMaquinas(relé(true).replace(/ maq_on/, ""))[0].online, true);
+});
