@@ -278,6 +278,35 @@ const startServer = async () => {
         CHECK (tipo IN ('retirada', 'devolucao', 'abastecimento'));
     `);
 
+    const colunasManutencoes =
+      await queryInterface.describeTable("manutencoes");
+    if (!colunasManutencoes.origem) {
+      const { DataTypes } = await import("sequelize");
+      await queryInterface.addColumn("manutencoes", "origem", {
+        type: DataTypes.STRING(30),
+        allowNull: false,
+        defaultValue: "MANUAL",
+      });
+      console.log("✅ Coluna origem adicionada às manutenções!");
+    }
+    if (!colunasManutencoes.maquinaId) {
+      const { DataTypes } = await import("sequelize");
+      await queryInterface.addColumn("manutencoes", "maquinaId", {
+        type: DataTypes.UUID,
+        allowNull: true,
+        references: { model: "maquinas", key: "id" },
+      });
+      console.log("✅ Coluna maquinaId adicionada às manutenções!");
+    }
+    if (!colunasManutencoes.movimentacaoId) {
+      const { DataTypes } = await import("sequelize");
+      await queryInterface.addColumn("manutencoes", "movimentacaoId", {
+        type: DataTypes.UUID,
+        allowNull: true,
+      });
+      console.log("✅ Coluna movimentacaoId adicionada às manutenções!");
+    }
+
     const colunasMovimentacoes =
       await queryInterface.describeTable("movimentacoes");
     if (!colunasMovimentacoes.valor_ficha_unitario) {

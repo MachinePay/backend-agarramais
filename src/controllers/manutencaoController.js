@@ -5,6 +5,7 @@ import {
   Loja,
   Manutencao,
   ManutencaoUsuario,
+  Maquina,
   Usuario,
 } from "../models/index.js";
 
@@ -29,6 +30,11 @@ const includeAdmin = [
     model: Loja,
     as: "loja",
     attributes: ["id", "nome"],
+  },
+  {
+    model: Maquina,
+    as: "maquina",
+    attributes: ["id", "nome", "codigo"],
   },
 ];
 
@@ -179,6 +185,8 @@ export const listarManutencoes = async (req, res) => {
 
     if (req.usuario.role !== "ADMIN") {
       where.status = "PENDENTE";
+      // Alertas automáticos (ex: fichas que não conferem) são só do admin.
+      where.origem = "MANUAL";
       include = [
         {
           model: Usuario,

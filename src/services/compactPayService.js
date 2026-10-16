@@ -130,6 +130,14 @@ export const consultarStatusCompactPay = async ({ compactPayId }) => {
     wifiQualidade: maquina.wifi_quality ?? null,
     firmware: maquina.firmware_version || null,
     faturamentoHoje: Number(maquina.faturamento || 0),
+    maquinaFicha: Boolean(maquina.maquina_ficha),
+    valorFicha:
+      maquina.valor_ficha !== null && maquina.valor_ficha !== undefined
+        ? Number(maquina.valor_ficha)
+        : null,
+    fichasHoje: maquina.maquina_ficha
+      ? Number(maquina.fisico_quantidade || 0)
+      : null,
   };
 };
 
@@ -217,6 +225,12 @@ export const consultarTransacoesCompactPay = async ({
       jaDevolvido,
       podeDevolver: Boolean(venda.can_refund) && !jaDevolvido,
       forma: classificarForma(venda),
+      // Pagamento físico vem agrupado (vários pulsos seguidos viram uma
+      // linha); em máquina de ficha cada pulso é uma ficha.
+      quantidadePulsos:
+        venda.kind === "pagamento_fisico"
+          ? Number(venda.pulse_count || 1)
+          : 0,
       contaFaturamento: !venda.is_test && contaComoFaturamento(venda),
       fechado: Boolean(venda.fechado),
     };
@@ -342,6 +356,48 @@ export const calcularTotalRecebidoCompactPay = async ({
     .reduce((soma, t) => soma + t.valor, 0);
 
   return Number(total.toFixed(2));
+};
+
+// Máquina cadastrada como "de ficha" no CompactPay: cada pulso da entrada
+// física é uma ficha valendo `valor_ficha`. Conta quantas fichas entraram
+// entre dois instantes (mesmo corte por horário do total recebido acima).
+// Devolve maquinaFicha=false se a máquina não for de ficha lá.
+export const contarFichasCompactPay = async ({ compactPayId, inicio, fim }) => {
+  const maquina = await consultarMaquinaCompactPay({ compactPayId });
+  const valorFicha = Number(maquina.valor_ficha || 0);
+
+  if (!maquina.maquina_ficha || valorFicha <= 0) {
+    return { maquinaFicha: false, valorFicha: null, fichas: 0, valor: 0 };
+  }
+
+  const inicioData = new Date(inicio);
+  const fimData = new Date(fim);
+
+  const { transacoes } = await consultarTransacoesCompactPay({
+    compactPayId,
+    inicio: dataBrasilia(inicioData),
+    fim: dataBrasilia(fimData),
+  });
+
+  const fisicas = transacoes.filter((t) => {
+    if (t.forma !== "fisico" || t.jaDevolvido) return false;
+    const data = t.data ? new Date(t.data) : null;
+    return !data || (data > inicioData && data <= fimData);
+  });
+
+  const fichas = fisicas.reduce(
+    (soma, t) =>
+      soma + (t.quantidadePulsos || Math.round(t.valor / valorFicha)),
+    0,
+  );
+  const valor = fisicas.reduce((soma, t) => soma + t.valor, 0);
+
+  return {
+    maquinaFicha: true,
+    valorFicha,
+    fichas,
+    valor: Number(valor.toFixed(2)),
+  };
 };
 
 // Libera crédito remoto na placa (o CompactPay registra como TESTE, não

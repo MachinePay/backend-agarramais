@@ -261,6 +261,10 @@ Manutencao.belongsTo(Loja, {
   foreignKey: "lojaId",
   as: "loja",
 });
+Manutencao.belongsTo(Maquina, {
+  foreignKey: "maquinaId",
+  as: "maquina",
+});
 
 AlertaMovimentacao.belongsTo(Maquina, {
   foreignKey: "maquinaId",

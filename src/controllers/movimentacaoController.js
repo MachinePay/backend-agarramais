@@ -10,6 +10,7 @@ import {
 } from "../models/index.js";
 import { Op } from "sequelize";
 import { calcularEstoqueRealPagamentos } from "../services/estoquePagamentosService.js";
+import { conferirFichasMovimentacao } from "../services/conferenciaFichasService.js";
 
 const movimentacoesEmAndamento = new Set();
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
@@ -382,6 +383,31 @@ export const registrarMovimentacao = async (req, res) => {
 
     res.locals.entityId = movimentacao.id;
     res.status(201).json(movimentacaoCompleta);
+
+    // Máquina de ficha no CompactPay: confere as fichas depois de responder,
+    // pra não segurar o funcionário esperando a API. Divergência vira alerta
+    // em Manutenção (só admin vê).
+    if (maquina.compactPayId && ultimaMov) {
+      conferirFichasMovimentacao({
+        maquina,
+        movimentacao,
+        movimentacaoAnterior: ultimaMov,
+        usuarioNome: req.usuario?.nome,
+      })
+        .then((alerta) => {
+          if (alerta) {
+            console.log(
+              `[CompactPay] Fichas não conferem na máquina ${maquina.nome}; alerta ${alerta.id} criado em Manutenção.`,
+            );
+          }
+        })
+        .catch((conferenciaError) => {
+          console.error(
+            "[CompactPay] Erro ao conferir fichas da movimentação:",
+            conferenciaError.message || conferenciaError,
+          );
+        });
+    }
   } catch (error) {
     console.error("Erro ao registrar movimentação:", error);
     res.status(500).json({ error: "Erro ao registrar movimentação" });

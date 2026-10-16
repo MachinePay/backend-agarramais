@@ -55,6 +55,26 @@ const Manutencao = sequelize.define(
       type: DataTypes.DATE,
       allowNull: true,
     },
+    // MANUAL: criada por um admin. ALERTA_FICHAS: gerada sozinha quando as
+    // fichas da movimentação não batem com as que o CompactPay contou — só
+    // admin vê, nunca vai pra funcionário.
+    origem: {
+      type: DataTypes.STRING(30),
+      allowNull: false,
+      defaultValue: "MANUAL",
+    },
+    maquinaId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: "maquinas",
+        key: "id",
+      },
+    },
+    movimentacaoId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+    },
   },
   {
     tableName: "manutencoes",
