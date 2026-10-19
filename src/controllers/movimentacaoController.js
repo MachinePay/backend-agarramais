@@ -1031,8 +1031,7 @@ export const sugerirTotalPre = async (req, res) => {
       return res.status(404).json({ error: "Máquina não encontrada" });
     }
 
-    // Machine Pay e/ou CompactPay, conforme fonteDescontoAutomatico
-    // ("ambos" soma os dois IDs cadastrados).
+    // Machine Pay ou CompactPay, conforme fonteDescontoAutomatico.
     const { posId, compactPayId } = idsDescontoAutomatico(maquina);
     if (!posId && !compactPayId) {
       return res.json({ sugestaoDisponivel: false, motivo: "sem_pos_id" });

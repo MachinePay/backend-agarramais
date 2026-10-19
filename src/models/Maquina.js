@@ -55,10 +55,10 @@ const Maquina = sequelize.define(
     fonteDescontoAutomatico: {
       type: DataTypes.STRING(20),
       allowNull: false,
-      defaultValue: "ambos",
+      defaultValue: "machinePay",
       field: "fonte_desconto_automatico",
       comment:
-        "De onde vêm os pagamentos do desconto automático: machinePay, compactPay ou ambos (soma os IDs cadastrados)",
+        "De onde vêm os pagamentos do desconto automático: machinePay ou compactPay",
     },
     recebimentoAParteMachinePay: {
       type: DataTypes.BOOLEAN,

@@ -22,6 +22,7 @@ import {
   consultarFechamentoCompactPay,
   fecharFechamentoCompactPay,
 } from "../services/compactPayService.js";
+import { fonteDescontoAutomatico } from "../services/estoquePagamentosService.js";
 import {
   filtroLojaIdSemTeste,
   obterIdsLojasTeste,
@@ -292,7 +293,7 @@ const preservarTransacoesPendentesMachinePay = async ({
   if (!maquina.descontoAutomaticoMachinePay || valorDesconto <= 0) return;
   // Desconto configurado só pela CompactPay: o extrato da Machine Pay não
   // entra na conta, então não há nada a preservar.
-  if (maquina.fonteDescontoAutomatico === "compactPay") return;
+  if (fonteDescontoAutomatico(maquina) !== "machinePay") return;
 
   const [ultimaMov, pendenteExistente] = await Promise.all([
     Movimentacao.findOne({

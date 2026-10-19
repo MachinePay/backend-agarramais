@@ -217,13 +217,29 @@ const startServer = async () => {
         {
           type: DataTypes.STRING(20),
           allowNull: false,
-          defaultValue: "ambos",
+          defaultValue: "machinePay",
         },
+      );
+      // Máquinas que só têm ID da CompactPay já descontavam por ela.
+      await sequelize.query(
+        `UPDATE maquinas SET fonte_desconto_automatico = 'compactPay'
+         WHERE (machine_pay_pos_id IS NULL OR TRIM(machine_pay_pos_id) = '')
+           AND compact_pay_id IS NOT NULL AND TRIM(compact_pay_id) <> ''`,
       );
       console.log(
         "✅ Coluna fonte_desconto_automatico adicionada às máquinas!",
       );
     }
+
+    // Registros antigos com "ambos" (opção removida) passam a usar um único
+    // sistema: CompactPay quando não há POS ID da Machine Pay, senão Machine Pay.
+    await sequelize.query(
+      `UPDATE maquinas SET fonte_desconto_automatico = CASE
+         WHEN (machine_pay_pos_id IS NULL OR TRIM(machine_pay_pos_id) = '')
+           AND compact_pay_id IS NOT NULL AND TRIM(compact_pay_id) <> ''
+         THEN 'compactPay' ELSE 'machinePay' END
+       WHERE fonte_desconto_automatico NOT IN ('machinePay', 'compactPay')`,
+    );
 
     if (!colunasMaquinas.recebimento_a_parte_machine_pay) {
       const { DataTypes } = await import("sequelize");

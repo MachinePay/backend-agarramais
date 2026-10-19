@@ -129,7 +129,11 @@ export const criarMaquina = async (req, res) => {
       compactPayId: compactPayId?.trim() || null,
       descontoAutomaticoMachinePay: descontoAutomaticoMachinePay ?? false,
       valorDescontoMachinePay: valorDescontoMachinePay || null,
-      fonteDescontoAutomatico: fonteDescontoAutomatico || "ambos",
+      fonteDescontoAutomatico:
+        fonteDescontoAutomatico ||
+        (!machinePayPosId?.trim() && compactPayId?.trim()
+          ? "compactPay"
+          : "machinePay"),
       recebimentoAParteMachinePay: recebimentoAParteMachinePay ?? false,
       geradoraDinheiro: geradoraDinheiro ?? false,
       tipo,
