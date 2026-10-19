@@ -209,6 +209,22 @@ const startServer = async () => {
       );
     }
 
+    if (!colunasMaquinas.fonte_desconto_automatico) {
+      const { DataTypes } = await import("sequelize");
+      await queryInterface.addColumn(
+        "maquinas",
+        "fonte_desconto_automatico",
+        {
+          type: DataTypes.STRING(20),
+          allowNull: false,
+          defaultValue: "ambos",
+        },
+      );
+      console.log(
+        "✅ Coluna fonte_desconto_automatico adicionada às máquinas!",
+      );
+    }
+
     if (!colunasMaquinas.recebimento_a_parte_machine_pay) {
       const { DataTypes } = await import("sequelize");
       await queryInterface.addColumn(

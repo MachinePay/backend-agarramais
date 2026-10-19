@@ -290,6 +290,9 @@ const preservarTransacoesPendentesMachinePay = async ({
 }) => {
   const valorDesconto = Number(maquina.valorDescontoMachinePay || 0);
   if (!maquina.descontoAutomaticoMachinePay || valorDesconto <= 0) return;
+  // Desconto configurado só pela CompactPay: o extrato da Machine Pay não
+  // entra na conta, então não há nada a preservar.
+  if (maquina.fonteDescontoAutomatico === "compactPay") return;
 
   const [ultimaMov, pendenteExistente] = await Promise.all([
     Movimentacao.findOne({
@@ -797,6 +800,7 @@ const registroDinheiroController = {
                 "compactPayId",
                 "descontoAutomaticoMachinePay",
                 "valorDescontoMachinePay",
+                "fonteDescontoAutomatico",
               ],
             });
 

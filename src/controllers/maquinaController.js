@@ -1,4 +1,5 @@
 import { Maquina, Loja, Movimentacao } from "../models/index.js";
+import { FONTES_DESCONTO_AUTOMATICO } from "../services/estoquePagamentosService.js";
 
 // US05 - Listar máquinas
 export const listarMaquinas = async (req, res) => {
@@ -71,6 +72,7 @@ export const criarMaquina = async (req, res) => {
       compactPayId,
       descontoAutomaticoMachinePay,
       valorDescontoMachinePay,
+      fonteDescontoAutomatico,
       recebimentoAParteMachinePay,
       geradoraDinheiro,
       tipo,
@@ -91,6 +93,15 @@ export const criarMaquina = async (req, res) => {
       return res
         .status(400)
         .json({ error: "Código e ID da loja são obrigatórios" });
+    }
+
+    if (
+      fonteDescontoAutomatico !== undefined &&
+      !FONTES_DESCONTO_AUTOMATICO.includes(fonteDescontoAutomatico)
+    ) {
+      return res
+        .status(400)
+        .json({ error: "Fonte do desconto automático inválida" });
     }
 
     // Verificar se código já existe
@@ -118,6 +129,7 @@ export const criarMaquina = async (req, res) => {
       compactPayId: compactPayId?.trim() || null,
       descontoAutomaticoMachinePay: descontoAutomaticoMachinePay ?? false,
       valorDescontoMachinePay: valorDescontoMachinePay || null,
+      fonteDescontoAutomatico: fonteDescontoAutomatico || "ambos",
       recebimentoAParteMachinePay: recebimentoAParteMachinePay ?? false,
       geradoraDinheiro: geradoraDinheiro ?? false,
       tipo,
@@ -159,6 +171,7 @@ export const atualizarMaquina = async (req, res) => {
       compactPayId,
       descontoAutomaticoMachinePay,
       valorDescontoMachinePay,
+      fonteDescontoAutomatico,
       recebimentoAParteMachinePay,
       geradoraDinheiro,
       tipo,
@@ -175,6 +188,15 @@ export const atualizarMaquina = async (req, res) => {
       localizacao,
       ativo,
     } = req.body;
+
+    if (
+      fonteDescontoAutomatico !== undefined &&
+      !FONTES_DESCONTO_AUTOMATICO.includes(fonteDescontoAutomatico)
+    ) {
+      return res
+        .status(400)
+        .json({ error: "Fonte do desconto automático inválida" });
+    }
 
     // Verificar se novo código já existe em outra máquina
     if (codigo && codigo !== maquina.codigo) {
@@ -216,6 +238,8 @@ export const atualizarMaquina = async (req, res) => {
         valorDescontoMachinePay === undefined
           ? maquina.valorDescontoMachinePay
           : valorDescontoMachinePay || null,
+      fonteDescontoAutomatico:
+        fonteDescontoAutomatico ?? maquina.fonteDescontoAutomatico,
       recebimentoAParteMachinePay:
         recebimentoAParteMachinePay ?? maquina.recebimentoAParteMachinePay,
       geradoraDinheiro: geradoraDinheiro ?? maquina.geradoraDinheiro,

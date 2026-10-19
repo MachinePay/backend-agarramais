@@ -52,6 +52,14 @@ const Maquina = sequelize.define(
       field: "valor_desconto_machine_pay",
       comment: "Valor em R$ de cada pulso/ficha liberado por pagamento na Machine Pay",
     },
+    fonteDescontoAutomatico: {
+      type: DataTypes.STRING(20),
+      allowNull: false,
+      defaultValue: "ambos",
+      field: "fonte_desconto_automatico",
+      comment:
+        "De onde vêm os pagamentos do desconto automático: machinePay, compactPay ou ambos (soma os IDs cadastrados)",
+    },
     recebimentoAParteMachinePay: {
       type: DataTypes.BOOLEAN,
       allowNull: false,

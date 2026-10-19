@@ -14,14 +14,28 @@ import { calcularTotalRecebidoCompactPay } from "./compactPayService.js";
 // MachinePayColetaPendente (ver registroDinheiroController) e a consulta ao
 // vivo parte do fim desse fechamento. CompactPay: o fechamento não apaga
 // as vendas, então a consulta parte direto da última coleta.
+export const FONTES_DESCONTO_AUTOMATICO = ["ambos", "machinePay", "compactPay"];
+
+// IDs que o desconto automático deve consultar, conforme
+// maquina.fonteDescontoAutomatico: "machinePay" ou "compactPay" usa só
+// aquele sistema; "ambos" (padrão) soma os IDs que estiverem cadastrados.
+export const idsDescontoAutomatico = (maquina) => {
+  const fonte = maquina.fonteDescontoAutomatico || "ambos";
+  return {
+    posId:
+      fonte !== "compactPay" ? maquina.machinePayPosId?.trim() || null : null,
+    compactPayId:
+      fonte !== "machinePay" ? maquina.compactPayId?.trim() || null : null,
+  };
+};
+
 export const calcularEstoqueRealPagamentos = async ({
   maquina,
   valorDesconto,
   totalPosAnterior,
   dataUltimaColeta,
 }) => {
-  const posId = maquina.machinePayPosId?.trim();
-  const compactPayId = maquina.compactPayId?.trim();
+  const { posId, compactPayId } = idsDescontoAutomatico(maquina);
 
   const [totalMachinePay, totalCompactPay] = await Promise.all([
     posId

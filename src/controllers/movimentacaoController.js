@@ -9,7 +9,10 @@ import {
   MachinePayColetaPendente,
 } from "../models/index.js";
 import { Op } from "sequelize";
-import { calcularEstoqueRealPagamentos } from "../services/estoquePagamentosService.js";
+import {
+  calcularEstoqueRealPagamentos,
+  idsDescontoAutomatico,
+} from "../services/estoquePagamentosService.js";
 import { conferirFichasMovimentacao } from "../services/conferenciaFichasService.js";
 
 const movimentacoesEmAndamento = new Set();
@@ -1028,8 +1031,10 @@ export const sugerirTotalPre = async (req, res) => {
       return res.status(404).json({ error: "Máquina não encontrada" });
     }
 
-    // Machine Pay e/ou CompactPay (máquina com os dois IDs soma as duas).
-    if (!maquina.machinePayPosId?.trim() && !maquina.compactPayId?.trim()) {
+    // Machine Pay e/ou CompactPay, conforme fonteDescontoAutomatico
+    // ("ambos" soma os dois IDs cadastrados).
+    const { posId, compactPayId } = idsDescontoAutomatico(maquina);
+    if (!posId && !compactPayId) {
       return res.json({ sugestaoDisponivel: false, motivo: "sem_pos_id" });
     }
 

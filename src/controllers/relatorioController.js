@@ -84,7 +84,10 @@ import {
   GastoFixoLoja,
   GastoTotalFixoLoja,
 } from "../models/index.js";
-import { calcularEstoqueRealPagamentos } from "../services/estoquePagamentosService.js";
+import {
+  calcularEstoqueRealPagamentos,
+  idsDescontoAutomatico,
+} from "../services/estoquePagamentosService.js";
 import { filtroLojaIdSemTeste } from "../utils/lojasTeste.js";
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
@@ -1000,7 +1003,8 @@ export const alertasEstoque = async (req, res) => {
       if (
         maquina.descontoAutomaticoMachinePay &&
         valorDescontoMachinePay > 0 &&
-        (maquina.machinePayPosId || maquina.compactPayId) &&
+        (idsDescontoAutomatico(maquina).posId ||
+          idsDescontoAutomatico(maquina).compactPayId) &&
         ultimaMovimentacao
       ) {
         try {
