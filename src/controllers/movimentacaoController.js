@@ -13,7 +13,11 @@ import {
   calcularEstoqueRealPagamentos,
   idsDescontoAutomatico,
 } from "../services/estoquePagamentosService.js";
-import { conferirFichasMovimentacao } from "../services/conferenciaFichasService.js";
+import {
+  conferirFichasMovimentacao,
+  conferirSaidaMovimentacao,
+} from "../services/conferenciaFichasService.js";
+import { contarSaidasCompactPay } from "../services/compactPayService.js";
 
 const movimentacoesEmAndamento = new Set();
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
@@ -387,29 +391,40 @@ export const registrarMovimentacao = async (req, res) => {
     res.locals.entityId = movimentacao.id;
     res.status(201).json(movimentacaoCompleta);
 
-    // Máquina de ficha no CompactPay: confere as fichas depois de responder,
-    // pra não segurar o funcionário esperando a API. Divergência vira alerta
-    // em Manutenção (só admin vê).
+    // Conferências com a placa CompactPay (fichas e saída de prêmios), cada
+    // uma ativada por um checkbox na máquina. Rodam depois de responder, pra
+    // não segurar o funcionário esperando a API. Divergência vira alerta em
+    // Manutenção (só admin vê).
     if (maquina.compactPayId && ultimaMov) {
-      conferirFichasMovimentacao({
-        maquina,
-        movimentacao,
-        movimentacaoAnterior: ultimaMov,
-        usuarioNome: req.usuario?.nome,
-      })
-        .then((alerta) => {
-          if (alerta) {
-            console.log(
-              `[CompactPay] Fichas não conferem na máquina ${maquina.nome}; alerta ${alerta.id} criado em Manutenção.`,
-            );
-          }
+      const conferencias = [
+        [conferirFichasMovimentacao, "Fichas não conferem", "conferir fichas"],
+        [
+          conferirSaidaMovimentacao,
+          "Saída de prêmios não confere",
+          "conferir saída de prêmios",
+        ],
+      ];
+      for (const [conferir, mensagem, acao] of conferencias) {
+        conferir({
+          maquina,
+          movimentacao,
+          movimentacaoAnterior: ultimaMov,
+          usuarioNome: req.usuario?.nome,
         })
-        .catch((conferenciaError) => {
-          console.error(
-            "[CompactPay] Erro ao conferir fichas da movimentação:",
-            conferenciaError.message || conferenciaError,
-          );
-        });
+          .then((alerta) => {
+            if (alerta) {
+              console.log(
+                `[CompactPay] ${mensagem} na máquina ${maquina.nome}; alerta ${alerta.id} criado em Manutenção.`,
+              );
+            }
+          })
+          .catch((conferenciaError) => {
+            console.error(
+              `[CompactPay] Erro ao ${acao} da movimentação:`,
+              conferenciaError.message || conferenciaError,
+            );
+          });
+      }
     }
   } catch (error) {
     console.error("Erro ao registrar movimentação:", error);
@@ -1109,5 +1124,52 @@ export const sugerirTotalPre = async (req, res) => {
       modo: "forcar_manual",
       error: error.message,
     });
+  }
+};
+
+// GET /movimentacoes/saidas-compactpay/:maquinaId (só admin)
+//
+// Prêmios entregues que o sensor de saída da placa CompactPay contou desde a
+// última movimentação até agora — o mesmo "Prêmios entregues" do painel
+// CompactPay, só que no período entre movimentações (em vez de desde o
+// último fechamento). Mesma janela usada pela conferência de saída
+// (conferirSaidaMovimentacao), pra o número mostrado bater com o do alerta.
+export const saidasCompactPayDesdeUltimaMovimentacao = async (req, res) => {
+  try {
+    const maquina = await Maquina.findByPk(req.params.maquinaId);
+    if (!maquina) {
+      return res.status(404).json({ error: "Máquina não encontrada" });
+    }
+
+    const compactPayId = maquina.compactPayId?.trim();
+    if (!compactPayId || !maquina.conferirSaidaCompactPay) {
+      return res.json({ disponivel: false });
+    }
+
+    const ultimaMov = await Movimentacao.findOne({
+      where: { maquinaId: maquina.id },
+      order: [["createdAt", "DESC"]],
+    });
+    if (!ultimaMov) {
+      return res.json({ disponivel: false, motivo: "sem_movimentacao_anterior" });
+    }
+
+    const fim = new Date();
+    const saidas = await contarSaidasCompactPay({
+      compactPayId,
+      inicio: ultimaMov.createdAt,
+      fim,
+    });
+
+    return res.json({
+      disponivel: true,
+      saidas,
+      desde: ultimaMov.createdAt,
+      ate: fim,
+      totalPosAnterior: ultimaMov.totalPos,
+    });
+  } catch (error) {
+    console.error("Erro ao consultar saídas na CompactPay:", error);
+    res.status(502).json({ disponivel: false, error: error.message });
   }
 };

@@ -241,6 +241,21 @@ const startServer = async () => {
        WHERE fonte_desconto_automatico NOT IN ('machinePay', 'compactPay')`,
     );
 
+    for (const coluna of [
+      "conferir_fichas_compact_pay",
+      "conferir_saida_compact_pay",
+    ]) {
+      if (!colunasMaquinas[coluna]) {
+        const { DataTypes } = await import("sequelize");
+        await queryInterface.addColumn("maquinas", coluna, {
+          type: DataTypes.BOOLEAN,
+          allowNull: false,
+          defaultValue: false,
+        });
+        console.log(`✅ Coluna ${coluna} adicionada às máquinas!`);
+      }
+    }
+
     if (!colunasMaquinas.recebimento_a_parte_machine_pay) {
       const { DataTypes } = await import("sequelize");
       await queryInterface.addColumn(

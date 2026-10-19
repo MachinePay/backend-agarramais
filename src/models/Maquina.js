@@ -60,6 +60,22 @@ const Maquina = sequelize.define(
       comment:
         "De onde vêm os pagamentos do desconto automático: machinePay ou compactPay",
     },
+    conferirFichasCompactPay: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+      field: "conferir_fichas_compact_pay",
+      comment:
+        "Se ativo, a cada movimentação compara as fichas lançadas com as que a placa CompactPay contou e gera alerta (só admin) se não bater",
+    },
+    conferirSaidaCompactPay: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+      field: "conferir_saida_compact_pay",
+      comment:
+        "Se ativo, a cada movimentação compara a saída de prêmios com o sensor de saída da placa CompactPay e gera alerta (só admin) se não bater",
+    },
     recebimentoAParteMachinePay: {
       type: DataTypes.BOOLEAN,
       allowNull: false,

@@ -174,7 +174,10 @@ const contaComoFaturamento = (venda) => {
   return !/lancado pelo painel/.test(descricao);
 };
 
+const ehSaidaPelucia = (venda) => venda.kind === "saida_pelucia";
+
 const classificarForma = (venda) => {
+  if (ehSaidaPelucia(venda)) return "saida";
   if (venda.kind === "pagamento_fisico") return "fisico";
   if (ehPagamentoAppAgarra(venda)) return "app";
   if (venda.card_brand) return "cartao";
@@ -226,12 +229,15 @@ export const consultarTransacoesCompactPay = async ({
       podeDevolver: Boolean(venda.can_refund) && !jaDevolvido,
       forma: classificarForma(venda),
       // Pagamento físico vem agrupado (vários pulsos seguidos viram uma
-      // linha); em máquina de ficha cada pulso é uma ficha.
+      // linha); em máquina de ficha cada pulso é uma ficha. Saída de pelúcia
+      // (sensor OUT) também vem agrupada: cada acionamento é uma pelúcia.
       quantidadePulsos:
-        venda.kind === "pagamento_fisico"
+        venda.kind === "pagamento_fisico" || ehSaidaPelucia(venda)
           ? Number(venda.pulse_count || 1)
           : 0,
-      contaFaturamento: !venda.is_test && contaComoFaturamento(venda),
+      // Saída de pelúcia é entrega, não cobrança: nunca entra no faturamento.
+      contaFaturamento:
+        !venda.is_test && !ehSaidaPelucia(venda) && contaComoFaturamento(venda),
       fechado: Boolean(venda.fechado),
     };
   });
@@ -398,6 +404,28 @@ export const contarFichasCompactPay = async ({ compactPayId, inicio, fim }) => {
     fichas,
     valor: Number(valor.toFixed(2)),
   };
+};
+
+// Pelúcias que o sensor de saída (OUT) da placa contou entre dois instantes
+// (mesmo corte por horário do total recebido acima). Só faz sentido em
+// máquina com o sensor de saída ligado na placa.
+export const contarSaidasCompactPay = async ({ compactPayId, inicio, fim }) => {
+  const inicioData = new Date(inicio);
+  const fimData = new Date(fim);
+
+  const { transacoes } = await consultarTransacoesCompactPay({
+    compactPayId,
+    inicio: dataBrasilia(inicioData),
+    fim: dataBrasilia(fimData),
+  });
+
+  return transacoes
+    .filter((t) => {
+      if (t.forma !== "saida") return false;
+      const data = t.data ? new Date(t.data) : null;
+      return !data || (data > inicioData && data <= fimData);
+    })
+    .reduce((soma, t) => soma + (t.quantidadePulsos || 1), 0);
 };
 
 // Libera crédito remoto na placa (o CompactPay registra como TESTE, não

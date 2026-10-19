@@ -55,9 +55,10 @@ const Manutencao = sequelize.define(
       type: DataTypes.DATE,
       allowNull: true,
     },
-    // MANUAL: criada por um admin. ALERTA_FICHAS: gerada sozinha quando as
-    // fichas da movimentação não batem com as que o CompactPay contou — só
-    // admin vê, nunca vai pra funcionário.
+    // MANUAL: criada por um admin. ALERTA_FICHAS / ALERTA_SAIDA: gerada
+    // sozinha quando as fichas / a saída de prêmios da movimentação não
+    // batem com o que o CompactPay contou — só admin vê, nunca vai pra
+    // funcionário.
     origem: {
       type: DataTypes.STRING(30),
       allowNull: false,

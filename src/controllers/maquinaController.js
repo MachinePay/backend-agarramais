@@ -73,6 +73,8 @@ export const criarMaquina = async (req, res) => {
       descontoAutomaticoMachinePay,
       valorDescontoMachinePay,
       fonteDescontoAutomatico,
+      conferirFichasCompactPay,
+      conferirSaidaCompactPay,
       recebimentoAParteMachinePay,
       geradoraDinheiro,
       tipo,
@@ -134,6 +136,8 @@ export const criarMaquina = async (req, res) => {
         (!machinePayPosId?.trim() && compactPayId?.trim()
           ? "compactPay"
           : "machinePay"),
+      conferirFichasCompactPay: conferirFichasCompactPay ?? false,
+      conferirSaidaCompactPay: conferirSaidaCompactPay ?? false,
       recebimentoAParteMachinePay: recebimentoAParteMachinePay ?? false,
       geradoraDinheiro: geradoraDinheiro ?? false,
       tipo,
@@ -176,6 +180,8 @@ export const atualizarMaquina = async (req, res) => {
       descontoAutomaticoMachinePay,
       valorDescontoMachinePay,
       fonteDescontoAutomatico,
+      conferirFichasCompactPay,
+      conferirSaidaCompactPay,
       recebimentoAParteMachinePay,
       geradoraDinheiro,
       tipo,
@@ -244,6 +250,10 @@ export const atualizarMaquina = async (req, res) => {
           : valorDescontoMachinePay || null,
       fonteDescontoAutomatico:
         fonteDescontoAutomatico ?? maquina.fonteDescontoAutomatico,
+      conferirFichasCompactPay:
+        conferirFichasCompactPay ?? maquina.conferirFichasCompactPay,
+      conferirSaidaCompactPay:
+        conferirSaidaCompactPay ?? maquina.conferirSaidaCompactPay,
       recebimentoAParteMachinePay:
         recebimentoAParteMachinePay ?? maquina.recebimentoAParteMachinePay,
       geradoraDinheiro: geradoraDinheiro ?? maquina.geradoraDinheiro,

@@ -6,6 +6,7 @@ import {
   atualizarMovimentacao,
   deletarMovimentacao,
   sugerirTotalPre,
+  saidasCompactPayDesdeUltimaMovimentacao,
 } from "../controllers/movimentacaoController.js";
 import {
   autenticar,
@@ -17,6 +18,13 @@ const router = express.Router();
 
 router.get("/", autenticar, listarMovimentacoes);
 router.get("/sugestao-total-pre/:maquinaId", autenticar, sugerirTotalPre);
+// Só admin: o funcionário não pode ver o número antes de contar.
+router.get(
+  "/saidas-compactpay/:maquinaId",
+  autenticar,
+  autorizarRole("ADMIN"),
+  saidasCompactPayDesdeUltimaMovimentacao,
+);
 router.get("/:id", autenticar, obterMovimentacao);
 router.post(
   "/",
