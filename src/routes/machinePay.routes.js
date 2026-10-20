@@ -16,7 +16,16 @@ import {
   listarEventos,
   coletarAgora,
 } from "../controllers/machinePayMonitorController.js";
-import { autenticar, autorizarRole } from "../middlewares/auth.js";
+import {
+  listarClientes,
+  listarCaixas,
+  criarCaixa,
+} from "../controllers/machinePayCaixasController.js";
+import {
+  autenticar,
+  autorizarRole,
+  registrarLog,
+} from "../middlewares/auth.js";
 
 const router = express.Router();
 
@@ -37,5 +46,15 @@ router.get("/descobrir-usr/:posId", descobrirUsrPorPosId);
 router.post("/maquinas/:id/mqtt-creditos", enviarCreditosMqtt);
 router.get("/maquinas/:id/transacoes-24h", consultarTransacoes24h);
 router.post("/pagamentos/:idwebhook/devolver", devolverPagamento);
+
+// Criar Caixas (Loja + Caixa Mercado Pago) — só ADMIN
+router.get("/caixas/clientes", autorizarRole("ADMIN"), listarClientes);
+router.get("/caixas/clientes/:clienteId", autorizarRole("ADMIN"), listarCaixas);
+router.post(
+  "/caixas",
+  autorizarRole("ADMIN"),
+  registrarLog("CRIAR_CAIXA_MACHINE_PAY", "MachinePayCaixa"),
+  criarCaixa,
+);
 
 export default router;

@@ -942,3 +942,6 @@ export const descobrirUsrPorExtrato = async (posId) => {
   const match = body.match(/mostrar_mp\('[^']*'\s*,\s*(\d+)\s*\)/);
   return match ? match[1] : null;
 };
+
+// Login reaproveitado pela criação de caixas (machinePayCaixasService.js).
+export { login as loginMachinePay };
