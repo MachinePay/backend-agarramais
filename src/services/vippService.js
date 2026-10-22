@@ -72,8 +72,8 @@ const paramJquery = (dados) => {
   return pares.join("&").replace(/%20/g, "+");
 };
 
-const criarSessao = () => {
-  let cookies = "";
+const criarSessao = (cookiesIniciais = "") => {
+  let cookies = cookiesIniciais;
 
   const requisitar = async (url, { method = "GET", corpo, ajax = false } = {}) => {
     const resposta = await fetch(url, {
@@ -123,12 +123,16 @@ const atributo = (html, regex) => html.match(regex)?.[1]?.trim() || "";
 // Faz login e lê da tela de digitação os dados fixos da conta: contrato,
 // cartão, remetente, agência postadora e se o contrato é PPN.
 const abrirSessaoVipp = async () => {
-  const sessao = criarSessao();
+  // A tela de login passou a exigir captcha; o próprio VIPP dispensa quando o
+  // navegador já tem o cookie exibirCap=0 (gravado pelo JS da página).
+  const sessao = criarSessao("exibirCap=0");
 
   await sessao.requisitar(`${BASE_URL}/inicio/index.php`);
   const corpoLogin = new URLSearchParams({
-    txtUsr: required("VIPP_USUARIO"),
-    txtPwd: required("VIPP_SENHA"),
+    txtUsr: required("VIPP_USUARIO").trim(),
+    txtPwd: required("VIPP_SENHA").trim(),
+    txtInvalido: "",
+    txtCaptcha: "",
   }).toString();
   const respostaLogin = await sessao.requisitar(`${BASE_URL}/inicio/index.php`, {
     method: "POST",
@@ -136,7 +140,11 @@ const abrirSessaoVipp = async () => {
   });
   const destino = respostaLogin.headers.get("location") || "";
   if (!/login\/index\.php/i.test(destino)) {
-    throw new Error("Login no VIPP recusado. Confira usuário e senha.");
+    const motivo = atributo(
+      await sessao.texto(respostaLogin),
+      /id="TituloLogin"[^>]*>\s*<small[^>]*>([^<]*)</,
+    );
+    throw new Error(`Login no VIPP recusado: ${motivo || "confira usuário e senha"}.`);
   }
   await sessao.requisitar(new URL(destino, `${BASE_URL}/inicio/`).toString());
 
