@@ -20,6 +20,8 @@ import {
   listarClientes,
   listarCaixas,
   criarCaixa,
+  listarCaixasQr,
+  buscarQrCodes,
 } from "../controllers/machinePayCaixasController.js";
 import {
   autenticar,
@@ -55,6 +57,16 @@ router.post(
   autorizarRole("ADMIN"),
   registrarLog("CRIAR_CAIXA_MACHINE_PAY", "MachinePayCaixa"),
   criarCaixa,
+);
+router.get(
+  "/caixas/clientes/:clienteId/qrcodes",
+  autorizarRole("ADMIN"),
+  listarCaixasQr,
+);
+router.post(
+  "/caixas/clientes/:clienteId/qrcodes",
+  autorizarRole("ADMIN"),
+  buscarQrCodes,
 );
 
 export default router;

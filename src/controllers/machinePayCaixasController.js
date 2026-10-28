@@ -2,6 +2,8 @@ import {
   listarClientesMachinePay,
   listarCaixasCliente,
   criarLojaECaixa,
+  listarCaixasMercadoPago,
+  buscarQrCodesCaixas,
 } from "../services/machinePayCaixasService.js";
 
 // Um caixa por vez por cliente: a sequência é criada pelo navegador chamando
@@ -49,5 +51,26 @@ export const criarCaixa = async (req, res) => {
     responderErro(res, error, "Erro ao criar loja e caixa");
   } finally {
     criacoesEmAndamento.delete(clienteId);
+  }
+};
+
+export const listarCaixasQr = async (req, res) => {
+  try {
+    res.json(await listarCaixasMercadoPago(req.params.clienteId));
+  } catch (error) {
+    responderErro(res, error, "Erro ao listar caixas no Mercado Pago");
+  }
+};
+
+export const buscarQrCodes = async (req, res) => {
+  try {
+    res.json(
+      await buscarQrCodesCaixas({
+        clienteId: req.params.clienteId,
+        ids: req.body?.ids,
+      }),
+    );
+  } catch (error) {
+    responderErro(res, error, "Erro ao buscar QR codes dos caixas");
   }
 };

@@ -184,3 +184,82 @@ export const criarLojaECaixa = async ({ clienteId, nome }) => {
     qrCodeUrl: decodificarHtml(qrCodeUrl),
   };
 };
+
+// ---- QR codes dos caixas ----
+// Mesmo dado do "☰ → Consultar caixa" do painel (que mostra o JSON do POS no
+// Mercado Pago), mas direto na API do Mercado Pago com o token do cliente.
+// O campo qr_code é o texto do PIX; o navegador desenha o QR a partir dele.
+
+const MP_API = "https://api.mercadopago.com";
+
+const requisitarMercadoPago = async (token, caminho) => {
+  const resposta = await fetch(`${MP_API}${caminho}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const dados = await resposta.json().catch(() => ({}));
+  if (!resposta.ok) {
+    const erro = new Error(
+      `Mercado Pago respondeu com status ${resposta.status}${dados?.message ? `: ${semTokens(dados.message)}` : ""}`,
+    );
+    erro.status = resposta.status === 404 ? 404 : 502;
+    throw erro;
+  }
+  return dados;
+};
+
+export const listarCaixasMercadoPago = async (clienteId) => {
+  const cliente = await obterCliente(clienteId);
+  const caixas = [];
+  for (let offset = 0; ; offset += 100) {
+    const pagina = await requisitarMercadoPago(
+      cliente.token,
+      `/pos?limit=100&offset=${offset}`,
+    );
+    const resultados = pagina.results || [];
+    caixas.push(
+      ...resultados.map((pos) => ({
+        idCaixa: String(pos.id),
+        nome: pos.name || "",
+        idLoja: pos.store_id ? String(pos.store_id) : "",
+        temQr: Boolean(pos.qr?.image),
+      })),
+    );
+    if (resultados.length < 100 || caixas.length >= (pagina.paging?.total || 0)) break;
+  }
+  caixas.sort((a, b) =>
+    a.nome.localeCompare(b.nome, "pt-BR", { numeric: true, sensitivity: "base" }),
+  );
+  return { cliente: cliente.nome, caixas };
+};
+
+export const buscarQrCodesCaixas = async ({ clienteId, ids }) => {
+  const lista = [...new Set((ids || []).map(String))].filter((id) => /^\d+$/.test(id));
+  if (lista.length === 0 || lista.length > 200) {
+    const erro = new Error("Escolha de 1 a 200 caixas.");
+    erro.status = 400;
+    throw erro;
+  }
+
+  const cliente = await obterCliente(clienteId);
+  const resultados = new Array(lista.length);
+  let proximo = 0;
+  const trabalhar = async () => {
+    while (proximo < lista.length) {
+      const i = proximo++;
+      try {
+        const pos = await requisitarMercadoPago(cliente.token, `/pos/${lista[i]}`);
+        resultados[i] = {
+          idCaixa: lista[i],
+          nome: pos.name || "",
+          qrCode: pos.qr_code || "",
+          erro: pos.qr_code ? "" : "Caixa sem QR code no Mercado Pago.",
+        };
+      } catch (error) {
+        resultados[i] = { idCaixa: lista[i], nome: "", qrCode: "", erro: error.message };
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(5, lista.length) }, trabalhar));
+
+  return { cliente: cliente.nome, caixas: resultados };
+};
