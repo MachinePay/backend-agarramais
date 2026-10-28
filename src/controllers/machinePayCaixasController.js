@@ -2,7 +2,8 @@ import {
   listarClientesMachinePay,
   listarCaixasCliente,
   criarLojaECaixa,
-  listarCaixasMercadoPago,
+  listarClientesPainel,
+  listarCaixasPainel,
   buscarQrCodesCaixas,
 } from "../services/machinePayCaixasService.js";
 
@@ -54,22 +55,25 @@ export const criarCaixa = async (req, res) => {
   }
 };
 
+export const listarClientesQr = async (req, res) => {
+  try {
+    res.json({ clientes: await listarClientesPainel() });
+  } catch (error) {
+    responderErro(res, error, "Erro ao listar clientes do painel Machine Pay");
+  }
+};
+
 export const listarCaixasQr = async (req, res) => {
   try {
-    res.json(await listarCaixasMercadoPago(req.params.clienteId));
+    res.json(await listarCaixasPainel(req.params.usr));
   } catch (error) {
-    responderErro(res, error, "Erro ao listar caixas no Mercado Pago");
+    responderErro(res, error, "Erro ao listar caixas do cliente no painel");
   }
 };
 
 export const buscarQrCodes = async (req, res) => {
   try {
-    res.json(
-      await buscarQrCodesCaixas({
-        clienteId: req.params.clienteId,
-        ids: req.body?.ids,
-      }),
-    );
+    res.json(await buscarQrCodesCaixas({ usr: req.params.usr, ids: req.body?.ids }));
   } catch (error) {
     responderErro(res, error, "Erro ao buscar QR codes dos caixas");
   }

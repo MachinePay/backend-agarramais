@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { loginMachinePay } from "./machinePayService.js";
+import { parsearPainelMaquinas } from "./machinePayPainelParser.js";
 
 // Criação de Loja + Caixa (Mercado Pago) pelo painel Machine Pay — mesma tela
 // do "☰ Menu → Novo Caixa → Preencher Dados" (popup lojaecaixa.php).
@@ -186,80 +187,102 @@ export const criarLojaECaixa = async ({ clienteId, nome }) => {
 };
 
 // ---- QR codes dos caixas ----
-// Mesmo dado do "☰ → Consultar caixa" do painel (que mostra o JSON do POS no
-// Mercado Pago), mas direto na API do Mercado Pago com o token do cliente.
-// O campo qr_code é o texto do PIX; o navegador desenha o QR a partir dele.
+// Só os caixas que aparecem na tela de Equipamentos do painel (maquinas.php),
+// não todos os POS da conta Mercado Pago do cliente (lá ficam default_pos e
+// caixas repetidos/abandonados). O QR vem do "☰ → Consultar caixa"
+// (acao=consulta_caixa), que mostra o JSON do POS com o qr_code: o texto do
+// PIX, que o navegador desenha.
 
-const MP_API = "https://api.mercadopago.com";
+const urlPainel = (caminho) =>
+  new URL(caminho, process.env.MACHINE_PAY_LOGIN_URL || DEFAULT_LOGIN_URL).toString();
 
-const requisitarMercadoPago = async (token, caminho) => {
-  const resposta = await fetch(`${MP_API}${caminho}`, {
-    headers: { Authorization: `Bearer ${token}` },
+const requisitarPainel = async ({ cookies, loginUrl }, caminho) => {
+  const resposta = await fetch(urlPainel(caminho), {
+    headers: { Cookie: cookies, Referer: loginUrl },
   });
-  const dados = await resposta.json().catch(() => ({}));
   if (!resposta.ok) {
-    const erro = new Error(
-      `Mercado Pago respondeu com status ${resposta.status}${dados?.message ? `: ${semTokens(dados.message)}` : ""}`,
-    );
-    erro.status = resposta.status === 404 ? 404 : 502;
+    throw new Error(`Machine Pay respondeu com status ${resposta.status}`);
+  }
+  return resposta.text();
+};
+
+// Select "sel_cliente" da tela de Equipamentos: value = usr do cliente no painel.
+export const listarClientesPainel = async () => {
+  const html = await requisitarPainel(await loginMachinePay(), "maquinas.php");
+  const select = html.match(/<select[^>]*id="sel_cliente"[\s\S]*?<\/select>/i)?.[0];
+  if (!select) {
+    throw new Error("Não encontrei a lista de clientes na tela de Equipamentos da Machine Pay.");
+  }
+  return [...select.matchAll(/<option[^>]*value="(\d+)"[^>]*>([\s\S]*?)<\/option>/gi)]
+    .map(([, id, nome]) => ({ id, nome: textoLimpo(nome) }))
+    .filter((cliente) => cliente.nome)
+    .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR", { sensitivity: "base" }));
+};
+
+const caixasDoPainel = async (sessao, usr) => {
+  if (!/^\d+$/.test(String(usr || ""))) {
+    const erro = new Error("Cliente inválido.");
+    erro.status = 400;
     throw erro;
   }
-  return dados;
+  const html = await requisitarPainel(sessao, `maquinas.php?acao=maquinas&usr=${usr}`);
+  return parsearPainelMaquinas(html)
+    .filter((maquina) => maquina.posId)
+    .map((maquina) => ({ idCaixa: maquina.posId, ponto: maquina.nomePonto || "" }));
 };
 
-export const listarCaixasMercadoPago = async (clienteId) => {
-  const cliente = await obterCliente(clienteId);
-  const caixas = [];
-  for (let offset = 0; ; offset += 100) {
-    const pagina = await requisitarMercadoPago(
-      cliente.token,
-      `/pos?limit=100&offset=${offset}`,
-    );
-    const resultados = pagina.results || [];
-    caixas.push(
-      ...resultados.map((pos) => ({
-        idCaixa: String(pos.id),
-        nome: pos.name || "",
-        idLoja: pos.store_id ? String(pos.store_id) : "",
-        temQr: Boolean(pos.qr?.image),
-      })),
-    );
-    if (resultados.length < 100 || caixas.length >= (pagina.paging?.total || 0)) break;
-  }
-  caixas.sort((a, b) =>
-    a.nome.localeCompare(b.nome, "pt-BR", { numeric: true, sensitivity: "base" }),
+export const listarCaixasPainel = async (usr) => ({
+  caixas: await caixasDoPainel(await loginMachinePay(), usr),
+});
+
+const consultarCaixa = async (sessao, idCaixa) => {
+  const html = await requisitarPainel(
+    sessao,
+    `maquinas.php?acao=consulta_caixa&psid=${idCaixa}`,
   );
-  return { cliente: cliente.nome, caixas };
+  const json = html.match(/maquinasExibirJsonRetorno\((\{[\s\S]*?\})\);?\s*<\/script>/)?.[1];
+  if (!json) throw new Error("A Machine Pay não devolveu os dados do caixa.");
+  const pos = JSON.parse(json);
+  if (!pos.qr_code) {
+    throw new Error(pos.message ? semTokens(pos.message) : "Caixa sem QR code.");
+  }
+  return { nome: pos.name || "", qrCode: pos.qr_code };
 };
 
-export const buscarQrCodesCaixas = async ({ clienteId, ids }) => {
-  const lista = [...new Set((ids || []).map(String))].filter((id) => /^\d+$/.test(id));
-  if (lista.length === 0 || lista.length > 200) {
+export const buscarQrCodesCaixas = async ({ usr, ids }) => {
+  const pedidos = [...new Set((ids || []).map(String))];
+  if (pedidos.length === 0 || pedidos.length > 200) {
     const erro = new Error("Escolha de 1 a 200 caixas.");
     erro.status = 400;
     throw erro;
   }
 
-  const cliente = await obterCliente(clienteId);
+  // Só consulta caixas que estão mesmo na tela desse cliente.
+  const sessao = await loginMachinePay();
+  const doCliente = new Map(
+    (await caixasDoPainel(sessao, usr)).map((caixa) => [caixa.idCaixa, caixa]),
+  );
+  const lista = pedidos.filter((id) => doCliente.has(id));
+  if (lista.length === 0) {
+    const erro = new Error("Nenhum dos caixas escolhidos está neste cliente.");
+    erro.status = 400;
+    throw erro;
+  }
+
   const resultados = new Array(lista.length);
   let proximo = 0;
   const trabalhar = async () => {
     while (proximo < lista.length) {
       const i = proximo++;
+      const { idCaixa, ponto } = doCliente.get(lista[i]);
       try {
-        const pos = await requisitarMercadoPago(cliente.token, `/pos/${lista[i]}`);
-        resultados[i] = {
-          idCaixa: lista[i],
-          nome: pos.name || "",
-          qrCode: pos.qr_code || "",
-          erro: pos.qr_code ? "" : "Caixa sem QR code no Mercado Pago.",
-        };
+        resultados[i] = { idCaixa, ponto, ...(await consultarCaixa(sessao, idCaixa)), erro: "" };
       } catch (error) {
-        resultados[i] = { idCaixa: lista[i], nome: "", qrCode: "", erro: error.message };
+        resultados[i] = { idCaixa, ponto, nome: "", qrCode: "", erro: error.message };
       }
     }
   };
   await Promise.all(Array.from({ length: Math.min(5, lista.length) }, trabalhar));
 
-  return { cliente: cliente.nome, caixas: resultados };
+  return { caixas: resultados };
 };
