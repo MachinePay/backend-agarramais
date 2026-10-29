@@ -5,6 +5,7 @@ import {
   listarManutencoes,
   resolverManutencao,
 } from "../controllers/manutencaoController.js";
+import { listarAlertasCompactPay } from "../controllers/alertaCompactPayController.js";
 import {
   autenticar,
   autorizarRole,
@@ -16,6 +17,11 @@ const router = express.Router();
 router.use(autenticar);
 
 router.get("/", listarManutencoes);
+router.get(
+  "/alertas-compactpay",
+  autorizarRole("ADMIN"),
+  listarAlertasCompactPay,
+);
 router.get(
   "/funcionarios",
   autorizarRole("ADMIN"),
