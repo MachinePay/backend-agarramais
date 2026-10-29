@@ -9,6 +9,7 @@ import {
   Usuario,
 } from "../models/index.js";
 import { enviarCreditosMqttMachinePay } from "../services/machinePayService.js";
+import { enviarCreditoCompactPay } from "../services/compactPayService.js";
 
 const LIMITE_PADRAO_REAIS = 150;
 const LIMITE_MAXIMO_REAIS = 10000;
@@ -61,14 +62,19 @@ const decifrarToken = (valor) => {
 
 const centavosParaReais = (centavos) => Number((centavos / 100).toFixed(2));
 
+// Máquinas que recebem crédito remoto: Machine Pay (pelo POS) ou CompactPay
+// (pela placa). Máquina com os dois IDs usa a Machine Pay.
 const whereMaquinasMachinePay = {
   ativo: true,
-  machinePayPosId: { [Op.ne]: null },
+  [Op.or]: [
+    { machinePayPosId: { [Op.ne]: null } },
+    { compactPayId: { [Op.ne]: null } },
+  ],
 };
 
 // Onde o link vale:
 // - máquina fixa (ex.: link de teste) = só aquela máquina;
-// - lojas escolhidas = máquinas Machine Pay ativas dessas lojas;
+// - lojas escolhidas = máquinas Machine Pay/CompactPay ativas dessas lojas;
 // - nenhum dos dois = máquinas com "GRU" maiúsculo como palavra inteira
 //   (\m e \M são as bordas de palavra do Postgres) — sem isso "Grua" de
 //   qualquer loja também entraria na lista.
@@ -100,6 +106,38 @@ const listarLojasMachinePay = async () => {
     nome: loja.nome,
     qtdMaquinas: loja.maquinas.length,
   }));
+};
+
+// Manda o crédito pelo sistema da máquina, no formato que o envio grava:
+// Machine Pay confirma pelo websocket; a CompactPay só aceita o comando
+// (direto ou na fila da placa) e registra como TESTE, fora do faturamento.
+const enviarCreditoRemoto = async (maquina, valor) => {
+  const posId = maquina.machinePayPosId?.trim();
+  if (posId) {
+    const resultado = await enviarCreditosMqttMachinePay({
+      posId,
+      creditos: valor,
+    });
+    return {
+      sucesso: resultado.sucesso,
+      idwebhook: resultado.idwebhook || null,
+      detalhe: {
+        wsOk: resultado.wsOk,
+        wsErro: resultado.wsErro,
+        resposta: resultado.resposta,
+      },
+    };
+  }
+
+  const resultado = await enviarCreditoCompactPay({
+    compactPayId: maquina.compactPayId,
+    valor,
+  });
+  return {
+    sucesso: resultado.sucesso,
+    idwebhook: resultado.commandId,
+    detalhe: { compactPay: true, commandStatus: resultado.commandStatus },
+  };
 };
 
 const listarMaquinasDoLink = (link) =>
@@ -229,7 +267,7 @@ export const enviarCreditoPublico = async (req, res) => {
       where: {
         [Op.and]: [whereMaquinasDoLink(linkAtual), { id: maquinaId }],
       },
-      attributes: ["id", "nome", "machinePayPosId"],
+      attributes: ["id", "nome", "machinePayPosId", "compactPayId"],
     });
     if (!maquina) {
       return res.status(400).json({ error: "Máquina não permitida." });
@@ -305,19 +343,15 @@ export const enviarCreditoPublico = async (req, res) => {
     );
 
     try {
-      const resultado = await enviarCreditosMqttMachinePay({
-        posId: maquina.machinePayPosId,
-        creditos: centavosParaReais(valorCentavos),
-      });
+      const resultado = await enviarCreditoRemoto(
+        maquina,
+        centavosParaReais(valorCentavos),
+      );
 
       await envio.update({
         status: resultado.sucesso ? "enviado" : "incerto",
-        idwebhook: resultado.idwebhook || null,
-        detalhe: JSON.stringify({
-          wsOk: resultado.wsOk,
-          wsErro: resultado.wsErro,
-          resposta: resultado.resposta,
-        }).slice(0, 4000),
+        idwebhook: resultado.idwebhook,
+        detalhe: JSON.stringify(resultado.detalhe).slice(0, 4000),
       });
 
       return res.json({
@@ -328,14 +362,14 @@ export const enviarCreditoPublico = async (req, res) => {
         restante,
         expirou: restante <= 0,
       });
-    } catch (erroMachinePay) {
+    } catch (erroEnvio) {
       // O valor continua descontado: não dá pra saber se o crédito chegou ou
       // não na máquina. Um admin pode conferir no histórico de envios.
       await envio.update({
         status: "erro",
-        detalhe: String(erroMachinePay.message || erroMachinePay).slice(0, 4000),
+        detalhe: String(erroEnvio.message || erroEnvio).slice(0, 4000),
       });
-      console.error("[CreditoRemoto] Erro Machine Pay:", erroMachinePay);
+      console.error("[CreditoRemoto] Erro ao enviar para a máquina:", erroEnvio);
 
       return res.status(502).json({
         error:
@@ -443,7 +477,7 @@ export const criarLink = async (req, res) => {
         : null;
       if (!maquina) {
         return res.status(400).json({
-          error: "Máquina inválida: precisa estar ativa e ter ID Machine Pay.",
+          error: "Máquina inválida: precisa estar ativa e ter ID Machine Pay ou CompactPay.",
         });
       }
     }
@@ -455,7 +489,7 @@ export const criarLink = async (req, res) => {
       );
       if (validas.length !== lojaIdsRecebidos.length) {
         return res.status(400).json({
-          error: "Loja inválida: precisa estar ativa e ter máquina com ID Machine Pay.",
+          error: "Loja inválida: precisa estar ativa e ter máquina com ID Machine Pay ou CompactPay.",
         });
       }
       lojas = validas;

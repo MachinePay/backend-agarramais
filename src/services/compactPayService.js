@@ -9,7 +9,15 @@ const DEFAULT_API_URL = "https://compactpayback.onrender.com/api/v1";
 // pegar 401 no meio de uma consulta.
 const TOKEN_TTL_MS = 50 * 60 * 1000;
 
+// O CompactPay roda no Render e pode demorar pra "acordar"; passando disso
+// a chamada falha em vez de segurar o Dashboard/Ranking pendurado.
+const TIMEOUT_MS = Number(process.env.COMPACT_PAY_TIMEOUT_MS) || 45000;
+
 let _tokenCache = null;
+// Login em andamento: as consultas em paralelo (uma por máquina) esperam o
+// mesmo login em vez de cada uma fazer o seu. Com senha errada isso também
+// evita várias falhas seguidas bloquearem o e-mail no CompactPay.
+let _loginEmAndamento = null;
 
 const required = (name) => {
   const value = process.env[name];
@@ -22,12 +30,26 @@ const required = (name) => {
 const getApiUrl = () =>
   (process.env.COMPACT_PAY_API_URL || DEFAULT_API_URL).replace(/\/+$/, "");
 
-const login = async () => {
-  if (_tokenCache && _tokenCache.expiraEm > Date.now()) {
-    return _tokenCache.token;
+const fetchComTimeout = async (url, options = {}) => {
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+  } catch (error) {
+    if (error.name === "TimeoutError" || error.name === "AbortError") {
+      const erroTimeout = new Error(
+        `CompactPay não respondeu em ${Math.round(TIMEOUT_MS / 1000)}s`,
+      );
+      erroTimeout.status = 504;
+      throw erroTimeout;
+    }
+    throw error;
   }
+};
 
-  const response = await fetch(`${getApiUrl()}/login`, {
+const fazerLogin = async () => {
+  const response = await fetchComTimeout(`${getApiUrl()}/login`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
@@ -45,6 +67,19 @@ const login = async () => {
   return token;
 };
 
+const login = async () => {
+  if (_tokenCache && _tokenCache.expiraEm > Date.now()) {
+    return _tokenCache.token;
+  }
+
+  if (!_loginEmAndamento) {
+    _loginEmAndamento = fazerLogin().finally(() => {
+      _loginEmAndamento = null;
+    });
+  }
+  return _loginEmAndamento;
+};
+
 const extrairMensagemErro = (json, status) => {
   const detail = json?.detail;
   if (typeof detail === "string") return detail;
@@ -54,7 +89,7 @@ const extrairMensagemErro = (json, status) => {
 
 const fetchCompactPay = async (path, options = {}, tentativa = 0) => {
   const token = await login();
-  const response = await fetch(`${getApiUrl()}${path}`, {
+  const response = await fetchComTimeout(`${getApiUrl()}${path}`, {
     method: options.method || "GET",
     headers: {
       Accept: "application/json",

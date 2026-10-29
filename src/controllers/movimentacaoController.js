@@ -1148,23 +1148,24 @@ export const saidasCompactPayDesdeUltimaMovimentacao = async (req, res) => {
 
     const ultimaMov = await Movimentacao.findOne({
       where: { maquinaId: maquina.id },
-      order: [["createdAt", "DESC"]],
+      order: [["dataColeta", "DESC"]],
     });
     if (!ultimaMov) {
       return res.json({ disponivel: false, motivo: "sem_movimentacao_anterior" });
     }
 
+    const desde = ultimaMov.dataColeta || ultimaMov.createdAt;
     const fim = new Date();
     const saidas = await contarSaidasCompactPay({
       compactPayId,
-      inicio: ultimaMov.createdAt,
+      inicio: desde,
       fim,
     });
 
     return res.json({
       disponivel: true,
       saidas,
-      desde: ultimaMov.createdAt,
+      desde,
       ate: fim,
       totalPosAnterior: ultimaMov.totalPos,
     });

@@ -23,6 +23,20 @@ const formatarMoeda = (valor) =>
 const formatarDataHora = (data) =>
   new Date(data).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
 
+// Período entre a movimentação anterior e a atual pelo horário da coleta
+// (dataColeta, que o funcionário pode ajustar no formulário) — o mesmo que a
+// sugestão de Total Pré usa. createdAt (hora em que foi lançada) só como
+// fallback: uma movimentação lançada com atraso deslocaria a janela e
+// geraria alerta falso. Devolve null se a atual for de antes da anterior
+// (lançamento retroativo no meio do histórico): aí não há como conferir.
+const janelaConferencia = (movimentacaoAnterior, movimentacao) => {
+  const inicio = new Date(
+    movimentacaoAnterior.dataColeta || movimentacaoAnterior.createdAt,
+  );
+  const fim = new Date(movimentacao.dataColeta || movimentacao.createdAt);
+  return fim > inicio ? { inicio, fim } : null;
+};
+
 const descreverMaquina = (maquina) =>
   `Máquina: ${maquina.nome}${maquina.codigo ? ` (${maquina.codigo})` : ""} — CompactPay ${maquina.compactPayId}`;
 
@@ -40,8 +54,9 @@ export const conferirFichasMovimentacao = async ({
     return null;
   }
 
-  const inicio = movimentacaoAnterior.createdAt;
-  const fim = movimentacao.createdAt;
+  const janela = janelaConferencia(movimentacaoAnterior, movimentacao);
+  if (!janela) return null;
+  const { inicio, fim } = janela;
 
   const contagem = await contarFichasCompactPay({
     compactPayId: maquina.compactPayId,
@@ -94,8 +109,9 @@ export const conferirSaidaMovimentacao = async ({
     return null;
   }
 
-  const inicio = movimentacaoAnterior.createdAt;
-  const fim = movimentacao.createdAt;
+  const janela = janelaConferencia(movimentacaoAnterior, movimentacao);
+  if (!janela) return null;
+  const { inicio, fim } = janela;
 
   const saidasCompactPay = await contarSaidasCompactPay({
     compactPayId: maquina.compactPayId,
