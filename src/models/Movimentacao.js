@@ -143,6 +143,13 @@ const Movimentacao = sequelize.define(
   {
     tableName: "movimentacoes",
     timestamps: true,
+    // Criados pelo sequelize.sync() na inicialização. Sem eles, buscar a
+    // última coleta de cada máquina (alertas do Dashboard) e os relatórios
+    // por período varriam a tabela inteira.
+    indexes: [
+      { name: "movimentacoes_maquina_data_coleta", fields: ["maquinaId", "dataColeta"] },
+      { name: "movimentacoes_data_coleta", fields: ["dataColeta"] },
+    ],
     hooks: {
       beforeSave: async (movimentacao) => {
         // Calcular média fichas/prêmio

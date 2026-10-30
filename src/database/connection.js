@@ -25,7 +25,7 @@ export const sequelize = process.env.DATABASE_URL
         },
       },
       pool: {
-        max: 5,
+        max: 10,
         min: 0,
         acquire: 30000,
         idle: 10000,
@@ -42,7 +42,7 @@ export const sequelize = process.env.DATABASE_URL
         timezone: TIMEZONE_BANCO,
         logging: process.env.NODE_ENV === "development" ? console.log : false,
         pool: {
-          max: 5,
+          max: 10,
           min: 0,
           acquire: 30000,
           idle: 10000,

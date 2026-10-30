@@ -908,6 +908,15 @@ const registroDinheiroController = {
           ];
         }
       }
+      // `fimAPartirDe=AAAA-MM-DD`: só registros cujo período termina a
+      // partir dessa data (o Dashboard só precisa do mês atual e do
+      // anterior, não do histórico inteiro).
+      if (req.query.fimAPartirDe) {
+        const fimAPartirDe = new Date(`${req.query.fimAPartirDe}T00:00:00`);
+        if (!Number.isNaN(fimAPartirDe.getTime())) {
+          where.fim = { [Op.gte]: fimAPartirDe };
+        }
+      }
       const registros = await RegistroDinheiro.findAll({
         where,
         order: [["createdAt", "DESC"]],

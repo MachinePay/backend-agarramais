@@ -93,6 +93,41 @@ import { filtroLojaIdSemTeste } from "../utils/lojasTeste.js";
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 const VALOR_FICHA_PADRAO_DEFAULT = 2.5;
 
+// Executa `fn` para cada item com no máximo `limite` chamadas ao mesmo
+// tempo, mantendo a ordem dos resultados. Usado nos alertas do Dashboard
+// para consultar Machine Pay/CompactPay em paralelo sem disparar dezenas de
+// requisições externas de uma vez (antes era uma máquina por vez).
+const mapComLimite = async (itens, limite, fn) => {
+  const resultados = new Array(itens.length);
+  let proximo = 0;
+  const trabalhador = async () => {
+    while (proximo < itens.length) {
+      const indice = proximo++;
+      resultados[indice] = await fn(itens[indice], indice);
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(limite, itens.length) }, trabalhador),
+  );
+  return resultados;
+};
+
+// Subquery com os IDs das últimas `quantidade` movimentações (por
+// dataColeta) de cada máquina: uma única query no lugar de uma por máquina.
+const literalUltimasMovimentacoesPorMaquina = (maquinaIds, quantidade) =>
+  Sequelize.literal(`(
+    SELECT id FROM (
+      SELECT id, ROW_NUMBER() OVER (
+        PARTITION BY "maquinaId" ORDER BY "dataColeta" DESC
+      ) AS posicao
+      FROM movimentacoes
+      WHERE "maquinaId" IN (${maquinaIds
+        .map((id) => Movimentacao.sequelize.escape(id))
+        .join(",")})
+    ) ultimas
+    WHERE posicao <= ${Number(quantidade)}
+  )`);
+
 const formatarDataMovimentacao = (valor) => {
   if (!valor) return null;
 
@@ -968,26 +1003,38 @@ export const alertasEstoque = async (req, res) => {
       ],
     });
 
-    const alertas = [];
-
-    for (const maquina of maquinas) {
-      const ultimaMovimentacao = await Movimentacao.findOne({
-        where: { maquinaId: maquina.id },
-        order: [["dataColeta", "DESC"]],
-        include: [
-          {
-            model: MovimentacaoProduto,
-            as: "detalhesProdutos",
-            include: [
-              {
-                model: Produto,
-                as: "produto",
-                attributes: ["id", "nome", "emoji"],
-              },
-            ],
+    const ultimasMovimentacoes = maquinas.length
+      ? await Movimentacao.findAll({
+          where: {
+            id: {
+              [Op.in]: literalUltimasMovimentacoesPorMaquina(
+                maquinas.map((maquina) => maquina.id),
+                1,
+              ),
+            },
           },
-        ],
-      });
+          include: [
+            {
+              model: MovimentacaoProduto,
+              as: "detalhesProdutos",
+              include: [
+                {
+                  model: Produto,
+                  as: "produto",
+                  attributes: ["id", "nome", "emoji"],
+                },
+              ],
+            },
+          ],
+        })
+      : [];
+    const ultimaMovimentacaoPorMaquina = new Map(
+      ultimasMovimentacoes.map((mov) => [mov.maquinaId, mov]),
+    );
+
+    const resultados = await mapComLimite(maquinas, 6, async (maquina) => {
+      const ultimaMovimentacao =
+        ultimaMovimentacaoPorMaquina.get(maquina.id) || null;
 
       const estoqueRegistrado = ultimaMovimentacao
         ? ultimaMovimentacao.totalPos
@@ -1045,7 +1092,7 @@ export const alertasEstoque = async (req, res) => {
       ];
 
       if (estoqueAtual < estoqueMinimo) {
-        alertas.push({
+        return {
           maquina: {
             id: maquina.id,
             codigo: maquina.codigo,
@@ -1066,9 +1113,11 @@ export const alertasEstoque = async (req, res) => {
                 ? "ALTO"
                 : "MÉDIO",
           ultimaAtualizacao: ultimaMovimentacao?.dataColeta,
-        });
+        };
       }
-    }
+      return null;
+    });
+    const alertas = resultados.filter(Boolean);
 
     alertas.sort(
       (a, b) => parseFloat(a.percentualAtual) - parseFloat(b.percentualAtual),
@@ -2324,6 +2373,43 @@ export const alertasBomDesempenho = async (req, res) => {
     });
     const alertas = [];
 
+    // Últimas 2 movimentações de todas as máquinas numa query só.
+    const ultimasMovimentacoes = maquinas.length
+      ? await Movimentacao.findAll({
+          where: {
+            id: {
+              [Op.in]: literalUltimasMovimentacoesPorMaquina(
+                maquinas.map((maquina) => maquina.id),
+                2,
+              ),
+            },
+          },
+          order: [["dataColeta", "DESC"]],
+          attributes: [
+            "id",
+            "maquinaId",
+            "usuarioId",
+            "contadorIn",
+            "sairam",
+            "dataColeta",
+          ],
+          include: [
+            {
+              model: Usuario,
+              as: "usuario",
+              attributes: ["id", "nome", "email"],
+            },
+          ],
+        })
+      : [];
+    const movimentacoesPorMaquina = new Map();
+    ultimasMovimentacoes.forEach((mov) => {
+      if (!movimentacoesPorMaquina.has(mov.maquinaId)) {
+        movimentacoesPorMaquina.set(mov.maquinaId, []);
+      }
+      movimentacoesPorMaquina.get(mov.maquinaId).push(mov);
+    });
+
     for (const maquina of maquinas) {
       const jogadasEsperadas = Number(maquina.jogadasBoasPorPelucia || 0);
       const valorFicha = Number(maquina.valorFicha || 0);
@@ -2339,25 +2425,7 @@ export const alertasBomDesempenho = async (req, res) => {
         continue;
       }
 
-      const movimentacoes = await Movimentacao.findAll({
-        where: { maquinaId: maquina.id },
-        order: [["dataColeta", "DESC"]],
-        limit: 2,
-        attributes: [
-          "id",
-          "usuarioId",
-          "contadorIn",
-          "sairam",
-          "dataColeta",
-        ],
-        include: [
-          {
-            model: Usuario,
-            as: "usuario",
-            attributes: ["id", "nome", "email"],
-          },
-        ],
-      });
+      const movimentacoes = movimentacoesPorMaquina.get(maquina.id) || [];
 
       if (!movimentacoes || movimentacoes.length < 2) continue;
 

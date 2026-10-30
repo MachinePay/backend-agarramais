@@ -48,6 +48,9 @@ const MovimentacaoProduto = sequelize.define(
   {
     tableName: "movimentacao_produtos",
     timestamps: true,
+    indexes: [
+      { name: "movimentacao_produtos_movimentacao", fields: ["movimentacaoId"] },
+    ],
   },
 );
 

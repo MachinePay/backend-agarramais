@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
+import compression from "compression";
 import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -53,6 +54,9 @@ app.use(
     allowedHeaders: ["Content-Type", "Authorization", "X-Link-Token"],
   }),
 );
+// Gzip nas respostas JSON (listas de movimentações, máquinas etc. ficam
+// bem menores na rede).
+app.use(compression());
 app.use(morgan("dev"));
 app.use(express.json({ limit: "12mb" }));
 app.use(express.urlencoded({ extended: true }));
