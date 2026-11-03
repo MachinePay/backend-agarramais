@@ -22,6 +22,60 @@ import { contarSaidasCompactPay } from "../services/compactPayService.js";
 const movimentacoesEmAndamento = new Set();
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 
+// A saída (sairam) de uma movimentação é sempre totalPos da anterior − o
+// totalPre dela. Quando uma movimentação é lançada no meio do histórico
+// (admin com data retroativa), editada ou apagada, a primeira que vem depois
+// de `aPartirDe` passa a ter outra anterior e precisa ter a saída refeita.
+const recalcularSaidaProximaMovimentacao = async (
+  maquinaId,
+  aPartirDe,
+  transaction,
+) => {
+  const proxima = await Movimentacao.findOne({
+    where: { maquinaId, dataColeta: { [Op.gt]: aPartirDe } },
+    order: [["dataColeta", "ASC"]],
+    transaction,
+  });
+  if (!proxima) return null;
+
+  const anterior = await Movimentacao.findOne({
+    where: {
+      maquinaId,
+      dataColeta: { [Op.lte]: proxima.dataColeta },
+      id: { [Op.ne]: proxima.id },
+    },
+    order: [["dataColeta", "DESC"]],
+    transaction,
+  });
+
+  const novaSaida = anterior
+    ? Math.max(0, (anterior.totalPos || 0) - (proxima.totalPre || 0))
+    : 0;
+  if (novaSaida === proxima.sairam) return proxima;
+
+  // O hook beforeSave refaz a mediaFichasPremio, mas só se sairam > 0.
+  await proxima.update(
+    { sairam: novaSaida, ...(novaSaida === 0 && { mediaFichasPremio: null }) },
+    { transaction },
+  );
+
+  // Com um produto só, ele recebe a saída inteira (mesma regra do registro).
+  const detalhes = await MovimentacaoProduto.findAll({
+    where: { movimentacaoId: proxima.id },
+    transaction,
+  });
+  if (detalhes.length === 1) {
+    await detalhes[0].update({ quantidadeSaiu: novaSaida }, { transaction });
+  }
+
+  console.log("🔁 [recalcularSaidaProximaMovimentacao] Saída refeita:", {
+    movimentacaoId: proxima.id,
+    anteriorId: anterior?.id || null,
+    novaSaida,
+  });
+  return proxima;
+};
+
 // US08, US09, US10 - Registrar movimentação completa
 export const registrarMovimentacao = async (req, res) => {
   let chaveMovimentacaoEmAndamento = null;
@@ -70,9 +124,29 @@ export const registrarMovimentacao = async (req, res) => {
     movimentacoesEmAndamento.add(chaveBloqueio);
     chaveMovimentacaoEmAndamento = chaveBloqueio;
 
+    // Só admin escolhe data/hora (lançar uma movimentação que ficou para
+    // trás); para os demais vale sempre o horário do lançamento.
+    let dataColetaFinal = new Date();
+    if (dataColeta && req.usuario.role === "ADMIN") {
+      dataColetaFinal = new Date(dataColeta);
+      if (Number.isNaN(dataColetaFinal.getTime())) {
+        return res.status(400).json({ error: "Data da movimentação inválida" });
+      }
+      if (dataColetaFinal.getTime() > Date.now() + 5 * 60 * 1000) {
+        return res
+          .status(400)
+          .json({ error: "A data da movimentação não pode ser no futuro" });
+      }
+    }
+
+    // "Anterior" é a última movimentação até a data desta — numa data
+    // retroativa, não é a mais recente da máquina.
     const ultimaMov = await Movimentacao.findOne({
-      where: { maquinaId },
-      order: [["createdAt", "DESC"]],
+      where: { maquinaId, dataColeta: { [Op.lte]: dataColetaFinal } },
+      order: [["dataColeta", "DESC"]],
+    });
+    const existeMovimentacaoDepois = await Movimentacao.count({
+      where: { maquinaId, dataColeta: { [Op.gt]: dataColetaFinal } },
     });
     // Validação: contadorIn/contadorOut não pode ser menor que o anterior, exceto ADMIN, ou se não enviado ou zero
     if (ultimaMov) {
@@ -206,7 +280,7 @@ export const registrarMovimentacao = async (req, res) => {
     const movimentacao = await Movimentacao.create({
       maquinaId,
       usuarioId: req.usuario.id,
-      dataColeta: dataColeta || new Date(),
+      dataColeta: dataColetaFinal,
       totalPre,
       sairam: saidaRecalculada,
       abastecidas,
@@ -229,13 +303,19 @@ export const registrarMovimentacao = async (req, res) => {
     // Pay pra essa máquina — qualquer valor preservado de um fechamento
     // anterior (MachinePayColetaPendente) já está embutido no totalPre que
     // acabou de ser lançado, então não deve mais entrar nas próximas contas.
-    try {
-      await MachinePayColetaPendente.destroy({ where: { maquinaId } });
-    } catch (limpezaError) {
-      console.error(
-        "[MachinePay] Erro ao limpar coleta pendente após nova movimentação:",
-        limpezaError,
-      );
+    // Lançamento retroativo não é o marco mais recente: não mexe nisso, mas
+    // a movimentação seguinte passa a ter esta como anterior.
+    if (existeMovimentacaoDepois) {
+      await recalcularSaidaProximaMovimentacao(maquinaId, dataColetaFinal);
+    } else {
+      try {
+        await MachinePayColetaPendente.destroy({ where: { maquinaId } });
+      } catch (limpezaError) {
+        console.error(
+          "[MachinePay] Erro ao limpar coleta pendente após nova movimentação:",
+          limpezaError,
+        );
+      }
     }
 
     console.log("✅ [registrarMovimentacao] Movimentação criada:", {
@@ -680,7 +760,26 @@ export const atualizarMovimentacao = async (req, res) => {
         transaction,
       });
 
+      const dataColetaAntiga = movimentacao.dataColeta;
       await movimentacao.update(updateData, { transaction });
+
+      // O totalPos (ou a posição no histórico) desta pode ter mudado: a que
+      // vinha depois dela, e a que vem depois agora, refazem a saída.
+      await recalcularSaidaProximaMovimentacao(
+        movimentacao.maquinaId,
+        dataColetaAntiga,
+        transaction,
+      );
+      if (
+        new Date(dataColetaAntiga).getTime() !==
+        new Date(movimentacao.dataColeta).getTime()
+      ) {
+        await recalcularSaidaProximaMovimentacao(
+          movimentacao.maquinaId,
+          movimentacao.dataColeta,
+          transaction,
+        );
+      }
 
       if (Array.isArray(produtos)) {
         // 2. Reverter estoque anterior (devolver o que foi abastecido antes)
@@ -828,6 +927,12 @@ export const deletarMovimentacao = async (req, res) => {
     }
 
     await movimentacao.destroy();
+
+    // A seguinte passa a ter como anterior a que vinha antes desta.
+    await recalcularSaidaProximaMovimentacao(
+      movimentacao.maquinaId,
+      movimentacao.dataColeta,
+    );
 
     res.json({ message: "Movimentação deletada com sucesso" });
   } catch (error) {
