@@ -226,11 +226,14 @@ const classificarForma = (venda) => {
 // o `resumo` do CompactPay zera o período depois que ele recebe um
 // fechamento, enquanto as vendas continuam vindo (marcadas como
 // `fechado`). Assim o valor de um mês já fechado continua aparecendo no
-// Ranking/Dashboard/Relatórios.
+// Ranking/Dashboard/Relatórios. Com `apenasAbertas`, os totais ignoram as
+// vendas já fechadas (usado no Registrar Dinheiro, pra não fechar de novo o
+// que já foi fechado).
 export const consultarTransacoesCompactPay = async ({
   compactPayId,
   inicio,
   fim,
+  apenasAbertas = false,
 }) => {
   const params = new URLSearchParams({ registro: "todos" });
   if (inicio && fim) {
@@ -279,7 +282,9 @@ export const consultarTransacoesCompactPay = async ({
 
   // Teste, devolvido e lançamento manual do painel não contam como
   // faturamento.
-  const reais = transacoes.filter((t) => t.contaFaturamento && !t.jaDevolvido);
+  const reais = transacoes.filter(
+    (t) => t.contaFaturamento && !t.jaDevolvido && !(apenasAbertas && t.fechado),
+  );
   const somar = (lista) =>
     Number(lista.reduce((soma, t) => soma + t.valor, 0).toFixed(2));
 
@@ -309,11 +314,13 @@ export const consultarFechamentoCompactPay = async ({
   compactPayId,
   inicio,
   fim,
+  apenasAbertas = false,
 }) => {
   const dados = await consultarTransacoesCompactPay({
     compactPayId,
     inicio: String(inicio).slice(0, 10),
     fim: String(fim).slice(0, 10),
+    apenasAbertas,
   });
   const digital = Number(
     (dados.totalPix + dados.totalCartao + dados.totalApp).toFixed(2),

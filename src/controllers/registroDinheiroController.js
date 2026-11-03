@@ -347,9 +347,16 @@ const preservarTransacoesPendentesMachinePay = async ({
 // Ranking/Dashboard/Relatórios: bruto da Machine Pay + total da CompactPay
 // (digital + físico contado pela placa). Se só uma das duas responder, usa
 // a que respondeu e lista a falha em `erros`; se nenhuma responder, lança.
+// `apenasAbertas` deixa de fora as vendas da CompactPay que já foram fechadas
+// (a Machine Pay já zera o extrato no fechamento, então não precisa).
 const round2 = (valor) => Number(Number(valor || 0).toFixed(2));
 
-const consultarPagamentosMaquina = async (maquina, inicio, fim) => {
+const consultarPagamentosMaquina = async (
+  maquina,
+  inicio,
+  fim,
+  { apenasAbertas = false } = {},
+) => {
   const posId = maquina.machinePayPosId?.trim();
   const compactPayId = maquina.compactPayId?.trim();
   const erros = [];
@@ -368,7 +375,12 @@ const consultarPagamentosMaquina = async (maquina, inicio, fim) => {
           })
       : null,
     compactPayId
-      ? consultarFechamentoCompactPay({ compactPayId, inicio, fim }).catch(
+      ? consultarFechamentoCompactPay({
+          compactPayId,
+          inicio,
+          fim,
+          apenasAbertas,
+        }).catch(
           (err) => {
             erros.push({ fonte: "compactPay", erro: err.message });
             return null;
@@ -426,6 +438,11 @@ const registroDinheiroController = {
   async consultarMachinePay(req, res) {
     try {
       const { maquinaId, inicio, fim } = req.query;
+      // Registrar Dinheiro pede só o que ainda não foi fechado; Relatórios
+      // continuam vendo o mês inteiro.
+      const apenasAbertas = ["1", "true"].includes(
+        String(req.query.apenasAbertas || ""),
+      );
 
       if (!maquinaId || !inicio || !fim) {
         return res.status(400).json({
@@ -455,7 +472,9 @@ const registroDinheiroController = {
         });
       }
 
-      const dados = await consultarPagamentosMaquina(maquina, inicio, fim);
+      const dados = await consultarPagamentosMaquina(maquina, inicio, fim, {
+        apenasAbertas,
+      });
 
       return res.json({
         maquinaId: maquina.id,
@@ -713,31 +732,50 @@ const registroDinheiroController = {
         observacoes,
       };
 
-      // Proteção contra clique duplo / reenvio: recusa um registro idêntico
-      // (mesma loja, máquina, período e valores) criado há pouco.
-      const registroDuplicado = await RegistroDinheiro.findOne({
-        where: {
-          lojaId: dadosRegistro.lojaId,
-          maquinaId: dadosRegistro.maquinaId,
-          registrarTotalLoja: dadosRegistro.registrarTotalLoja,
-          inicio: inicioPeriodo,
-          fim: fimPeriodo,
-          valorDinheiro: dadosRegistro.valorDinheiro,
-          valorCartaoPix: dadosRegistro.valorCartaoPix,
-          createdAt: { [Op.gte]: new Date(Date.now() - 2 * 60 * 1000) },
-        },
-      });
-
-      if (registroDuplicado) {
-        return res.status(409).json({
-          error:
-            "Esse registro já foi salvo agora há pouco (possível clique duplo).",
-        });
-      }
-
       const transaction = await sequelize.transaction();
 
       try {
+        // Proteção contra clique duplo / reenvio: recusa um registro idêntico
+        // (mesma loja, máquina, período e valores) criado há pouco. O lock
+        // (liberado no commit/rollback) faz duas requisições chegando juntas
+        // rodarem uma depois da outra; sem ele as duas passavam pela checagem
+        // antes de qualquer uma salvar.
+        await sequelize.query("SELECT pg_advisory_xact_lock(hashtext(:chave))", {
+          replacements: {
+            chave: [
+              "registro_dinheiro",
+              dadosRegistro.lojaId,
+              dadosRegistro.maquinaId || "",
+              dadosRegistro.registrarTotalLoja,
+              inicioPeriodo.toISOString(),
+              fimPeriodo.toISOString(),
+            ].join("|"),
+          },
+          transaction,
+        });
+
+        const registroDuplicado = await RegistroDinheiro.findOne({
+          where: {
+            lojaId: dadosRegistro.lojaId,
+            maquinaId: dadosRegistro.maquinaId,
+            registrarTotalLoja: dadosRegistro.registrarTotalLoja,
+            inicio: inicioPeriodo,
+            fim: fimPeriodo,
+            valorDinheiro: dadosRegistro.valorDinheiro,
+            valorCartaoPix: dadosRegistro.valorCartaoPix,
+            createdAt: { [Op.gte]: new Date(Date.now() - 2 * 60 * 1000) },
+          },
+          transaction,
+        });
+
+        if (registroDuplicado) {
+          await transaction.rollback();
+          return res.status(409).json({
+            error:
+              "Esse registro já foi salvo agora há pouco (possível clique duplo).",
+          });
+        }
+
         const registro = await RegistroDinheiro.create(dadosRegistro, {
           fields: [
             "lojaId",
