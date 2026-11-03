@@ -302,6 +302,36 @@ export const consultarTransacoesCompactPay = async ({
   };
 };
 
+// Quais máquinas estão marcadas como "de ficha" no CompactPay. Uma chamada
+// só (lista de todas as máquinas), guardada por alguns minutos, em vez de
+// uma por máquina nos totais do Dashboard/Ranking.
+const FICHA_CACHE_TTL_MS = 10 * 60 * 1000;
+let _fichaCache = null;
+let _fichaEmAndamento = null;
+
+const obterMaquinasFicha = async () => {
+  if (_fichaCache && _fichaCache.expiraEm > Date.now()) {
+    return _fichaCache.ids;
+  }
+
+  if (!_fichaEmAndamento) {
+    _fichaEmAndamento = fetchCompactPay("/maquinas?periodo=dia")
+      .then((lista) => {
+        const ids = new Set(
+          (Array.isArray(lista) ? lista : [])
+            .filter((maquina) => maquina.maquina_ficha)
+            .map((maquina) => String(maquina.id_hardware).trim()),
+        );
+        _fichaCache = { ids, expiraEm: Date.now() + FICHA_CACHE_TTL_MS };
+        return ids;
+      })
+      .finally(() => {
+        _fichaEmAndamento = null;
+      });
+  }
+  return _fichaEmAndamento;
+};
+
 // Mesmo formato de consultarFechamentoMachinePay, pra o Registrar Dinheiro
 // e os totais (Dashboard/Ranking/Relatórios) tratarem as duas iguais. O
 // CompactPay não informa taxa por venda, então taxas = 0 e líquido = bruto.
@@ -310,18 +340,25 @@ export const consultarTransacoesCompactPay = async ({
 // Machine Pay; o físico (noteiro/moedeiro contado pela placa) vem à parte
 // em `fisico`, porque esse dinheiro é recolhido e registrado como
 // "Dinheiro" no Registrar Dinheiro.
+//
+// Em máquina de ficha o físico são fichas, que já foram vendidas no caixa da
+// loja (e entram no Registrar Dinheiro da loja); então ele não entra no
+// `total` (faturamento), só vem informado em `fisico`.
 export const consultarFechamentoCompactPay = async ({
   compactPayId,
   inicio,
   fim,
   apenasAbertas = false,
 }) => {
-  const dados = await consultarTransacoesCompactPay({
-    compactPayId,
-    inicio: String(inicio).slice(0, 10),
-    fim: String(fim).slice(0, 10),
-    apenasAbertas,
-  });
+  const [dados, maquinaFicha] = await Promise.all([
+    consultarTransacoesCompactPay({
+      compactPayId,
+      inicio: String(inicio).slice(0, 10),
+      fim: String(fim).slice(0, 10),
+      apenasAbertas,
+    }),
+    obterMaquinasFicha().then((ids) => ids.has(String(compactPayId).trim())),
+  ]);
   const digital = Number(
     (dados.totalPix + dados.totalCartao + dados.totalApp).toFixed(2),
   );
@@ -338,7 +375,8 @@ export const consultarFechamentoCompactPay = async ({
     liquido: digital,
     percentualTaxaMedia: 0,
     fisico: dados.totalFisico,
-    total: dados.total,
+    maquinaFicha,
+    total: maquinaFicha ? digital : dados.total,
     quantidade: dados.quantidade,
   };
 };

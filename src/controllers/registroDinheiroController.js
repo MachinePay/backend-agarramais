@@ -423,6 +423,7 @@ const consultarPagamentosMaquina = async (
         ? Number(((taxas / bruto) * 100).toFixed(4))
         : Number(mp.percentualTaxaMedia || 0),
     fisico: round2(cp.fisico),
+    maquinaFicha: Boolean(cp.maquinaFicha),
     valorFaturamento: round2(
       Number(mp.brutoComTaxasMp || 0) + Number(cp.total || 0),
     ),
