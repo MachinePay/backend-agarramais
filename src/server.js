@@ -276,6 +276,16 @@ const startServer = async () => {
       );
     }
 
+    if (!colunasMaquinas.sem_ficha) {
+      const { DataTypes } = await import("sequelize");
+      await queryInterface.addColumn("maquinas", "sem_ficha", {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+      });
+      console.log("✅ Coluna sem_ficha adicionada às máquinas!");
+    }
+
     if (!colunasMaquinas.geradora_dinheiro) {
       const { DataTypes } = await import("sequelize");
       await queryInterface.addColumn("maquinas", "geradora_dinheiro", {

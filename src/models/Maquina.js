@@ -90,6 +90,14 @@ const Maquina = sequelize.define(
       field: "geradora_dinheiro",
       comment: "Se ativo, a máquina aparece na lista do Registrar Dinheiro",
     },
+    semFicha: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+      field: "sem_ficha",
+      comment:
+        "Máquina que não usa ficha. Atualizado pelo checkbox 'Máquina sem ficha' a cada movimentação registrada",
+    },
     tipo: {
       type: DataTypes.STRING(50),
       allowNull: true,

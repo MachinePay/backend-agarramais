@@ -98,6 +98,7 @@ export const registrarMovimentacao = async (req, res) => {
       quantidade_notas_entrada,
       valor_entrada_maquininha_pix,
       origemTotalPre,
+      semFicha,
     } = req.body;
 
     // Validações
@@ -305,6 +306,21 @@ export const registrarMovimentacao = async (req, res) => {
     // acabou de ser lançado, então não deve mais entrar nas próximas contas.
     // Lançamento retroativo não é o marco mais recente: não mexe nisso, mas
     // a movimentação seguinte passa a ter esta como anterior.
+    // O checkbox "Máquina sem ficha" da movimentação vira a configuração da
+    // máquina (as próximas já vêm com ele marcado). Lançamento retroativo
+    // não mexe: não é o estado atual da máquina.
+    if (
+      typeof semFicha === "boolean" &&
+      !existeMovimentacaoDepois &&
+      maquina.semFicha !== semFicha
+    ) {
+      try {
+        await maquina.update({ semFicha });
+      } catch (erroSemFicha) {
+        console.error("Erro ao atualizar semFicha da máquina:", erroSemFicha);
+      }
+    }
+
     if (existeMovimentacaoDepois) {
       await recalcularSaidaProximaMovimentacao(maquinaId, dataColetaFinal);
     } else {
