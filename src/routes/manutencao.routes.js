@@ -1,6 +1,7 @@
 import express from "express";
 import {
   criarManutencao,
+  editarManutencao,
   listarFuncionariosManutencao,
   listarManutencoes,
   resolverManutencao,
@@ -32,6 +33,12 @@ router.post(
   autorizarRole("ADMIN"),
   registrarLog("CRIAR_MANUTENCAO", "Manutencao"),
   criarManutencao,
+);
+router.put(
+  "/:id",
+  autorizarRole("ADMIN"),
+  registrarLog("EDITAR_MANUTENCAO", "Manutencao"),
+  editarManutencao,
 );
 router.patch(
   "/:id/resolver",

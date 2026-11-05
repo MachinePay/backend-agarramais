@@ -1,4 +1,5 @@
 import { DataTypes } from "sequelize";
+import { ROLES } from "../constants/roles.js";
 import { sequelize } from "../database/connection.js";
 import bcrypt from "bcryptjs";
 
@@ -27,9 +28,9 @@ const Usuario = sequelize.define(
       allowNull: false,
     },
     role: {
-      type: DataTypes.ENUM("ADMIN", "FUNCIONARIO", "MACHINEPAY", "COMERCIAL"),
+      type: DataTypes.ENUM(...ROLES),
       allowNull: false,
-      defaultValue: "FUNCIONARIO",
+      defaultValue: "OPERADOR",
     },
     telefone: {
       type: DataTypes.STRING(20),

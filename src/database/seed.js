@@ -133,7 +133,7 @@ async function seed() {
       nome: "João Silva",
       email: "joao@agarramais.com",
       senha: "Func@123",
-      role: "FUNCIONARIO",
+      role: "OPERADOR",
       telefone: "(11) 98888-8888",
     });
     console.log(`✅ Funcionário criado: ${funcionario.email}\n`);

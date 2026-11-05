@@ -1,5 +1,6 @@
 import { Usuario, UsuarioLoja, Loja } from "../models/index.js";
 import { Op } from "sequelize";
+import { ROLES, ROLES_COM_LOJAS } from "../constants/roles.js";
 
 // Listar todos os usuários (apenas ADMIN)
 export const listarUsuarios = async (req, res) => {
@@ -93,11 +94,11 @@ export const criarUsuario = async (req, res) => {
     }
 
     // Validar role
-    const roleValida = ["ADMIN", "FUNCIONARIO", "MACHINEPAY", "COMERCIAL"].includes(role);
+    const roleValida = ROLES.includes(role);
     if (!roleValida) {
       return res
         .status(400)
-        .json({ error: "Role inválida. Use ADMIN, FUNCIONARIO, MACHINEPAY ou COMERCIAL" });
+        .json({ error: `Cargo inválido. Use ${ROLES.join(", ")}` });
     }
 
     // Criar usuário
@@ -111,7 +112,7 @@ export const criarUsuario = async (req, res) => {
 
     // Se for funcionário e tiver lojas permitidas, criar permissões
     if (
-      role === "FUNCIONARIO" &&
+      ROLES_COM_LOJAS.includes(role) &&
       lojasPermitidas &&
       lojasPermitidas.length > 0
     ) {
@@ -173,10 +174,10 @@ export const atualizarUsuario = async (req, res) => {
     }
 
     // Validar role se fornecida
-    if (role && !["ADMIN", "FUNCIONARIO", "MACHINEPAY", "COMERCIAL"].includes(role)) {
+    if (role && !ROLES.includes(role)) {
       return res
         .status(400)
-        .json({ error: "Role inválida. Use ADMIN, FUNCIONARIO, MACHINEPAY ou COMERCIAL" });
+        .json({ error: `Cargo inválido. Use ${ROLES.join(", ")}` });
     }
 
     // Atualizar dados básicos
@@ -189,14 +190,14 @@ export const atualizarUsuario = async (req, res) => {
       ativo: ativo ?? usuario.ativo,
     });
 
-    // Se mudou para FUNCIONARIO ou atualizou lojas permitidas
+    // Se mudou para um cargo com lojas ou atualizou lojas permitidas
     if (lojasPermitidas !== undefined) {
       // Remover permissões antigas
       await UsuarioLoja.destroy({ where: { usuarioId: usuario.id } });
 
-      // Adicionar novas permissões (apenas se for FUNCIONARIO)
+      // Adicionar novas permissões (apenas cargos que trabalham por loja)
       if (
-        (role || usuario.role) === "FUNCIONARIO" &&
+        ROLES_COM_LOJAS.includes(role || usuario.role) &&
         lojasPermitidas.length > 0
       ) {
         const permissoes = lojasPermitidas.map((lojaId) => ({

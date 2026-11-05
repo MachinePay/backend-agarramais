@@ -76,6 +76,22 @@ const Manutencao = sequelize.define(
       type: DataTypes.UUID,
       allowNull: true,
     },
+    prioridade: {
+      type: DataTypes.STRING(10),
+      allowNull: false,
+      defaultValue: "MEDIA",
+      comment: "BAIXA, MEDIA, ALTA ou URGENTE",
+    },
+    prazo: {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+      comment: "Até quando a manutenção deve ser resolvida",
+    },
+    solucao: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      comment: "O que foi feito, informado por quem resolveu",
+    },
   },
   {
     tableName: "manutencoes",

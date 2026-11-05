@@ -324,6 +324,35 @@ const startServer = async () => {
       ALTER TYPE "enum_usuarios_role" ADD VALUE IF NOT EXISTS 'MACHINEPAY';
     `);
 
+    // FUNCIONARIO virou OPERADOR: renomeia o valor do enum (os usuários
+    // existentes passam a ser OPERADOR sem precisar de UPDATE).
+    await sequelize.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid
+          WHERE t.typname = 'enum_usuarios_role' AND e.enumlabel = 'FUNCIONARIO'
+        ) AND NOT EXISTS (
+          SELECT 1 FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid
+          WHERE t.typname = 'enum_usuarios_role' AND e.enumlabel = 'OPERADOR'
+        ) THEN
+          ALTER TYPE "enum_usuarios_role" RENAME VALUE 'FUNCIONARIO' TO 'OPERADOR';
+        END IF;
+      END $$;
+    `);
+    for (const cargo of ["OPERADOR", "OPERADOR_CHEFE", "SUPORTE", "FINANCEIRO"]) {
+      await sequelize.query(
+        `ALTER TYPE "enum_usuarios_role" ADD VALUE IF NOT EXISTS '${cargo}';`,
+      );
+    }
+    // Caso raro: banco que já tinha os dois valores.
+    await sequelize.query(`
+      UPDATE "usuarios" SET "role" = 'OPERADOR' WHERE "role"::text = 'FUNCIONARIO';
+    `);
+    await sequelize.query(`
+      ALTER TABLE "usuarios" ALTER COLUMN "role" SET DEFAULT 'OPERADOR';
+    `);
+
     await sequelize.query(`
       ALTER TYPE "enum_movimentacoes_veiculos_tipo" ADD VALUE IF NOT EXISTS 'abastecimento';
     `);
@@ -366,6 +395,31 @@ const startServer = async () => {
         allowNull: true,
       });
       console.log("✅ Coluna movimentacaoId adicionada às manutenções!");
+    }
+    if (!colunasManutencoes.prioridade) {
+      const { DataTypes } = await import("sequelize");
+      await queryInterface.addColumn("manutencoes", "prioridade", {
+        type: DataTypes.STRING(10),
+        allowNull: false,
+        defaultValue: "MEDIA",
+      });
+      console.log("✅ Coluna prioridade adicionada às manutenções!");
+    }
+    if (!colunasManutencoes.prazo) {
+      const { DataTypes } = await import("sequelize");
+      await queryInterface.addColumn("manutencoes", "prazo", {
+        type: DataTypes.DATEONLY,
+        allowNull: true,
+      });
+      console.log("✅ Coluna prazo adicionada às manutenções!");
+    }
+    if (!colunasManutencoes.solucao) {
+      const { DataTypes } = await import("sequelize");
+      await queryInterface.addColumn("manutencoes", "solucao", {
+        type: DataTypes.TEXT,
+        allowNull: true,
+      });
+      console.log("✅ Coluna solucao adicionada às manutenções!");
     }
 
     const colunasMovimentacoes =
