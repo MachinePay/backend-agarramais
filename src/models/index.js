@@ -24,6 +24,7 @@ import ListaComprasPendente from "./ListaComprasPendente.js";
 import ListaComprasLoja from "./ListaComprasLoja.js";
 import ListaComprasProduto from "./ListaComprasProduto.js";
 import AlertaMovimentacao from "./AlertaMovimentacao.js";
+import NotificacaoMudanca from "./NotificacaoMudanca.js";
 import SuporteItem from "./SuporteItem.js";
 import SuporteMovimentacao from "./SuporteMovimentacao.js";
 import SuporteDevolucaoPendente from "./SuporteDevolucaoPendente.js";
@@ -283,6 +284,22 @@ AlertaMovimentacao.belongsTo(Usuario, {
   as: "resolvidoPor",
 });
 
+NotificacaoMudanca.belongsTo(Maquina, { foreignKey: "maquinaId", as: "maquina" });
+NotificacaoMudanca.belongsTo(Loja, { foreignKey: "lojaId", as: "loja" });
+NotificacaoMudanca.belongsTo(Usuario, { foreignKey: "usuarioId", as: "usuario" });
+NotificacaoMudanca.belongsTo(Usuario, {
+  foreignKey: "resolvidoPorId",
+  as: "resolvidoPor",
+});
+NotificacaoMudanca.belongsTo(Produto, {
+  foreignKey: "produtoAnteriorId",
+  as: "produtoAnterior",
+});
+NotificacaoMudanca.belongsTo(Produto, {
+  foreignKey: "produtoNovoId",
+  as: "produtoNovo",
+});
+
 Loja.hasMany(Sangria, {
   foreignKey: "lojaId",
   as: "sangrias",
@@ -474,6 +491,7 @@ export {
   ListaComprasLoja,
   ListaComprasProduto,
   AlertaMovimentacao,
+  NotificacaoMudanca,
   SuporteItem,
   SuporteMovimentacao,
   SuporteDevolucaoPendente,
