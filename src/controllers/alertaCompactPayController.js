@@ -68,6 +68,8 @@ const resumoMovimentacao = (mov) =>
         totalPre: mov.totalPre,
         totalPos: mov.totalPos,
         abastecidas: mov.abastecidas,
+        contadorIn: mov.contadorIn,
+        contadorOut: mov.contadorOut,
         usuario: mov.usuario?.nome || null,
       }
     : null;
