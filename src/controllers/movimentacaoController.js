@@ -7,6 +7,7 @@ import {
   EstoqueLoja,
   Loja,
   MachinePayColetaPendente,
+  AlertaMovimentacao,
 } from "../models/index.js";
 import { Op } from "sequelize";
 import {
@@ -307,6 +308,29 @@ export const registrarMovimentacao = async (req, res) => {
     // acabou de ser lançado, então não deve mais entrar nas próximas contas.
     // Lançamento retroativo não é o marco mais recente: não mexe nisso, mas
     // a movimentação seguinte passa a ter esta como anterior.
+    // A máquina agora tem movimentação: avisos "só no WhatsApp" (não
+    // registrou) pendentes dela deixam de valer. Divergências de Machine Pay
+    // (dadosAbastecimento.esperado) continuam pro admin olhar.
+    try {
+      const avisosWhatsapp = await AlertaMovimentacao.findAll({
+        where: {
+          maquinaId,
+          status: "PENDENTE",
+          createdAt: { [Op.lte]: new Date() },
+        },
+      });
+      for (const aviso of avisosWhatsapp) {
+        if (aviso.dadosAbastecimento?.esperado !== undefined) continue;
+        await aviso.update({
+          status: "RESOLVIDO",
+          resolvidoPorId: req.usuario.id,
+          resolvidoEm: new Date(),
+        });
+      }
+    } catch (erroAvisos) {
+      console.error("Erro ao resolver avisos de WhatsApp:", erroAvisos);
+    }
+
     // O checkbox "Máquina sem ficha" da movimentação vira a configuração da
     // máquina (as próximas já vêm com ele marcado). Lançamento retroativo
     // não mexe: não é o estado atual da máquina.
