@@ -8,7 +8,7 @@ import {
   Maquina,
   Usuario,
 } from "../models/index.js";
-import { ROLES_MANUTENCAO } from "../constants/roles.js";
+import { ROLES_MANUTENCAO, ehGestao } from "../constants/roles.js";
 
 const includeAdmin = [
   {
@@ -38,6 +38,15 @@ const includeAdmin = [
     attributes: ["id", "nome", "codigo"],
   },
 ];
+
+// Quem vê/resolve: admin sempre; com responsáveis marcados, só eles; sem
+// ninguém marcado, qualquer pessoa da equipe de manutenção.
+const podeVerManutencao = (manutencao, usuario) => {
+  if (ehGestao(usuario.role)) return true;
+  const responsaveis = manutencao.funcionariosPermitidos || [];
+  if (responsaveis.length === 0) return ROLES_MANUTENCAO.includes(usuario.role);
+  return responsaveis.some((r) => r.id === usuario.id);
+};
 
 const PRIORIDADES = ["BAIXA", "MEDIA", "ALTA", "URGENTE"];
 
@@ -138,14 +147,10 @@ export const criarManutencao = async (req, res) => {
         .json({ error: "Título e descrição são obrigatórios" });
     }
 
-    if (!Array.isArray(funcionariosIds) || funcionariosIds.length === 0) {
-      await transaction.rollback();
-      return res
-        .status(400)
-        .json({ error: "Selecione ao menos um funcionário" });
-    }
-
-    const idsUnicos = [...new Set(funcionariosIds.filter(Boolean))];
+    // Sem responsável = manutenção da equipe toda (ver podeVerManutencao).
+    const idsUnicos = Array.isArray(funcionariosIds)
+      ? [...new Set(funcionariosIds.filter(Boolean))]
+      : [];
 
     const custoInformado =
       custo !== undefined && custo !== null && custo !== "";
@@ -172,15 +177,17 @@ export const criarManutencao = async (req, res) => {
       });
     }
 
-    const funcionarios = await Usuario.findAll({
-      where: {
-        id: { [Op.in]: idsUnicos },
-        role: { [Op.in]: ROLES_MANUTENCAO },
-        ativo: true,
-      },
-      attributes: ["id"],
-      transaction,
-    });
+    const funcionarios = idsUnicos.length
+      ? await Usuario.findAll({
+          where: {
+            id: { [Op.in]: idsUnicos },
+            role: { [Op.in]: ROLES_MANUTENCAO },
+            ativo: true,
+          },
+          attributes: ["id"],
+          transaction,
+        })
+      : [];
 
     if (funcionarios.length !== idsUnicos.length) {
       await transaction.rollback();
@@ -211,13 +218,15 @@ export const criarManutencao = async (req, res) => {
       { transaction },
     );
 
-    await ManutencaoUsuario.bulkCreate(
-      idsUnicos.map((usuarioId) => ({
-        manutencaoId: manutencao.id,
-        usuarioId,
-      })),
-      { transaction },
-    );
+    if (idsUnicos.length) {
+      await ManutencaoUsuario.bulkCreate(
+        idsUnicos.map((usuarioId) => ({
+          manutencaoId: manutencao.id,
+          usuarioId,
+        })),
+        { transaction },
+      );
+    }
 
     if (custoInformado && custoNumerico > 0 && lojaId) {
       await lancarGastoManutencao(
@@ -248,7 +257,7 @@ export const listarManutencoes = async (req, res) => {
     let include = [...includeAdmin];
     const where = {};
 
-    if (req.usuario.role !== "ADMIN") {
+    if (!ehGestao(req.usuario.role)) {
       where.status = "PENDENTE";
       // Alertas automáticos (ex: fichas que não conferem) são só do admin.
       where.origem = "MANUAL";
@@ -268,8 +277,7 @@ export const listarManutencoes = async (req, res) => {
           as: "funcionariosPermitidos",
           attributes: ["id", "nome", "email"],
           through: { attributes: [] },
-          where: { id: req.usuario.id },
-          required: true,
+          required: false,
         },
         {
           model: Loja,
@@ -321,7 +329,11 @@ export const listarManutencoes = async (req, res) => {
       order: [["createdAt", "DESC"]],
     });
 
-    res.json(manutencoes);
+    res.json(
+      ehGestao(req.usuario.role)
+        ? manutencoes
+        : manutencoes.filter((m) => podeVerManutencao(m, req.usuario)),
+    );
   } catch (error) {
     console.error("Erro ao listar manutenções:", error);
     res.status(500).json({ error: "Erro ao listar manutenções" });
@@ -345,11 +357,7 @@ export const resolverManutencao = async (req, res) => {
       return res.status(404).json({ error: "Manutenção não encontrada" });
     }
 
-    const usuarioPermitido =
-      req.usuario.role === "ADMIN" ||
-      manutencao.funcionariosPermitidos.some(
-        (usuario) => usuario.id === req.usuario.id,
-      );
+    const usuarioPermitido = podeVerManutencao(manutencao, req.usuario);
 
     if (!usuarioPermitido) {
       return res.status(403).json({
@@ -469,20 +477,16 @@ export const editarManutencao = async (req, res) => {
 
     if (Array.isArray(funcionariosIds)) {
       const idsUnicos = [...new Set(funcionariosIds.filter(Boolean))];
-      if (idsUnicos.length === 0) {
-        await transaction.rollback();
-        return res
-          .status(400)
-          .json({ error: "Selecione ao menos um funcionário" });
-      }
-      const validos = await Usuario.count({
-        where: {
-          id: { [Op.in]: idsUnicos },
-          role: { [Op.in]: ROLES_MANUTENCAO },
-          ativo: true,
-        },
-        transaction,
-      });
+      const validos = idsUnicos.length
+        ? await Usuario.count({
+            where: {
+              id: { [Op.in]: idsUnicos },
+              role: { [Op.in]: ROLES_MANUTENCAO },
+              ativo: true,
+            },
+            transaction,
+          })
+        : 0;
       if (validos !== idsUnicos.length) {
         await transaction.rollback();
         return res.status(400).json({
@@ -493,13 +497,15 @@ export const editarManutencao = async (req, res) => {
         where: { manutencaoId: manutencao.id },
         transaction,
       });
-      await ManutencaoUsuario.bulkCreate(
-        idsUnicos.map((usuarioId) => ({
-          manutencaoId: manutencao.id,
-          usuarioId,
-        })),
-        { transaction },
-      );
+      if (idsUnicos.length) {
+        await ManutencaoUsuario.bulkCreate(
+          idsUnicos.map((usuarioId) => ({
+            manutencaoId: manutencao.id,
+            usuarioId,
+          })),
+          { transaction },
+        );
+      }
     }
 
     await transaction.commit();

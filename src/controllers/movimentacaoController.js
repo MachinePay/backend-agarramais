@@ -18,6 +18,7 @@ import {
   conferirSaidaMovimentacao,
 } from "../services/conferenciaFichasService.js";
 import { contarSaidasCompactPay } from "../services/compactPayService.js";
+import { ehGestao } from "../constants/roles.js";
 
 const movimentacoesEmAndamento = new Set();
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
@@ -158,7 +159,7 @@ export const registrarMovimentacao = async (req, res) => {
         typeof ultimaMov.contadorIn === "number" &&
         ultimaMov.contadorIn !== null &&
         contadorIn < ultimaMov.contadorIn &&
-        req.usuario.role !== "ADMIN"
+        !ehGestao(req.usuario.role)
       ) {
         return res.status(400).json({
           error: `O contador IN (${contadorIn}) não pode ser menor que o anterior. Verifique o valor digitado ou peça ajuda ao gestor.`,
@@ -171,7 +172,7 @@ export const registrarMovimentacao = async (req, res) => {
         typeof ultimaMov.contadorOut === "number" &&
         ultimaMov.contadorOut !== null &&
         contadorOut < ultimaMov.contadorOut &&
-        req.usuario.role !== "ADMIN"
+        !ehGestao(req.usuario.role)
       ) {
         return res.status(400).json({
           error: `O contador OUT (${contadorOut}) não pode ser menor que o anterior. Verifique o valor digitado ou peça ajuda ao gestor.`,
@@ -182,7 +183,7 @@ export const registrarMovimentacao = async (req, res) => {
       ultimaMov &&
       typeof ultimaMov.totalPos === "number" &&
       totalPre > ultimaMov.totalPos &&
-      req.usuario.role !== "ADMIN"
+      !ehGestao(req.usuario.role)
     ) {
       return res.status(400).json({
         error: `Não é permitido abastecer a máquina com uma quantidade maior (${totalPre}) do que o total pós da última movimentação. Confira o que você digitou.`,
@@ -675,9 +676,9 @@ export const atualizarMovimentacao = async (req, res) => {
       return res.status(404).json({ error: "Movimentação não encontrada" });
     }
 
-    // Apenas admin ou o próprio usuário que criou pode editar
+    // Gestão (admin / operador chefe) ou o próprio usuário que criou
     if (
-      req.usuario.role !== "ADMIN" &&
+      !ehGestao(req.usuario.role) &&
       movimentacao.usuarioId !== req.usuario.id
     ) {
       return res

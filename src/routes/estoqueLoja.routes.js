@@ -8,7 +8,9 @@ import {
   criarOuAtualizarProdutoEstoque,
 } from "../controllers/estoqueLojaController.js";
 import { analisarEstoqueLoja } from "../controllers/estoqueAnaliseController.js";
-import { autenticar, registrarLog } from "../middlewares/auth.js";
+// Edição manual do estoque é só do admin; entrada/saída vai por
+// /movimentacao-estoque-loja, que qualquer um da operação pode lançar.
+import { autenticar, autorizarRole, registrarLog } from "../middlewares/auth.js";
 
 const router = express.Router();
 
@@ -35,6 +37,7 @@ router.get("/:lojaId", autenticar, listarEstoqueLoja);
 router.post(
   "/:lojaId/varios",
   autenticar,
+  autorizarRole("ADMIN"),
   registrarLog("ATUALIZAR_VARIOS_ESTOQUES", "EstoqueLoja"),
   atualizarVariosEstoques
 );
@@ -42,6 +45,7 @@ router.post(
 router.post(
   "/:lojaId",
   autenticar,
+  autorizarRole("ADMIN"),
   registrarLog("CRIAR_ATUALIZAR_ESTOQUE", "EstoqueLoja"),
   criarOuAtualizarProdutoEstoque
 );
@@ -50,6 +54,7 @@ router.post(
 router.put(
   "/:lojaId/varios",
   autenticar,
+  autorizarRole("ADMIN"),
   registrarLog("ATUALIZAR_VARIOS_ESTOQUES", "EstoqueLoja"),
   atualizarVariosEstoques
 );
@@ -57,6 +62,7 @@ router.put(
 router.put(
   "/:lojaId/:produtoId",
   autenticar,
+  autorizarRole("ADMIN"),
   registrarLog("ATUALIZAR_ESTOQUE_LOJA", "EstoqueLoja"),
   atualizarEstoqueLoja
 );
@@ -65,6 +71,7 @@ router.put(
 router.delete(
   "/:lojaId/:produtoId",
   autenticar,
+  autorizarRole("ADMIN"),
   registrarLog("DELETAR_ESTOQUE_LOJA", "EstoqueLoja"),
   deletarEstoqueLoja
 );

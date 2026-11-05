@@ -12,6 +12,7 @@ import {
   autorizarRole,
   registrarLog,
 } from "../middlewares/auth.js";
+import { ROLES_GESTAO } from "../constants/roles.js";
 
 const router = express.Router();
 
@@ -25,18 +26,18 @@ router.get(
 );
 router.get(
   "/funcionarios",
-  autorizarRole("ADMIN"),
+  autorizarRole(...ROLES_GESTAO),
   listarFuncionariosManutencao,
 );
 router.post(
   "/",
-  autorizarRole("ADMIN"),
+  autorizarRole(...ROLES_GESTAO),
   registrarLog("CRIAR_MANUTENCAO", "Manutencao"),
   criarManutencao,
 );
 router.put(
   "/:id",
-  autorizarRole("ADMIN"),
+  autorizarRole(...ROLES_GESTAO),
   registrarLog("EDITAR_MANUTENCAO", "Manutencao"),
   editarManutencao,
 );
