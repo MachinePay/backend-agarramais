@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
 import { Usuario } from "../models/index.js";
 import LogAtividade from "../models/LogAtividade.js";
+import { ehGestao } from "../constants/roles.js";
 
 // US01 - Middleware de Autenticação
 export const autenticar = async (req, res, next) => {
@@ -58,8 +59,8 @@ export const requireAdmin = (req, res, next) => {
 export const verificarPermissaoLoja = (acao = "visualizar") => {
   return async (req, res, next) => {
     try {
-      // Admin tem acesso total
-      if (req.usuario.role === "ADMIN") {
+      // Admin e operador chefe têm acesso a todas as lojas
+      if (ehGestao(req.usuario.role)) {
         return next();
       }
 

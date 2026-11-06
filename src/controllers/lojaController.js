@@ -19,6 +19,7 @@ import {
   RegistroDinheiro,
   GastoVariavel,
 } from "../models/index.js";
+import { ehGestao } from "../constants/roles.js";
 
 const VALOR_FICHA_PADRAO_DEFAULT = 2.5;
 
@@ -46,8 +47,8 @@ export const listarLojas = async (req, res) => {
   try {
     let lojas;
 
-    // Se for ADMIN, vê todas as lojas
-    if (req.usuario.role === "ADMIN") {
+    // Admin e operador chefe veem todas as lojas
+    if (ehGestao(req.usuario.role)) {
       lojas = await Loja.findAll({
         include: [
           {

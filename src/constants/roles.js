@@ -10,13 +10,9 @@ export const ROLES = [
   "COMERCIAL",
 ];
 
-// Cargos que trabalham com lojas autorizadas (UsuarioLoja).
-export const ROLES_COM_LOJAS = [
-  "OPERADOR",
-  "OPERADOR_CHEFE",
-  "SUPORTE",
-  "FINANCEIRO",
-];
+// Cargos que trabalham com lojas autorizadas (UsuarioLoja). Admin e
+// operador chefe veem todas as lojas (ver ehGestao).
+export const ROLES_COM_LOJAS = ["OPERADOR", "SUPORTE", "FINANCEIRO"];
 
 // Gestão da operação: veem e gerenciam todas as manutenções, editam e
 // corrigem movimentações e podem passar por cima das travas de contador /
