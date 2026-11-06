@@ -5,6 +5,14 @@ import {
   ListaComprasProduto,
 } from "../models/index.js";
 
+const incluirLojasEProdutos = [
+  {
+    model: ListaComprasLoja,
+    as: "lojas",
+    include: [{ model: ListaComprasProduto, as: "produtos" }],
+  },
+];
+
 const listaComprasPendenteController = {
   // GET /lista-compras-pendentes
   async listar(req, res) {
@@ -170,6 +178,134 @@ const listaComprasPendenteController = {
     } catch (err) {
       console.error("Erro ao remover produto do pendente:", err);
       return res.status(500).json({ error: "Erro ao remover produto." });
+    }
+  },
+
+  // PUT /lista-compras-pendentes/:id/produto/:produtoId?lojaId=
+  // Corrige a quantidade de um produto antes de enviar pro estoque.
+  async atualizarQuantidade(req, res) {
+    try {
+      const { id, produtoId } = req.params;
+      const { lojaId } = req.query;
+      const quantidade = parseInt(req.body?.quantidade, 10);
+
+      if (!lojaId) {
+        return res
+          .status(400)
+          .json({ error: "lojaId é obrigatório na query." });
+      }
+      if (!Number.isFinite(quantidade) || quantidade <= 0) {
+        return res.status(400).json({
+          error: "Quantidade inválida. Para tirar o produto, use remover.",
+        });
+      }
+
+      const listaLoja = await ListaComprasLoja.findOne({
+        where: { listaId: id, lojaId },
+      });
+      if (!listaLoja) {
+        return res
+          .status(404)
+          .json({ error: "Loja não encontrada no pendente." });
+      }
+
+      const [atualizados] = await ListaComprasProduto.update(
+        { quantidade },
+        { where: { listaLojaId: listaLoja.id, produtoKey: produtoId } },
+      );
+      if (atualizados === 0) {
+        return res
+          .status(404)
+          .json({ error: "Produto não encontrado no pendente." });
+      }
+
+      const atualizada = await ListaComprasPendente.findByPk(id, {
+        include: incluirLojasEProdutos,
+      });
+      return res.json(atualizada);
+    } catch (err) {
+      console.error("Erro ao atualizar quantidade do pendente:", err);
+      return res.status(500).json({ error: "Erro ao atualizar quantidade." });
+    }
+  },
+
+  // POST /lista-compras-pendentes/:id/produto
+  // Adiciona um produto numa loja do pendente (cria a loja se não estiver
+  // na lista). Se o produto já estiver lá, soma a quantidade.
+  async adicionarProduto(req, res) {
+    const t = await sequelize.transaction();
+    try {
+      const { id } = req.params;
+      const {
+        lojaId,
+        lojaNome,
+        key,
+        produtoId,
+        produtoNome,
+        produtoEmoji,
+        produtoCodigo,
+      } = req.body || {};
+      const quantidade = parseInt(req.body?.quantidade, 10);
+
+      if (!lojaId || !key || !produtoNome) {
+        await t.rollback();
+        return res
+          .status(400)
+          .json({ error: "Loja e produto são obrigatórios." });
+      }
+      if (!Number.isFinite(quantidade) || quantidade <= 0) {
+        await t.rollback();
+        return res.status(400).json({ error: "Informe a quantidade." });
+      }
+
+      const lista = await ListaComprasPendente.findByPk(id, {
+        transaction: t,
+      });
+      if (!lista) {
+        await t.rollback();
+        return res.status(404).json({ error: "Lista não encontrada." });
+      }
+
+      const [listaLoja] = await ListaComprasLoja.findOrCreate({
+        where: { listaId: id, lojaId },
+        defaults: { listaId: id, lojaId, lojaNome: lojaNome || "" },
+        transaction: t,
+      });
+
+      const existente = await ListaComprasProduto.findOne({
+        where: { listaLojaId: listaLoja.id, produtoKey: key },
+        transaction: t,
+      });
+      if (existente) {
+        await existente.update(
+          { quantidade: existente.quantidade + quantidade },
+          { transaction: t },
+        );
+      } else {
+        await ListaComprasProduto.create(
+          {
+            listaLojaId: listaLoja.id,
+            produtoKey: key,
+            produtoId: produtoId ?? null,
+            produtoNome,
+            produtoEmoji: produtoEmoji || "📦",
+            produtoCodigo: produtoCodigo || "",
+            quantidade,
+          },
+          { transaction: t },
+        );
+      }
+
+      await t.commit();
+
+      const atualizada = await ListaComprasPendente.findByPk(id, {
+        include: incluirLojasEProdutos,
+      });
+      return res.status(201).json(atualizada);
+    } catch (err) {
+      await t.rollback();
+      console.error("Erro ao adicionar produto ao pendente:", err);
+      return res.status(500).json({ error: "Erro ao adicionar produto." });
     }
   },
 };

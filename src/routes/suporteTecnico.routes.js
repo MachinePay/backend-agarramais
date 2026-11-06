@@ -16,7 +16,8 @@ import {
 
 const router = express.Router();
 
-router.use(autenticar);
+// Suporte técnico (peças e produtos técnicos) é só do admin.
+router.use(autenticar, autorizarRole("ADMIN"));
 
 router.get("/itens", listarItens);
 router.post(

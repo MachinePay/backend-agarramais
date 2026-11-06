@@ -14,6 +14,8 @@ import {
 } from "../controllers/relatorioController.js";
 import { alertasAbastecimentoIncompleto } from "../controllers/movimentacaoController.js";
 import { autenticar, autorizarRole } from "../middlewares/auth.js";
+// Central de alertas: admin e operador chefe.
+import { ROLES_GESTAO } from "../constants/roles.js";
 
 const router = express.Router();
 
@@ -21,13 +23,13 @@ const router = express.Router();
 router.get(
   "/alertas-movimentacao-out",
   autenticar,
-  autorizarRole("ADMIN"),
+  autorizarRole(...ROLES_GESTAO),
   alertasMovimentacaoOut,
 );
 router.get(
   "/alertas-movimentacao-in",
   autenticar,
-  autorizarRole("ADMIN"),
+  autorizarRole(...ROLES_GESTAO),
   alertasMovimentacaoIn,
 );
 router.get(
@@ -53,7 +55,7 @@ router.get(
 router.delete(
   "/alertas-movimentacao-inconsistente/:id",
   autenticar,
-  autorizarRole("ADMIN"),
+  autorizarRole(...ROLES_GESTAO),
   ignorarAlertaMovimentacao,
 );
 router.get(
@@ -89,7 +91,7 @@ router.get(
 router.get(
   "/alertas-abastecimento-incompleto",
   autenticar,
-  autorizarRole("ADMIN"),
+  autorizarRole(...ROLES_GESTAO),
   alertasAbastecimentoIncompleto,
 );
 

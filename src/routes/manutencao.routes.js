@@ -21,7 +21,7 @@ router.use(autenticar);
 router.get("/", listarManutencoes);
 router.get(
   "/alertas-compactpay",
-  autorizarRole("ADMIN"),
+  autorizarRole(...ROLES_GESTAO),
   listarAlertasCompactPay,
 );
 router.get(
