@@ -1,7 +1,9 @@
 import express from "express";
 import {
+  analisarRepeticoesManutencao,
   criarManutencao,
   editarManutencao,
+  excluirManutencao,
   listarFuncionariosManutencao,
   listarManutencoes,
   resolverManutencao,
@@ -19,6 +21,11 @@ const router = express.Router();
 router.use(autenticar);
 
 router.get("/", listarManutencoes);
+router.get(
+  "/analise-repeticao",
+  autorizarRole(...ROLES_GESTAO),
+  analisarRepeticoesManutencao,
+);
 router.get(
   "/alertas-compactpay",
   autorizarRole(...ROLES_GESTAO),
@@ -40,6 +47,12 @@ router.put(
   autorizarRole(...ROLES_GESTAO),
   registrarLog("EDITAR_MANUTENCAO", "Manutencao"),
   editarManutencao,
+);
+router.delete(
+  "/:id",
+  autorizarRole("ADMIN"),
+  registrarLog("EXCLUIR_MANUTENCAO", "Manutencao"),
+  excluirManutencao,
 );
 router.patch(
   "/:id/resolver",

@@ -9,6 +9,7 @@ import {
   Usuario,
 } from "../models/index.js";
 import { ROLES_MANUTENCAO, ehGestao } from "../constants/roles.js";
+import { analisarRepeticoes } from "../services/analiseManutencaoService.js";
 
 const includeAdmin = [
   {
@@ -519,5 +520,43 @@ export const editarManutencao = async (req, res) => {
     await transaction.rollback();
     console.error("Erro ao editar manutenção:", error);
     res.status(500).json({ error: "Erro ao editar manutenção" });
+  }
+};
+
+// Gestão: problemas que se repetem (análise da IAgarra, ver
+// analiseManutencaoService). ?dias= define o período (padrão 30).
+export const analisarRepeticoesManutencao = async (req, res) => {
+  try {
+    res.json(await analisarRepeticoes({ dias: req.query.dias }));
+  } catch (error) {
+    console.error("Erro ao analisar manutenções repetidas:", error);
+    res.status(500).json({ error: "Erro ao analisar manutenções" });
+  }
+};
+
+// Só admin: apaga uma manutenção (ex: as de teste). O gasto variável que o
+// custo dela gerou, se houver, continua lançado na loja.
+export const excluirManutencao = async (req, res) => {
+  const transaction = await sequelize.transaction();
+  try {
+    const manutencao = await Manutencao.findByPk(req.params.id, {
+      transaction,
+    });
+    if (!manutencao) {
+      await transaction.rollback();
+      return res.status(404).json({ error: "Manutenção não encontrada" });
+    }
+    await ManutencaoUsuario.destroy({
+      where: { manutencaoId: manutencao.id },
+      transaction,
+    });
+    await manutencao.destroy({ transaction });
+    await transaction.commit();
+    res.locals.entityId = req.params.id;
+    res.status(204).send();
+  } catch (error) {
+    await transaction.rollback();
+    console.error("Erro ao excluir manutenção:", error);
+    res.status(500).json({ error: "Erro ao excluir manutenção" });
   }
 };
